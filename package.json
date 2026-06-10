@@ -1,0 +1,16 @@
+{
+  "name": "smartpr",
+  "version": "0.1.0-dev",
+  "description": "SmartPR — Puerto Rico Business Licensing Readiness Platform (Local Dev)",
+  "scripts": {
+    "dev": "./scripts/launch-local.sh",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && source .venv/bin/activate && uvicorn main:app --reload --port 8000",
+    "build": "cd frontend && npm run build",
+    "test": "echo 'Add tests here (see design docs)'"
+  },
+  "devDependencies": {
+    "docx": "^9.7.1",
+    "pptxgenjs": "^4.0.1"
+  }
+}

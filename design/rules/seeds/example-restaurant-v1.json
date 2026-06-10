@@ -1,0 +1,111 @@
+{
+  "meta": {
+    "rule_set_name": "restaurant_general_v1",
+    "version": 1,
+    "effective_from": "2025-06-01",
+    "description_en": "Core requirements for food service / restaurant businesses in Puerto Rico. Includes universal + food-triggered items.",
+    "description_es": "Requisitos principales para negocios de servicio de alimentos / restaurantes en Puerto Rico. Incluye elementos universales y activados por alimentos.",
+    "sources": ["SBP", "Hacienda SURI", "OGPe", "Departamento de Salud", "Cuerpo de Bomberos", "Patente Municipal general"]
+  },
+  "agencies": [
+    {"code": "hacienda", "name_en": "Departamento de Hacienda", "name_es": "Departamento de Hacienda"},
+    {"code": "ogpe", "name_en": "Oficina de Gerencia de Permisos (OGPe)", "name_es": "Oficina de Gerencia de Permisos (OGPe)"},
+    {"code": "salud", "name_en": "Departamento de Salud", "name_es": "Departamento de Salud"},
+    {"code": "bomberos", "name_en": "Cuerpo de Bomberos", "name_es": "Cuerpo de Bomberos"},
+    {"code": "municipal", "name_en": "Municipal Government", "name_es": "Gobierno Municipal"}
+  ],
+  "requirements": [
+    {"code": "certificate_of_incorporation", "category": "document", "name_en": "Certificate of Incorporation / LLC Formation", "name_es": "Certificado de Incorporación / Formación de LLC"},
+    {"code": "ein_letter", "category": "document", "name_en": "IRS EIN Confirmation Letter", "name_es": "Carta de Confirmación de EIN (IRS)"},
+    {"code": "merchant_registration", "category": "license", "name_en": "Merchant Registration Certificate (Registro de Comerciante)", "name_es": "Certificado de Registro de Comerciante"},
+    {"code": "permiso_unico", "category": "permit", "name_en": "Single Permit / Use Permit (Permiso Único)", "name_es": "Permiso Único / Permiso de Uso"},
+    {"code": "health_permit", "category": "permit", "name_en": "Health / Sanitary Permit (Departamento de Salud)", "name_es": "Permiso de Salud / Sanitario"},
+    {"code": "fire_certification", "category": "certification", "name_en": "Fire Safety Certification (Certificado de Bomberos)", "name_es": "Certificación de Seguridad contra Incendios"},
+    {"code": "patente_municipal", "category": "license", "name_en": "Municipal Business License (Patente Municipal)", "name_es": "Patente Municipal"},
+    {"code": "lease_or_property_docs", "category": "document", "name_en": "Lease Agreement or Property Authorization + Floor Plan / Photos", "name_es": "Contrato de Arrendamiento o Autorización de Propiedad + Plano / Fotos"},
+    {"code": "insurance_liability", "category": "document", "name_en": "General Liability Insurance Certificate", "name_es": "Certificado de Seguro de Responsabilidad General"},
+    {"code": "food_manager_cert", "category": "certification", "name_en": "Certified Food Protection Manager (CFPM)", "name_es": "Gerente de Protección de Alimentos Certificado (CFPM)"}
+  ],
+  "rules": [
+    {
+      "requirement_code": "certificate_of_incorporation",
+      "conditions": {},
+      "is_mandatory": true,
+      "priority": 5,
+      "notes": "Universal for all formal businesses"
+    },
+    {
+      "requirement_code": "ein_letter",
+      "conditions": {},
+      "is_mandatory": true,
+      "priority": 6
+    },
+    {
+      "requirement_code": "merchant_registration",
+      "conditions": {},
+      "is_mandatory": true,
+      "priority": 10,
+      "notes": "Hacienda via SURI. Required to operate as a merchant in PR."
+    },
+    {
+      "requirement_code": "permiso_unico",
+      "conditions": {},
+      "is_mandatory": true,
+      "priority": 15,
+      "notes": "OGPe / SBP. Often consolidates use, fire, sanitary elements."
+    },
+    {
+      "requirement_code": "health_permit",
+      "conditions": {
+        "has_food_service": true
+      },
+      "is_mandatory": true,
+      "priority": 20
+    },
+    {
+      "requirement_code": "fire_certification",
+      "conditions": {
+        "$or": [
+          {"has_food_service": true},
+          {"industry": "restaurant"}
+        ]
+      },
+      "is_mandatory": true,
+      "priority": 25
+    },
+    {
+      "requirement_code": "food_manager_cert",
+      "conditions": {
+        "has_food_service": true
+      },
+      "is_mandatory": true,
+      "priority": 22,
+      "notes": "CFPM required under adopted FDA Food Code for establishments handling potentially hazardous foods."
+    },
+    {
+      "requirement_code": "patente_municipal",
+      "conditions": {},
+      "is_mandatory": true,
+      "priority": 30,
+      "notes": "Per municipality. Usually requires Permiso Único first."
+    },
+    {
+      "requirement_code": "lease_or_property_docs",
+      "conditions": {
+        "is_home_based": false
+      },
+      "is_mandatory": true,
+      "priority": 12
+    },
+    {
+      "requirement_code": "insurance_liability",
+      "conditions": {},
+      "is_mandatory": false,
+      "priority": 40,
+      "notes": "Strongly recommended; often required by landlords or for certain permits."
+    }
+  ],
+  "dependencies": [
+    {"prerequisite": "permiso_unico", "dependent": "patente_municipal", "type": "hard"}
+  ]
+}
