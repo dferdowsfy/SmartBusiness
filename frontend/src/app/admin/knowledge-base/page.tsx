@@ -778,26 +778,24 @@ function humanizeReason(reason: string): string {
 interface PatternsData {
   enabled: boolean;
   error?: string;
-  totals: { submissions?: number; validations?: number; nodes?: number; relationships?: number };
+  totalSubmissions: number;
   commonBusinessTypes: { business_type: string; submissions: number }[];
   commonDocuments: { document: string; agency: string; times_required: number }[];
   validationFailures: { document_type: string; failures: number }[];
-  byMunicipality: { municipality: string; submissions: number; avg_documents: number }[];
   topScenarios: { municipality: string; business_type: string; occurrence_count: number; sample_documents: string[]; last_seen: string }[];
-  rejections: { business_type: string; issue_type: string; detail: string; occurrence_count: number }[];
 }
 
-function RankBars({ rows, labelKey, valueKey, color, suffix }: { rows: Record<string, unknown>[]; labelKey: string; valueKey: string; color: string; suffix?: string }) {
+function RankBars({ rows, labelKey, valueKey, color }: { rows: Record<string, unknown>[]; labelKey: string; valueKey: string; color: string }) {
   const max = Math.max(1, ...rows.map((r) => Number(r[valueKey]) || 0));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {rows.length === 0 && <span style={{ color: COLORS.faint, fontSize: 13 }}>No data captured yet.</span>}
       {rows.map((r, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 220, fontSize: 13, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{String(r[labelKey])}</div>
+          <div style={{ width: 240, fontSize: 13, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{String(r[labelKey] ?? "—")}</div>
           <div style={{ flex: 1, background: COLORS.panel2, borderRadius: 6, overflow: "hidden", height: 22, position: "relative" }}>
             <div style={{ width: `${(Number(r[valueKey]) / max) * 100}%`, background: color + "cc", height: "100%", borderRadius: 6 }} />
-            <span style={{ position: "absolute", right: 8, top: 2, fontSize: 12, color: COLORS.text, fontWeight: 600 }}>{Number(r[valueKey])}{suffix || ""}</span>
+            <span style={{ position: "absolute", right: 8, top: 2, fontSize: 12, color: COLORS.text, fontWeight: 600 }}>{Number(r[valueKey])}</span>
           </div>
         </div>
       ))}
@@ -818,44 +816,35 @@ function PatternsTab() {
     return () => { alive = false; };
   }, []);
 
-  if (loading) return <div style={{ color: COLORS.faint, padding: 40, textAlign: "center" }}>Loading captured patterns…</div>;
+  if (loading) return <div style={{ color: COLORS.faint, padding: 40, textAlign: "center" }}>Loading captured history…</div>;
 
   if (!data || !data.enabled) {
     return (
       <Card accent={COLORS.amber}>
         <SectionTitle color={COLORS.amber}>Capture Not Yet Connected</SectionTitle>
         <p style={{ color: COLORS.dim, fontSize: 13 }}>
-          The knowledge-graph capture layer is built and active in the app, but no database is connected yet, so nothing is being stored.
-          Set a <code style={{ color: COLORS.text }}>DATABASE_URL</code> environment variable (hosted Postgres — Supabase or Neon) and capture turns on automatically.
-          Every completed intake, document validation, and readiness outcome will then accumulate here.
+          The capture layer is active in the app, but the database is not reachable yet, so nothing is being stored.
+          Once <code style={{ color: COLORS.text }}>DATABASE_URL</code> is set (Supabase), every completed intake, document
+          validation, and readiness outcome accumulates here.
         </p>
         <p style={{ color: COLORS.faint, fontSize: 12, marginTop: 8 }}>
-          The graph is observational — it records what happened and how often, and never changes the rules engine.
+          Execution history only — the JSON rules engine stays the source of truth and is never modified.
         </p>
       </Card>
     );
   }
 
-  const t = data.totals || {};
-  const metrics = [
-    { label: "Scenarios Captured", value: t.submissions || 0, color: LAYER.businessType },
-    { label: "Documents Validated", value: t.validations || 0, color: LAYER.document },
-    { label: "Graph Nodes", value: t.nodes || 0, color: LAYER.industry },
-    { label: "Relationships", value: t.relationships || 0, color: LAYER.rule },
-  ];
-
   return (
     <div>
       <p style={{ color: COLORS.dim, fontSize: 13, marginBottom: 16 }}>
-        A growing, observational record of real scenarios processed by SmartPR. It learns common patterns over time — it never changes the rules engine.
+        A growing record of real scenarios processed by SmartPR. Observational only — it never changes the rules engine.
       </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 24 }}>
-        {metrics.map((m) => (
-          <div key={m.label} style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "16px 20px" }}>
-            <div style={{ fontSize: 28, fontWeight: 800, color: m.color }}>{m.value}</div>
-            <div style={{ fontSize: 12, color: COLORS.dim, marginTop: 2 }}>{m.label}</div>
-          </div>
-        ))}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 24 }}>
+        <div style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}`, borderRadius: 12, padding: "16px 20px" }}>
+          <div style={{ fontSize: 30, fontWeight: 800, color: LAYER.businessType }}>{data.totalSubmissions}</div>
+          <div style={{ fontSize: 12, color: COLORS.dim, marginTop: 2 }}>Total Submissions</div>
+        </div>
       </div>
 
       <Card accent={LAYER.businessType}>
@@ -864,30 +853,13 @@ function PatternsTab() {
       </Card>
 
       <Card accent={LAYER.document}>
-        <SectionTitle color={LAYER.document}>Most Commonly Required Documents</SectionTitle>
+        <SectionTitle color={LAYER.document}>Most Common Documents Required</SectionTitle>
         <RankBars rows={data.commonDocuments} labelKey="document" valueKey="times_required" color={LAYER.document} />
       </Card>
 
-      <Card accent={LAYER.municipality}>
-        <SectionTitle color={LAYER.municipality}>Requirements by Municipality (avg documents)</SectionTitle>
-        <RankBars rows={data.byMunicipality} labelKey="municipality" valueKey="avg_documents" color={LAYER.municipality} />
-      </Card>
-
       <Card accent={COLORS.amber}>
-        <SectionTitle color={COLORS.amber}>Rejection Intelligence (recurring problems)</SectionTitle>
-        {data.rejections.length === 0 ? (
-          <span style={{ color: COLORS.faint, fontSize: 13 }}>No recurring failures captured yet.</span>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.rejections.map((r, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: COLORS.panel2, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "8px 14px" }}>
-                <Pill color={COLORS.amber}>{r.occurrence_count}×</Pill>
-                <span style={{ color: COLORS.text, fontSize: 13 }}>{r.detail}</span>
-                {r.business_type && <span style={{ color: COLORS.faint, fontSize: 12 }}>· {r.business_type}</span>}
-              </div>
-            ))}
-          </div>
-        )}
+        <SectionTitle color={COLORS.amber}>Most Common Validation Failures</SectionTitle>
+        <RankBars rows={data.validationFailures} labelKey="document_type" valueKey="failures" color={COLORS.amber} />
       </Card>
 
       <Card accent={LAYER.rule}>
@@ -896,16 +868,16 @@ function PatternsTab() {
           <span style={{ color: COLORS.faint, fontSize: 13 }}>No scenarios captured yet.</span>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {data.topScenarios.map((s, i) => (
+            {data.topScenarios.map((sc, i) => (
               <div key={i} style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 14px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <Pill color={LAYER.rule}>{s.occurrence_count}×</Pill>
-                  <span style={{ color: COLORS.text, fontWeight: 600, fontSize: 13 }}>{s.business_type || "—"}</span>
-                  {s.municipality && <span style={{ color: COLORS.dim, fontSize: 12 }}>in {s.municipality}</span>}
+                  <Pill color={LAYER.rule}>{sc.occurrence_count}x</Pill>
+                  <span style={{ color: COLORS.text, fontWeight: 600, fontSize: 13 }}>{sc.business_type || "—"}</span>
+                  {sc.municipality && <span style={{ color: COLORS.dim, fontSize: 12 }}>in {sc.municipality}</span>}
                 </div>
-                {Array.isArray(s.sample_documents) && s.sample_documents.length > 0 && (
+                {Array.isArray(sc.sample_documents) && sc.sample_documents.length > 0 && (
                   <div style={{ color: COLORS.faint, fontSize: 12, marginTop: 4 }}>
-                    {s.sample_documents.slice(0, 6).join(" · ")}{s.sample_documents.length > 6 ? " …" : ""}
+                    {sc.sample_documents.slice(0, 6).join(" · ")}{sc.sample_documents.length > 6 ? " …" : ""}
                   </div>
                 )}
               </div>
