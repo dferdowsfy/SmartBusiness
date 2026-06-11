@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { runRulesEngine } from "../../rulesEngine";
+import { enrichRequirements, type EnrichedRequirement, type RequirementReason } from "../../relationshipEngine";
 import {
   KB,
   municipalities,
@@ -600,6 +601,95 @@ function DocumentsTab() {
 // ===========================================================================
 // 7. SIMULATOR (Requirements Simulator — plain English, live)
 // ===========================================================================
+// Color per explainability factor.
+const FACTOR_COLOR: Record<string, string> = {
+  business_type: LAYER.businessType,
+  question: LAYER.question,
+  location: LAYER.municipality,
+  municipality: LAYER.municipality,
+  universal: COLORS.faint,
+  agency: COLORS.accent,
+};
+
+// A single requirement with confidence + expandable weighted reasons.
+function RequirementCard({ req }: { req: EnrichedRequirement }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 14px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ color: COLORS.text, fontWeight: 600, fontSize: 13 }}>{req.document_name}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Pill color={req.mandatory ? LAYER.document : COLORS.amber}>{req.mandatory ? "Required" : "Recommended"}</Pill>
+          <Pill color={LAYER.readiness}>{req.confidence}% confidence</Pill>
+        </span>
+      </div>
+      <div style={{ color: COLORS.dim, fontSize: 12, marginTop: 2 }}>{req.agency}</div>
+      <button onClick={() => setOpen((o) => !o)} style={{ background: "none", border: "none", color: COLORS.accent, fontSize: 12, cursor: "pointer", padding: "4px 0 0", fontWeight: 600 }}>
+        {open ? "Hide reasons" : "Why is this required?"}
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 6 }}>
+          {req.reasons.map((reason: RequirementReason, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Pill color={FACTOR_COLOR[reason.factor] || COLORS.faint}>
+                {reason.factorLabel}{reason.weight > 0 ? ` · ${reason.weight}%` : ""}
+              </Pill>
+              <span style={{ color: COLORS.text, fontSize: 12 }}>{reason.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface AdvisoryData {
+  enabled: boolean;
+  similarCount: number;
+  potentiallyOverlooked: { document: string; agency: string; pct: number }[];
+  commonlyRequired: { document: string; pct: number }[];
+  commonValidationFailures: { document_type: string; failures: number }[];
+}
+
+// Advisory historical insights. Clearly marked as advisory — never mandatory.
+function AdvisoryPanel({ data }: { data: AdvisoryData | null }) {
+  if (!data || !data.enabled || data.similarCount === 0) return null;
+  return (
+    <Card accent={LAYER.industry}>
+      <SectionTitle color={LAYER.industry}>Historical Insights · Advisory</SectionTitle>
+      <p style={{ color: COLORS.faint, fontSize: 12, marginTop: -6, marginBottom: 12 }}>
+        Based on {data.similarCount} similar {data.similarCount === 1 ? "business" : "businesses"} processed before. These are suggestions only — they never change what the rules require.
+      </p>
+
+      {data.potentiallyOverlooked.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ color: COLORS.amber, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Potentially Overlooked Documents</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {data.potentiallyOverlooked.map((d) => (
+              <div key={d.document} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Pill color={COLORS.amber}>{d.pct}%</Pill>
+                <span style={{ color: COLORS.text, fontSize: 12 }}>{d.document}</span>
+                <span style={{ color: COLORS.faint, fontSize: 11 }}>seen in {d.pct}% of similar businesses</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.commonValidationFailures.length > 0 && (
+        <div>
+          <div style={{ color: COLORS.amber, fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Common Validation Failures</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {data.commonValidationFailures.map((f) => (
+              <Pill key={f.document_type} color={COLORS.amber}>{f.document_type} · {f.failures}×</Pill>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function SimulatorTab() {
   const [municipalityName, setMunicipalityName] = useState("");
   const [industryId, setIndustryId] = useState("");
@@ -620,6 +710,35 @@ function SimulatorTab() {
   }, [bt, municipalityName, answers]);
 
   const agencies = result ? [...new Set(result.requirements.map((r) => r.agency).filter(Boolean))] : [];
+
+  // Explainability layer (confidence + weighted reasons) — additive, never
+  // changes what is required.
+  const enriched: EnrichedRequirement[] = useMemo(
+    () => (result ? enrichRequirements(KB, result) : []),
+    [result]
+  );
+
+  // Advisory historical insights from captured submissions (never mandatory).
+  const [advisory, setAdvisory] = useState<AdvisoryData | null>(null);
+  useEffect(() => {
+    if (!bt) { setAdvisory(null); return; }
+    let alive = true;
+    const docs = (result?.requirements || []).map((r) => r.document_name);
+    fetch("/api/graph/similar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        municipality: municipalityName || null,
+        industry: industryId ? industryById[industryId]?.name : null,
+        business_type: bt.name,
+        currentDocuments: docs,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (alive) setAdvisory(d); })
+      .catch(() => { if (alive) setAdvisory(null); });
+    return () => { alive = false; };
+  }, [bt, municipalityName, industryId, result]);
 
   const setBoolean = (qid: string, val: boolean) => setAnswers((p) => ({ ...p, [qid]: val }));
   const setSelect = (qid: string, val: string) => setAnswers((p) => ({ ...p, [qid]: val }));
@@ -706,22 +825,16 @@ function SimulatorTab() {
 
             <Card accent={LAYER.document}>
               <SectionTitle color={LAYER.document}>Required Documents</SectionTitle>
-              {result.requirements.length === 0 ? (
+              {enriched.length === 0 ? (
                 <span style={{ color: COLORS.faint }}>No documents required yet — answer more questions.</span>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {result.requirements.map((r) => (
-                    <div key={r.document_id} style={{ background: COLORS.panel2, border: `1px solid ${COLORS.border}`, borderRadius: 8, padding: "10px 14px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ color: COLORS.text, fontWeight: 600, fontSize: 13 }}>{r.document_name}</span>
-                        <span style={{ color: COLORS.dim, fontSize: 12 }}>{r.agency}</span>
-                      </div>
-                      <div style={{ color: COLORS.faint, fontSize: 12, marginTop: 3 }}>{humanizeReason(r.reason)}</div>
-                    </div>
-                  ))}
+                  {enriched.map((r) => <RequirementCard key={r.document_id} req={r} />)}
                 </div>
               )}
             </Card>
+
+            <AdvisoryPanel data={advisory} />
 
             {agencies.length > 0 && (
               <Card accent={COLORS.accent}>
@@ -752,24 +865,6 @@ function ResultStat({ value, label, color }: { value: number; label: string; col
       <div style={{ fontSize: 11, color: COLORS.dim }}>{label}</div>
     </div>
   );
-}
-
-// Strip any leftover internal phrasing from engine reasons into plain English.
-function humanizeReason(reason: string): string {
-  if (reason.startsWith("Question:")) {
-    const q = reason.replace(/^Question:\s*/, "").split("|")[0].trim();
-    return `Because you answered "Yes" to: ${q}`;
-  }
-  if (reason.startsWith("Municipality Flag")) {
-    return reason.replace("Municipality Flag =", "Location characteristic:");
-  }
-  if (reason.startsWith("Municipality selected")) {
-    return "Required for every registered business";
-  }
-  if (reason.startsWith("Business Type =")) {
-    return "Required for this type of business";
-  }
-  return reason;
 }
 
 // ===========================================================================

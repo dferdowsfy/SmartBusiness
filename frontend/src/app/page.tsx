@@ -5,6 +5,7 @@ import { L } from './i18n';
 import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, KB } from './kb';
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
+import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { 
@@ -735,6 +736,44 @@ function computeRequirements(profile: BusinessProfile, answers: Record<string, a
   return computeRequirementsFromKB(profile as any, answers) as Requirement[];
 }
 
+// Advisory historical insights shape (from /api/graph/similar).
+interface AdvisoryInsights {
+  enabled: boolean;
+  similarCount: number;
+  potentiallyOverlooked: { document: string; agency: string; pct: number }[];
+  commonValidationFailures: { document_type: string; failures: number }[];
+}
+
+const FACTOR_COLOR: Record<string, string> = {
+  business_type: '#2563eb', question: '#d97706', location: '#0891b2',
+  municipality: '#0891b2', universal: '#6b7280', agency: '#0d9488',
+};
+
+// Expandable "Why is this required?" breakdown for a single requirement.
+// Presentation-only; never affects whether the document is required.
+function ReqReasons({ enr, language }: { enr: EnrichedRequirement; language: any }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1">
+      <button onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-[#0D9488] hover:underline">
+        {open ? L('Hide reasons', language) : L('Why is this required?', language)}
+      </button>
+      {open && (
+        <div className="mt-1.5 flex flex-col gap-1">
+          {enr.reasons.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold text-white rounded px-1.5 py-0.5" style={{ background: FACTOR_COLOR[r.factor] || '#6b7280' }}>
+                {L(r.factorLabel, language)}{r.weight > 0 ? ` · ${r.weight}%` : ''}
+              </span>
+              <span className="text-xs text-[#0A2540]/80">{r.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SmartPR() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [profile, setProfile] = useState<BusinessProfile>({
@@ -771,6 +810,42 @@ export default function SmartPR() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   // Correlation id tying every capture event for this scenario together.
   const submissionIdRef = useRef<string>('');
+  // Advisory historical recommendations (never mandatory; rules stay authoritative).
+  const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
+
+  // Explainability: confidence + weighted "why required" reasons per document.
+  // Additive only — does not change which requirements are produced.
+  const reasonsByDoc = React.useMemo(() => {
+    try {
+      const res = runRulesEngineForProfile(profile as any, discoveryAnswers);
+      const map: Record<string, EnrichedRequirement> = {};
+      for (const e of enrichRequirements(KB, res)) map[e.document_id] = e;
+      return map;
+    } catch {
+      return {} as Record<string, EnrichedRequirement>;
+    }
+  }, [profile, discoveryAnswers]);
+
+  // Fetch advisory historical insights once requirements exist (best-effort).
+  useEffect(() => {
+    if (!requirements.length || !profile.business_type) { setAdvisory(null); return; }
+    let alive = true;
+    fetch('/api/graph/similar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        municipality: profile.municipality || null,
+        industry: profile.industry || null,
+        business_type: profile.business_type,
+        location_type: profile.location_type || null,
+        currentDocuments: requirements.map(r => r.name),
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (alive) setAdvisory(d); })
+      .catch(() => { if (alive) setAdvisory(null); });
+    return () => { alive = false; };
+  }, [requirements, profile.business_type, profile.municipality]);
 
   // Single-service architecture: discovery/requirements are computed entirely
   // client-side, and LLM document analysis runs server-side in this same
@@ -2311,6 +2386,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                                 <span className="font-semibold">{L(req.agency, language)}</span> • {req.mandatory ? L('Mandatory', language) : L('Recommended', language)}
                               </div>
                               <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
+                              {req.document_id && reasonsByDoc[req.document_id] && (
+                                <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
+                              )}
                             </div>
                           </div>
                           <button 
@@ -2324,6 +2402,42 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     );
                   })}
                 </div>
+
+                {/* Advisory historical insights — suggestions only, never mandatory. */}
+                {advisory && advisory.enabled && advisory.similarCount > 0 &&
+                  (advisory.potentiallyOverlooked.length > 0 || advisory.commonValidationFailures.length > 0) && (
+                  <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+                    <div className="font-semibold text-amber-800">
+                      {L('Historical insight', language)} · {L('Advisory', language)}
+                    </div>
+                    <div className="text-xs text-amber-700/80 mt-0.5">
+                      {L('Based on', language)} {advisory.similarCount} {L('similar businesses processed before. Suggestions only — these never change what the rules require.', language)}
+                    </div>
+                    {advisory.potentiallyOverlooked.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-xs font-semibold text-amber-800 mb-1">{L('Documents similar businesses often also needed', language)}</div>
+                        <div className="flex flex-col gap-1">
+                          {advisory.potentiallyOverlooked.map(d => (
+                            <div key={d.document} className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-white bg-amber-500 rounded px-1.5 py-0.5">{d.pct}%</span>
+                              <span className="text-xs text-[#0A2540]">{d.document}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {advisory.commonValidationFailures.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-xs font-semibold text-amber-800 mb-1">{L('Documents that commonly fail validation', language)}</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {advisory.commonValidationFailures.map(f => (
+                            <span key={f.document_type} className="text-[11px] text-amber-800 bg-amber-100 border border-amber-200 rounded-full px-2 py-0.5">{f.document_type}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {requirements.length > 0 && currentStep < 7 && (
                   <button onClick={runValidation} disabled={isLoading} className="mt-6 w-full bg-[#0D9488] text-white rounded-full py-3 font-medium flex items-center justify-center gap-2">
