@@ -1,0 +1,252 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type ApprovedDoc = { name: string; type: string; status: string; req?: string };
+type Requirement = { name: string; agency: string; status: string; mandatory: boolean };
+type Finding = {
+  severity: string;
+  title: string;
+  description?: string;
+  recommended_action?: string;
+};
+type Payload = {
+  v: number;
+  name: string;
+  municipality: string;
+  industry: string;
+  businessType: string;
+  score: number | null;
+  completed: number;
+  total: number;
+  approved: ApprovedDoc[];
+  requirements: Requirement[];
+  findings: Finding[];
+  generatedAt: string;
+};
+
+function decodePayload(encoded: string): Payload | null {
+  try {
+    const b64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(escape(atob(b64)));
+    return JSON.parse(json) as Payload;
+  } catch {
+    return null;
+  }
+}
+
+const isApproved = (status: string) =>
+  status === "Complete" || status === "Verified" || status === "passed";
+
+export default function WorkspacePage() {
+  const [data, setData] = useState<Payload | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    // Data is carried in the URL hash (#d=...) so the link is self-contained.
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    const match = hash.match(/d=([^&]+)/);
+    if (match) {
+      const decoded = decodePayload(match[1]);
+      if (decoded) {
+        setData(decoded);
+        setLoaded(true);
+        return;
+      }
+    }
+    // Fallback: same-browser localStorage copy keyed by the workspace id.
+    try {
+      const id = window.location.pathname.split("/").pop() || "";
+      const raw = localStorage.getItem(`smartpr-workspace-${id}`);
+      if (raw) setData(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+    setLoaded(true);
+  }, []);
+
+  if (!loaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-[#0A2540]/60">
+        Loading workspace…
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
+        <div className="text-2xl font-semibold text-[#0A2540] mb-2">Workspace not found</div>
+        <p className="text-[#0A2540]/60 max-w-md">
+          This workspace link is missing its data. Re-open the workspace from the SmartPR
+          deliverables screen to generate a fresh shareable link.
+        </p>
+        <a href="/" className="mt-6 px-5 py-2.5 rounded-full bg-[#0A2540] text-white text-sm">
+          Go to SmartPR
+        </a>
+      </div>
+    );
+  }
+
+  const ready = data.total > 0 && data.completed === data.total;
+  const approvedDocs = data.approved.filter((d) => isApproved(d.status));
+  const otherDocs = data.approved.filter((d) => !isApproved(d.status));
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-[#0A2540]">
+      {/* Header band */}
+      <header className="bg-[#0A2540] text-white">
+        <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="font-bold tracking-wide text-lg">SMARTPR</div>
+            <div className="text-xs uppercase tracking-widest text-white/70 hidden sm:block">
+              Puerto Rico Business Licensing Readiness
+            </div>
+          </div>
+          <div className="text-xs text-white/70">Readiness Workspace</div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-6 py-8">
+        {/* Title + business meta */}
+        <h1 className="text-3xl font-semibold tracking-tight mb-1">{data.name}</h1>
+        <div className="text-sm text-[#0A2540]/70 mb-6">
+          {[data.businessType, data.industry, data.municipality].filter(Boolean).join(" · ")}
+        </div>
+
+        {/* Status banner */}
+        <div
+          className={`rounded-xl px-5 py-4 mb-8 text-white flex flex-wrap items-center gap-x-6 gap-y-1 ${
+            ready ? "bg-[#0D9488]" : "bg-amber-600"
+          }`}
+        >
+          <div className="font-semibold">{ready ? "READY FOR SUBMISSION" : "NEEDS REVIEW"}</div>
+          <div className="text-sm">Readiness {data.score ?? "N/A"}%</div>
+          <div className="text-sm">
+            {data.completed} of {data.total} required documents validated
+          </div>
+        </div>
+
+        {/* Approved deliverables */}
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+            Approved Deliverables
+          </h2>
+          {approvedDocs.length === 0 ? (
+            <p className="text-sm text-[#0A2540]/60">
+              No deliverables have been approved by the AI yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {approvedDocs.map((d, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 bg-white border border-emerald-200 rounded-xl px-4 py-3"
+                >
+                  <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-sm flex-shrink-0">
+                    ✓
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{d.name}</div>
+                    <div className="text-xs text-[#0A2540]/60">
+                      {d.type} · {d.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Other uploaded docs needing review */}
+        {otherDocs.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+              Uploaded — Needs Review
+            </h2>
+            <div className="space-y-3">
+              {otherDocs.map((d, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 bg-white border border-amber-200 rounded-xl px-4 py-3"
+                >
+                  <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs flex-shrink-0">
+                    !
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{d.name}</div>
+                    <div className="text-xs text-[#0A2540]/60">
+                      {d.type} · {d.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Full requirements checklist */}
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+            Requirements Checklist
+          </h2>
+          <div className="bg-white border rounded-xl divide-y">
+            {data.requirements.map((r, i) => {
+              const done = r.status === "passed" || r.status === "uploaded";
+              return (
+                <div key={i} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <span
+                    className={`w-4 h-4 rounded-sm flex items-center justify-center text-[10px] text-white flex-shrink-0 ${
+                      done ? "bg-emerald-500" : "bg-slate-300"
+                    }`}
+                  >
+                    {done ? "✓" : ""}
+                  </span>
+                  <span className="flex-1">{r.name}</span>
+                  <span className="text-xs text-[#0A2540]/50">{r.agency}</span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Findings */}
+        {data.findings.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+              Findings &amp; Recommendations
+            </h2>
+            <div className="space-y-3">
+              {data.findings.map((f, i) => (
+                <div key={i} className="bg-white border rounded-xl px-4 py-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[#0A2540]/50">
+                    {f.severity}
+                  </div>
+                  <div className="font-medium">{f.title}</div>
+                  {f.description && (
+                    <div className="text-sm text-[#0A2540]/70 mt-0.5">{f.description}</div>
+                  )}
+                  {f.recommended_action && (
+                    <div className="text-sm text-[#0D9488] mt-1">→ {f.recommended_action}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Disclaimer */}
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-xs text-red-900">
+          SmartPR determines READINESS for submission to Puerto Rico government agencies. It does
+          NOT approve, grant, or issue any license or permit. All approvals are made exclusively by
+          the Government of Puerto Rico and its agencies. This workspace is for preparation and
+          organization only.
+        </div>
+
+        <div className="text-[11px] text-[#0A2540]/40 mt-4">
+          Generated {new Date(data.generatedAt).toLocaleString()} · SmartPR · Powered by Grok AI
+        </div>
+      </main>
+    </div>
+  );
+}

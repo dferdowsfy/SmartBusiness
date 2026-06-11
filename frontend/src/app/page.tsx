@@ -1567,122 +1567,229 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   // --- 1. Professional PDF Readiness Report (jsPDF) ---
   const generateReadinessReportPDF = async (): Promise<Blob> => {
-    const doc = new jsPDF();
-    const navy = '#0A2540';
-    const isEs = language === 'es';
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const PAGE_W = 210;
+    const PAGE_H = 297;
+    const MARGIN = 18;
+    const CONTENT_W = PAGE_W - MARGIN * 2; // 174mm
+    const navy: [number, number, number] = [10, 37, 64];
+    const teal: [number, number, number] = [13, 148, 136];
+    const slate: [number, number, number] = [71, 85, 105];
 
-    // Header
-    doc.setFillColor(10, 37, 64); // #0A2540
-    doc.rect(0, 0, 210, 18, 'F');
+    // jsPDF's built-in fonts are WinAnsi (Latin-1) only. Unsupported glyphs
+    // (✓ ⬜ • → emoji) trigger broken per-character spacing, so map them to safe
+    // ASCII and strip anything outside Latin-1 (accents like ó/í are kept).
+    const san = (s: any): string =>
+      (s ?? '')
+        .toString()
+        .replace(/[✓✔]/g, '[x]')
+        .replace(/[⬜☐▢]/g, '[ ]')
+        .replace(/[→➔]/g, '->')
+        .replace(/[•·]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .replace(/[“”]/g, '"')
+        .replace(/[–—]/g, '-')
+        .replace(/[^\x00-\xFF]/g, '')
+        .trim();
+
+    let y = 0;
+    const lineH = 5.2;
+
+    const ensureSpace = (needed: number) => {
+      if (y + needed > PAGE_H - 16) {
+        doc.addPage();
+        y = MARGIN;
+      }
+    };
+
+    // Wrapped paragraph writer with consistent spacing + auto page breaks.
+    const writeText = (
+      text: string,
+      x: number,
+      opts: { size?: number; color?: [number, number, number]; gap?: number; bold?: boolean } = {}
+    ) => {
+      const { size = 10, color = navy, gap = 1.5, bold = false } = opts;
+      doc.setFontSize(size);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      const maxW = CONTENT_W - (x - MARGIN);
+      const lines = doc.splitTextToSize(san(text), maxW);
+      lines.forEach((ln: string) => {
+        ensureSpace(lineH);
+        doc.text(ln, x, y);
+        y += lineH;
+      });
+      y += gap;
+    };
+
+    // Section heading with a thin underline rule (government-document feel).
+    const sectionHeading = (label: string) => {
+      y += 2;
+      ensureSpace(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(navy[0], navy[1], navy[2]);
+      doc.text(san(label), MARGIN, y);
+      y += 2.5;
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.line(MARGIN, y, PAGE_W - MARGIN, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+    };
+
+    // ---- Header band ----
+    doc.setFillColor(navy[0], navy[1], navy[2]);
+    doc.rect(0, 0, PAGE_W, 20, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text('SMARTPR', 15, 12);
-    doc.setFontSize(10);
-    doc.text('PUERTO RICO BUSINESS LICENSING READINESS', 70, 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(15);
+    doc.text('SMARTPR', MARGIN, 13);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('PUERTO RICO BUSINESS LICENSING READINESS', MARGIN + 34, 13);
 
-    doc.setTextColor(navy);
+    // ---- Title ----
+    y = 32;
+    doc.setTextColor(navy[0], navy[1], navy[2]);
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
-    doc.text('SUBMISSION DELIVERABLES', 15, 30);
+    doc.text('Submission Readiness Report', MARGIN, y);
+    y += 9;
 
-    doc.setFontSize(12);
-    let y = 42;
-    doc.text(`Business Name: ${profile.name || 'N/A'}`, 15, y); y += 7;
-    doc.text(`Municipality: ${profile.municipality || 'N/A'}`, 15, y); y += 7;
-    doc.text(`Industry: ${profile.industry || 'N/A'}`, 15, y); y += 7;
-    doc.text(`Business Type: ${profile.business_type || 'N/A'}`, 15, y); y += 7;
-    doc.text(`Readiness Score: ${readinessScore ?? 'N/A'}%`, 15, y); y += 10;
-
-    // Status banner
-    const completed = requirements.filter(r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')).length;
-    const total = requirements.filter(r => r.mandatory).length;
-    const statusText = completed === total ? 'READY FOR SUBMISSION' : 'NEEDS REVIEW';
-    doc.setFillColor(13, 148, 136); // teal
-    doc.rect(15, y - 4, 180, 10, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.text(`${statusText}  •  ${completed} of ${total} Required Documents Validated`, 18, y + 3);
-    doc.setTextColor(navy);
-    y += 16;
-
-    // Validation Summary
-    doc.setFontSize(13);
-    doc.text('VALIDATION SUMMARY', 15, y); y += 7;
+    // ---- Business meta ----
+    const metaRows: [string, string][] = [
+      ['Business Name', profile.name || 'N/A'],
+      ['Municipality', profile.municipality || 'N/A'],
+      ['Industry', profile.industry || 'N/A'],
+      ['Business Type', profile.business_type || 'N/A'],
+    ];
     doc.setFontSize(10);
-    doc.text(`Readiness Score: ${readinessScore ?? 'N/A'}%`, 15, y); y += 6;
-    doc.text(`Validated Documents: ${completed} / ${total} mandatory`, 15, y); y += 6;
-
-    // Required Documents list
-    doc.text('Required Documents:', 15, y); y += 5;
-    requirements.slice(0, 8).forEach(r => {
-      const mark = (r.status === 'passed' || r.status === 'uploaded') ? '✓' : '⬜';
-      doc.text(`  ${mark} ${r.name} (${r.agency})`, 18, y); y += 5;
-    });
-    if (requirements.length > 8) {
-      doc.text(`  ... and ${requirements.length - 8} more`, 18, y); y += 5;
-    }
-    y += 4;
-
-    // Uploaded vs Missing
-    doc.setFontSize(13);
-    doc.text('UPLOADED DOCUMENTS', 15, y); y += 6;
-    doc.setFontSize(10);
-    uploadedDocs.slice(0, 6).forEach((d, i) => {
-      const analysis = d.ai_analysis;
-      const st = analysis?.overall_status || 'Unknown';
-      doc.text(`  ${i + 1}. ${d.name} — ${analysis?.document_type || 'Document'} (${st})`, 18, y); y += 5;
+    metaRows.forEach(([k, v]) => {
+      ensureSpace(lineH);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(slate[0], slate[1], slate[2]);
+      doc.text(`${san(k)}:`, MARGIN, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(navy[0], navy[1], navy[2]);
+      doc.text(san(v), MARGIN + 38, y);
+      y += lineH + 0.6;
     });
     y += 3;
 
-    const missing = requirements.filter(r => r.mandatory && r.status === 'pending');
-    doc.setFontSize(13);
-    doc.text('MISSING / PENDING DOCUMENTS', 15, y); y += 6;
-    doc.setFontSize(10);
-    if (missing.length === 0) {
-      doc.text('  None — all mandatory items validated.', 18, y); y += 5;
+    // ---- Status banner ----
+    const completed = requirements.filter(
+      r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')
+    ).length;
+    const total = requirements.filter(r => r.mandatory).length;
+    const ready = total > 0 && completed === total;
+    const statusText = ready ? 'READY FOR SUBMISSION' : 'NEEDS REVIEW';
+    const band: [number, number, number] = ready ? teal : [217, 119, 6];
+    ensureSpace(13);
+    doc.setFillColor(band[0], band[1], band[2]);
+    doc.rect(MARGIN, y, CONTENT_W, 11, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(
+      `${statusText}   |   Readiness ${readinessScore ?? 'N/A'}%   |   ${completed} of ${total} required documents validated`,
+      MARGIN + 4,
+      y + 7.2
+    );
+    y += 17;
+    doc.setFont('helvetica', 'normal');
+
+    // ---- Required documents ----
+    sectionHeading('REQUIRED DOCUMENTS');
+    requirements.slice(0, 12).forEach(r => {
+      const done = r.status === 'passed' || r.status === 'uploaded';
+      writeText(`${done ? '[x]' : '[ ]'}  ${r.name}  (${r.agency})`, MARGIN + 2, { gap: 0.6 });
+    });
+    if (requirements.length > 12) {
+      writeText(`... and ${requirements.length - 12} more`, MARGIN + 2, { gap: 0.6, color: slate });
+    }
+
+    // ---- Uploaded documents ----
+    sectionHeading('UPLOADED & VALIDATED DOCUMENTS');
+    if (uploadedDocs.length === 0) {
+      writeText('No documents uploaded yet.', MARGIN + 2, { color: slate });
     } else {
-      missing.slice(0, 5).forEach(m => {
-        doc.text(`  • ${m.name}`, 18, y); y += 5;
+      uploadedDocs.slice(0, 12).forEach((d, i) => {
+        const a = d.ai_analysis;
+        const st = a?.overall_status || 'Unknown';
+        writeText(`${i + 1}.  ${d.name} — ${a?.document_type || 'Document'}  (${st})`, MARGIN + 2, {
+          gap: 0.6,
+        });
       });
     }
-    y += 4;
 
-    // Findings
-    doc.setFontSize(13);
-    doc.text('FINDINGS & RECOMMENDATIONS', 15, y); y += 6;
-    doc.setFontSize(10);
-    findings.slice(0, 5).forEach(f => {
-      doc.text(`[${f.severity.toUpperCase()}] ${f.title}`, 15, y); y += 5;
-      doc.text(`  ${f.description}`, 18, y); y += 5;
-      doc.text(`  → ${f.recommended_action}`, 18, y); y += 6;
-    });
+    // ---- Missing / pending ----
+    const missing = requirements.filter(r => r.mandatory && r.status === 'pending');
+    sectionHeading('MISSING / PENDING DOCUMENTS');
+    if (missing.length === 0) {
+      writeText('None — all mandatory items validated.', MARGIN + 2, { color: teal });
+    } else {
+      missing.forEach(m => writeText(`-  ${m.name}`, MARGIN + 2, { gap: 0.6 }));
+    }
 
-    // Recommended Next Steps
+    // ---- Findings ----
+    sectionHeading('FINDINGS & RECOMMENDATIONS');
+    if (findings.length === 0) {
+      writeText('No findings recorded.', MARGIN + 2, { color: slate });
+    } else {
+      findings.slice(0, 8).forEach(f => {
+        writeText(`[${f.severity.toUpperCase()}]  ${f.title}`, MARGIN + 2, { gap: 0.4, bold: true });
+        if (f.description) writeText(f.description, MARGIN + 6, { gap: 0.4, color: slate });
+        if (f.recommended_action)
+          writeText(`-> ${f.recommended_action}`, MARGIN + 6, { gap: 1.2, color: slate });
+      });
+    }
+
+    // ---- Next steps ----
+    sectionHeading('RECOMMENDED NEXT STEPS');
+    [
+      '1. Review any items marked Needs Review or Warning.',
+      '2. Address expiring documents or mismatches before submission.',
+      '3. Share the Submission Package ZIP with your attorney, accountant, or permit expediter.',
+      '4. Use the SmartPR Workspace to track updates and re-validate as needed.',
+    ].forEach(s => writeText(s, MARGIN + 2, { gap: 0.6 }));
+
+    // ---- Disclaimer ----
     y += 3;
-    doc.setFontSize(13);
-    doc.text('RECOMMENDED NEXT STEPS', 15, y); y += 6;
-    doc.setFontSize(10);
-    doc.text('1. Review any items marked Needs Review or Warning.', 15, y); y += 5;
-    doc.text('2. Address expiring documents or mismatches before submission.', 15, y); y += 5;
-    doc.text('3. Share the Submission Package ZIP with your attorney, accountant, or permit expediter.', 15, y); y += 5;
-    doc.text('4. Use the SmartPR Workspace to track updates and re-validate as needed.', 15, y); y += 8;
-
-    // Strong disclaimer
-    doc.setFillColor(254, 226, 226); // light red
-    doc.rect(15, y, 180, 28, 'F');
+    ensureSpace(30);
+    doc.setFillColor(254, 226, 226);
+    doc.setDrawColor(252, 165, 165);
+    doc.setLineWidth(0.3);
+    doc.rect(MARGIN, y, CONTENT_W, 26, 'FD');
+    const discStartY = y;
+    y += 6;
     doc.setTextColor(153, 27, 30);
-    doc.setFontSize(9);
-    const disc1 = 'SmartPR determines READINESS for submission to Puerto Rico government agencies.';
-    const disc2 = 'It does NOT approve, grant, or issue any license or permit. All approvals are made';
-    const disc3 = 'exclusively by the Government of Puerto Rico and its agencies. This package is for';
-    const disc4 = 'preparation and organization only. Platform scope: Prepare • Validate • Organize • Package.';
-    doc.text(disc1, 17, y + 6);
-    doc.text(disc2, 17, y + 10);
-    doc.text(disc3, 17, y + 14);
-    doc.text(disc4, 17, y + 18);
-    doc.setTextColor(navy);
+    doc.setFontSize(8.5);
+    const disclaimer =
+      'SmartPR determines READINESS for submission to Puerto Rico government agencies. It does NOT approve, grant, or issue any license or permit. All approvals are made exclusively by the Government of Puerto Rico and its agencies. This package is for preparation and organization only. Platform scope: Prepare, Validate, Organize, Package.';
+    doc.splitTextToSize(san(disclaimer), CONTENT_W - 8).forEach((ln: string) => {
+      doc.text(ln, MARGIN + 4, y);
+      y += 4.2;
+    });
+    y = discStartY + 30;
 
-    // Footer
-    doc.setFontSize(8);
-    doc.text(`Generated: ${new Date().toLocaleString()}  |  SmartPR  |  Powered by Grok AI`, 15, 285);
+    // ---- Footer on every page ----
+    const pages = doc.getNumberOfPages();
+    for (let p = 1; p <= pages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.3);
+      doc.line(MARGIN, PAGE_H - 12, PAGE_W - MARGIN, PAGE_H - 12);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(slate[0], slate[1], slate[2]);
+      doc.text(
+        san(`Generated: ${new Date().toLocaleString()}  |  SmartPR  |  Powered by Grok AI`),
+        MARGIN,
+        PAGE_H - 8
+      );
+      doc.text(`Page ${p} of ${pages}`, PAGE_W - MARGIN, PAGE_H - 8, { align: 'right' });
+    }
 
     return doc.output('blob');
   };
@@ -1743,40 +1850,74 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   // --- 3. Open / create SmartPR Workspace (persistent link + localStorage snapshot) ---
+  // Build a compact, self-contained workspace payload. Because the app runs as
+  // a single service with no database, the approved-deliverables snapshot is
+  // encoded into the link itself (URL hash) so it is a real, shareable page.
+  const buildWorkspacePayload = () => {
+    const completedM = requirements.filter(
+      r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')
+    ).length;
+    const totalM = requirements.filter(r => r.mandatory).length;
+    return {
+      v: 1,
+      name: profile.name || 'Business',
+      municipality: profile.municipality || '',
+      industry: profile.industry || '',
+      businessType: profile.business_type || '',
+      score: readinessScore,
+      completed: completedM,
+      total: totalM,
+      // Only the deliverables the LLM actually approved/processed.
+      approved: uploadedDocs.map(d => ({
+        name: d.originalName || d.name,
+        type: d.ai_analysis?.document_type || 'Document',
+        status: d.ai_analysis?.overall_status || 'Uploaded',
+        req: d.requirement_code,
+      })),
+      requirements: requirements.map(r => ({
+        name: r.name,
+        agency: r.agency,
+        status: r.status,
+        mandatory: r.mandatory,
+      })),
+      findings: findings.slice(0, 10),
+      generatedAt: new Date().toISOString(),
+    };
+  };
+
+  // Unicode-safe base64 encoder for the URL hash.
+  const encodePayload = (obj: any): string => {
+    const json = JSON.stringify(obj);
+    const b64 = btoa(unescape(encodeURIComponent(json)));
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
+
   const openSmartPRWorkspace = () => {
-    const wsId = businessId || `ws-${Date.now().toString(36)}`;
+    const wsId = (businessId || `ws-${Date.now().toString(36)}`).replace(/[^a-zA-Z0-9_-]/g, '');
     setActiveWorkspaceId(wsId);
 
-    // Persist snapshot (metadata only — real file blobs stay in-memory for this session)
-    const snapshot = {
-      profile,
-      discoveryAnswers,
-      requirements,
-      uploadedDocs: uploadedDocs.map(d => ({
-        ...d,
-        fileBlob: undefined, // do not persist large blobs to LS
-        fileStored: !!d.fileBlob,
-        originalName: d.originalName || d.name,
-      })),
-      findings,
-      readinessScore,
-      language,
-      timestamp: new Date().toISOString(),
-      version: '1.0'
-    };
+    const payload = buildWorkspacePayload();
+
+    // Keep a local copy for this browser (re-validation / continuity).
     try {
-      localStorage.setItem(`smartpr-workspace-${wsId}`, JSON.stringify(snapshot));
-    } catch (e) {
-      console.warn('Could not persist full workspace to localStorage (storage quota).');
+      localStorage.setItem(`smartpr-workspace-${wsId}`, JSON.stringify(payload));
+    } catch {
+      console.warn('Could not persist workspace to localStorage (storage quota).');
     }
 
-    const wsUrl = `/workspace/${wsId}`;
-    // Open the "workspace" as a modal with link + summary + ability to continue
-    setShowWorkspaceModal(true);
-
-    // Also copy link for convenience
+    // The data travels in the hash fragment, so the link renders the approved
+    // deliverables anywhere it is opened — no backend lookup required.
+    const encoded = encodePayload(payload);
+    const wsUrl = `/workspace/${wsId}#d=${encoded}`;
     const fullUrl = (typeof window !== 'undefined' ? window.location.origin : '') + wsUrl;
+
     navigator.clipboard?.writeText(fullUrl).catch(() => {});
+
+    // Open the real, unique workspace page in a new tab.
+    if (typeof window !== 'undefined') {
+      window.open(wsUrl, '_blank', 'noopener,noreferrer');
+    }
+    setShowWorkspaceModal(true);
   };
 
   const completedMandatory = requirements.filter(r => r.mandatory && (r.status === 'uploaded' || r.status === 'passed')).length;
@@ -2343,23 +2484,25 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
 
             <div className="text-sm text-[#0A2540]/80 mb-4">
-              Your business readiness data has been saved for this workspace (profile, questionnaire answers, requirements, validation results, and document metadata).
-              Real uploaded files remain available during this browser session for ZIP downloads.
+              Your readiness workspace opened in a new tab. This is a shareable, self-contained link
+              showing your AI-approved deliverables, requirements checklist, and findings. The link
+              has also been copied to your clipboard.
             </div>
 
             <div className="text-xs text-[#0A2540]/60 mb-6">
-              This workspace persists your readiness profile, responses, validations, and document history for ongoing management and re-validation.
+              Share it with your attorney, accountant, or permit expediter — it renders anywhere
+              without a login.
             </div>
 
             <div className="flex gap-3">
               <button
                 onClick={() => {
-                  setShowWorkspaceModal(false);
-                  setCurrentStep(3); // back to checklist for more uploads / re-validation
+                  const url = `/workspace/${activeWorkspaceId}#d=${encodePayload(buildWorkspacePayload())}`;
+                  if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
                 }}
                 className="flex-1 border border-[#0A2540] text-[#0A2540] rounded-xl py-2.5 text-sm hover:bg-[#0A2540] hover:text-white"
               >
-                Continue Working (Checklist)
+                Open Workspace Again
               </button>
               <button
                 onClick={() => setShowWorkspaceModal(false)}
