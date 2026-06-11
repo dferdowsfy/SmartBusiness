@@ -115,6 +115,20 @@ export const ES: Record<string, string> = {
   "Tattoo / Body Art Health Authorization":
     "Autorización Sanitaria de Tatuajes / Arte Corporal",
   "Patente Municipal": "Patente Municipal",
+  "Municipal Registration": "Registro Municipal",
+  "Municipal Tax Compliance": "Cumplimiento de Impuestos Municipales",
+
+  // ---- Municipality notices ----
+  "Municipal Notices": "Avisos Municipales",
+  "MUNICIPAL NOTICES": "AVISOS MUNICIPALES",
+  "Additional coastal or environmental review may apply.":
+    "Puede aplicar una revisión costera o ambiental adicional.",
+  "Tourism registration and additional tourism-related requirements may apply.":
+    "Pueden aplicar el registro de turismo y requisitos adicionales relacionados con el turismo.",
+  "Historic district restrictions may apply depending on business location.":
+    "Pueden aplicar restricciones de distrito histórico según la ubicación del negocio.",
+  "Additional transportation and logistics requirements may apply for island municipalities.":
+    "Pueden aplicar requisitos adicionales de transporte y logística para municipios isleños.",
 
   // ---- Agencies ----
   "Department of State": "Departamento de Estado",
@@ -229,6 +243,7 @@ export const ES: Record<string, string> = {
   "Grok analyzed": "Grok analizó",
   "but couldn't fully verify it.": "pero no pudo verificarlo por completo.",
   "verified via Grok AI": "verificado con Grok AI",
+  "verified": "verificado",
   "has issues": "tiene problemas",
   "processed": "procesado",
   "Identified as": "Identificado como",

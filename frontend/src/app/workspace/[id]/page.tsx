@@ -24,6 +24,7 @@ type Payload = {
   approved: ApprovedDoc[];
   requirements: Requirement[];
   findings: Finding[];
+  notices?: string[];
   generatedAt: string;
 };
 
@@ -184,6 +185,20 @@ export default function WorkspacePage() {
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Municipal notices */}
+        {data.notices && data.notices.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+              {t("Municipal Notices")}
+            </h2>
+            <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-sm text-sky-900 space-y-1">
+              {data.notices.map((n, i) => (
+                <div key={i}>• {t(n)}</div>
               ))}
             </div>
           </section>

@@ -657,6 +657,70 @@ const MUNICIPALITIES = [
   "Villalba", "Yabucoa", "Yauco"
 ];
 
+// ====================================================================
+// MUNICIPALITY RULES ENGINE
+// Base municipal rules apply to all 78 municipalities; municipality flags
+// (coastal/tourism/historic/metro/island) drive conditional notices that
+// combine with industry, business-type, and trigger rules. One engine —
+// not 78 — per the design.
+// ====================================================================
+const COASTAL_MUNICIPALITIES = new Set([
+  'Aguada', 'Aguadilla', 'Añasco', 'Arecibo', 'Arroyo', 'Cabo Rojo', 'Camuy', 'Carolina',
+  'Ceiba', 'Culebra', 'Dorado', 'Fajardo', 'Guánica', 'Guayama', 'Guayanilla', 'Hatillo',
+  'Humacao', 'Isabela', 'Loíza', 'Luquillo', 'Manatí', 'Maunabo', 'Mayagüez', 'Naguabo',
+  'Patillas', 'Peñuelas', 'Quebradillas', 'Rincón', 'Río Grande', 'Salinas', 'Toa Baja',
+  'Vega Alta', 'Vega Baja', 'Vieques', 'Yabucoa',
+]);
+const TOURISM_MUNICIPALITIES = new Set([
+  'San Juan', 'Rincón', 'Vieques', 'Culebra', 'Dorado', 'Fajardo', 'Río Grande', 'Luquillo',
+  'Cabo Rojo', 'Isabela', 'Aguadilla', 'Mayagüez', 'Humacao',
+]);
+const HISTORIC_MUNICIPALITIES = new Set(['San Juan', 'Ponce', 'San Germán', 'Mayagüez']);
+const METRO_MUNICIPALITIES = new Set(['San Juan', 'Bayamón', 'Carolina', 'Guaynabo', 'Caguas', 'Ponce']);
+const ISLAND_MUNICIPALITIES = new Set(['Vieques', 'Culebra']);
+
+function municipalityFlags(name: string) {
+  return {
+    coastal: COASTAL_MUNICIPALITIES.has(name),
+    tourism: TOURISM_MUNICIPALITIES.has(name),
+    historic: HISTORIC_MUNICIPALITIES.has(name),
+    metro: METRO_MUNICIPALITIES.has(name),
+    island: ISLAND_MUNICIPALITIES.has(name),
+  };
+}
+
+// Conditional municipality notices (English canonical; translated at display).
+function computeMunicipalityNotices(profile: BusinessProfile): string[] {
+  const name = profile.municipality;
+  if (!name) return [];
+  const flags = municipalityFlags(name);
+  const bt = (profile.business_type || '').toLowerCase();
+  const isShortTerm = profile.short_term_rental === true;
+  const hasPhysical = profile.location_type !== 'Online Only';
+  const notices: string[] = [];
+
+  const coastalTrigger = /marina|water sport|tourism|short-term|short term|rental|excursion/.test(bt) || isShortTerm;
+  if (flags.coastal && coastalTrigger) {
+    notices.push('Additional coastal or environmental review may apply.');
+  }
+
+  const tourismTrigger = /hotel|airbnb|guest house|short-term|short term|rental|resort|tour operator/.test(bt) ||
+    isShortTerm || profile.industry === 'Accommodation & Tourism';
+  if (flags.tourism && tourismTrigger) {
+    notices.push('Tourism registration and additional tourism-related requirements may apply.');
+  }
+
+  if (flags.historic && hasPhysical) {
+    notices.push('Historic district restrictions may apply depending on business location.');
+  }
+
+  if (flags.island) {
+    notices.push('Additional transportation and logistics requirements may apply for island municipalities.');
+  }
+
+  return notices;
+}
+
 // Core compute logic - matches the approved rules engine design + seed data
 // Updated to use the new Step 1 fields (location_type, food_prepared_or_sold, alcohol_sold, professional_licenses_required, etc.)
 function computeRequirements(profile: BusinessProfile, answers: Record<string, any>): Requirement[] {
@@ -691,6 +755,14 @@ function computeRequirements(profile: BusinessProfile, answers: Record<string, a
     { code: 'permiso_unico', name: 'Single Use Permit / Permiso Único', mandatory: true, status: 'pending', agency: 'OGPe / SBP', reason: 'Consolidates use permit, zoning, and often fire/sanitary approvals via the Single Business Portal.' },
     { code: 'patente_municipal', name: `Patente Municipal (${profile.municipality})`, mandatory: true, status: 'pending', agency: 'Municipal Government', reason: `Municipal business tax/license required in the ${profile.municipality} municipality. Usually requires Permiso Único first.` }
   );
+
+  // ---- Base municipality rules (apply to all 78 municipalities) ----
+  if (profile.municipality) {
+    reqs.push(
+      { code: 'municipal_registration', name: 'Municipal Registration', mandatory: true, status: 'pending', agency: 'Municipal Government', reason: `Registration with the ${profile.municipality} municipal government is required to operate within the municipality.` },
+      { code: 'municipal_tax_compliance', name: 'Municipal Tax Compliance', mandatory: true, status: 'pending', agency: 'Municipal Government', reason: `Proof of municipal tax compliance is required; rates vary by municipality (${profile.municipality}).` }
+    );
+  }
 
   // Food / Restaurant triggered (Departamento de Salud + Bomberos)
   if (hasFood) {
@@ -908,10 +980,13 @@ export default function SmartPR() {
     return L(req.name, language);
   };
   const trReqReason = (req: { code: string; reason: string }) => {
-    if (req.code === 'patente_municipal') {
-      return language === 'es'
-        ? `Impuesto/licencia municipal requerido en el municipio de ${profile.municipality}. Usualmente requiere primero el Permiso Único.`
-        : req.reason;
+    if (language === 'es') {
+      if (req.code === 'patente_municipal')
+        return `Impuesto/licencia municipal requerido en el municipio de ${profile.municipality}. Usualmente requiere primero el Permiso Único.`;
+      if (req.code === 'municipal_registration')
+        return `El registro con el gobierno municipal de ${profile.municipality} es requerido para operar dentro del municipio.`;
+      if (req.code === 'municipal_tax_compliance')
+        return `Se requiere prueba de cumplimiento de impuestos municipales; las tasas varían por municipio (${profile.municipality}).`;
     }
     return L(req.reason, language);
   };
@@ -1449,7 +1524,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     if (status === 'Complete' || status === 'Verified') {
       sev = 'informational';
-      title = `${analysis.document_type} — ${L('verified via Grok AI', language)}`;
+      title = `${analysis.document_type} — ${L('verified', language)}`;
       action = L('Readiness score updated.', language);
     } else if (status === 'Needs Review' || status === 'Missing Information') {
       sev = 'warning';
@@ -1751,6 +1826,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       missing.forEach(m => writeText(`-  ${trReqName(m)}`, MARGIN + 2, { gap: 0.6 }));
     }
 
+    // ---- Municipal notices ----
+    const munNotices = computeMunicipalityNotices(profile);
+    if (munNotices.length > 0) {
+      sectionHeading(tr('MUNICIPAL NOTICES'));
+      munNotices.forEach(n => writeText(`-  ${tr(n)}`, MARGIN + 2, { gap: 0.6 }));
+    }
+
     // ---- Findings ----
     sectionHeading(tr('FINDINGS & RECOMMENDATIONS'));
     if (findings.length === 0) {
@@ -1902,6 +1984,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         mandatory: r.mandatory,
       })),
       findings: findings.slice(0, 10),
+      notices: computeMunicipalityNotices(profile),
       generatedAt: new Date().toISOString(),
     };
   };
@@ -1941,6 +2024,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setShowWorkspaceModal(true);
   };
 
+  const municipalNotices = computeMunicipalityNotices(profile);
   const completedMandatory = requirements.filter(r => r.mandatory && (r.status === 'uploaded' || r.status === 'passed')).length;
   const totalMandatory = requirements.filter(r => r.mandatory).length;
   const checklistProgress = totalMandatory > 0 ? Math.round((completedMandatory / totalMandatory) * 100) : 0;
@@ -2224,6 +2308,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="font-medium text-[#0A2540]">{L('Required Items for this business', language)} ({completedMandatory}/{totalMandatory} {L('mandatory complete', language)})</div>
                   <div className="text-sm text-[#0D9488]">{checklistProgress}%</div>
                 </div>
+
+                {municipalNotices.length > 0 && (
+                  <div className="mb-4 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 space-y-1">
+                    <div className="font-semibold">{L('Municipal Notices', language)} — {profile.municipality}</div>
+                    {municipalNotices.map((n, i) => (
+                      <div key={i}>• {L(n, language)}</div>
+                    ))}
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   {requirements.length === 0 && currentStep === 3 && (
