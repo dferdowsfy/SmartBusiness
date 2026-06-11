@@ -852,6 +852,16 @@ export default function SmartPR() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingReqCode, setPendingReqCode] = useState<string | null>(null);
 
+  // Transient upload notification (toast) shown after a document is analyzed by the LLM.
+  const [uploadNotice, setUploadNotice] = useState<
+    { kind: 'success' | 'warning' | 'error'; title: string; detail?: string } | null
+  >(null);
+  useEffect(() => {
+    if (!uploadNotice) return;
+    const id = setTimeout(() => setUploadNotice(null), 6000);
+    return () => clearTimeout(id);
+  }, [uploadNotice]);
+
   const t = (key: string): string => {
     const dict: Record<string, { en: string; es: string }> = {
       title: { en: "Tell Us About Your Business", es: "Cuéntanos sobre tu Negocio" },
@@ -1223,6 +1233,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const fileBlob = new Blob([arrayBuffer], { type: file.type || 'application/pdf' });
 
     let analysis: any = null;
+    let llmRan = false;        // true only when the server-side Grok call returned a result
+    let llmError: string | null = null;
     let extracted: any = {
       business_name: profile.name || null,
       entity_name: profile.name || null,
@@ -1251,13 +1263,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       if (res.ok) {
         const data = await res.json();
         analysis = data.analysis;
+        llmRan = true;
         if (analysis?.extracted) {
           extracted = { ...extracted, ...analysis.extracted };
         }
       } else {
-        console.warn('LLM analyze returned non-ok status', res.status);
+        const err = await res.json().catch(() => ({}));
+        llmError = err?.error || `Analysis service returned ${res.status}`;
+        console.warn('LLM analyze returned non-ok status', res.status, err);
       }
     } catch (e) {
+      llmError = 'Could not reach the document analysis service';
       console.warn('LLM document analysis failed, falling back to filename-based classification', e);
     }
 
@@ -1385,6 +1401,30 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     newFindings.push({ severity: sev, title, description: desc, recommended_action: action });
     setFindings(newFindings);
+
+    // Visible toast so the user immediately sees the LLM result for this upload.
+    const reqLabel = requirements.find(r => r.code === reqCode)?.name || analysis.document_type || filename;
+    if (!llmRan) {
+      setUploadNotice({
+        kind: 'error',
+        title: `Could not analyze with AI`,
+        detail: llmError
+          ? `${llmError}. Add OPENROUTER_API_KEY in your environment to enable Grok analysis.`
+          : 'AI analysis unavailable. Using basic classification.',
+      });
+    } else if (newStatus === 'passed') {
+      setUploadNotice({
+        kind: 'success',
+        title: `✓ ${reqLabel} passed`,
+        detail: `Grok verified ${analysis.document_type}. Readiness score updated.`,
+      });
+    } else {
+      setUploadNotice({
+        kind: 'warning',
+        title: `${reqLabel} needs review`,
+        detail: analysis.notes || `Grok analyzed ${analysis.document_type} but couldn't fully verify it.`,
+      });
+    }
 
     setIsLoading(false);
   };
@@ -1700,6 +1740,45 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
+      {/* Upload result toast (LLM document analysis feedback) */}
+      {uploadNotice && (
+        <div className="fixed top-4 right-4 z-50 max-w-sm">
+          <div
+            className={`rounded-xl shadow-lg border p-4 flex items-start gap-3 bg-white ${
+              uploadNotice.kind === 'success'
+                ? 'border-emerald-300'
+                : uploadNotice.kind === 'warning'
+                ? 'border-amber-300'
+                : 'border-red-300'
+            }`}
+            role="status"
+          >
+            <div
+              className={`mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                uploadNotice.kind === 'success'
+                  ? 'bg-emerald-500'
+                  : uploadNotice.kind === 'warning'
+                  ? 'bg-amber-500'
+                  : 'bg-red-500'
+              }`}
+            />
+            <div className="min-w-0">
+              <div className="font-semibold text-sm text-[#0A2540]">{uploadNotice.title}</div>
+              {uploadNotice.detail && (
+                <div className="text-xs text-[#0A2540]/70 mt-0.5">{uploadNotice.detail}</div>
+              )}
+            </div>
+            <button
+              onClick={() => setUploadNotice(null)}
+              className="ml-auto text-[#0A2540]/40 hover:text-[#0A2540] text-sm leading-none"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b bg-white">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
