@@ -835,22 +835,10 @@ export default function SmartPR() {
   const [isLoading, setIsLoading] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
 
-  // Backend is optional for production frontend-only deploys.
-  // Set NEXT_PUBLIC_BACKEND_URL=https://your-backend.example.com to enable real Grok LLM document analysis on uploads.
-  // Strip any trailing slash so we never build "https://host//api/v1/...".
-  const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
-
-  // Fetch with a hard timeout so an unreachable/hanging backend can never
-  // freeze the UI (e.g. leave Step 1's "Next" button stuck in a loading state).
-  const fetchWithTimeout = async (input: RequestInfo, init: RequestInit = {}, timeoutMs = 8000) => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      return await fetch(input, { ...init, signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
-  };
+  // Single-service architecture: discovery/requirements are computed entirely
+  // client-side, and LLM document analysis runs server-side in this same
+  // Next.js app at /api/analyze-document. No separate backend service or
+  // NEXT_PUBLIC_BACKEND_URL is required.
   const [language, setLanguage] = useState<'en' | 'es'>('en'); // Bilingual toggle
 
   const [questionList, setQuestionList] = useState<{id: string; text: string}[]>([]);
@@ -1020,7 +1008,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   setCurrentStep(3); // Go straight to the checklist so user sees the exact requirements
 };
 
-  // Step 1: Save profile + discovery (calls backend optionally)
+  // Step 1: Save profile + compute discovery requirements (client-side)
   const handleStartDiscovery = async () => {
     setIsLoading(true);
     const answers = { 
@@ -1047,68 +1035,22 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       number_of_employees: profile.number_of_employees,
     };
 
-    try {
-      let bid = businessId;
-
-      if (BACKEND_URL) {
-        // Use real backend when configured (full LLM document features)
-        const res = await fetchWithTimeout(`${BACKEND_URL}/api/v1/businesses`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profile),
-        });
-        const data = await res.json();
-        bid = data.id;
-        setBusinessId(bid);
-
-        await fetchWithTimeout(`${BACKEND_URL}/api/v1/businesses/${bid}/discovery`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answers, completed: true }),
-        });
-      } else {
-        // Pure client-side mode (works in production without a backend server)
-        bid = 'local-' + Date.now();
-        setBusinessId(bid);
-      }
-
-      setDiscoveryAnswers(answers);
-      const computed = computeRequirements(profile, answers);
-      setRequirements(computed);
-      setCurrentStep(3);
-    } catch (e) {
-      // Safe fallback so Step 1 never gets stuck
-      const bid = 'local-' + Date.now();
-      setBusinessId(bid);
-      setDiscoveryAnswers(answers);
-      const computed = computeRequirements(profile, answers);
-      setRequirements(computed);
-      setCurrentStep(3);
-    } finally {
-      setIsLoading(false);
-    }
+    // Discovery + requirements are computed entirely client-side.
+    setBusinessId('local-' + Date.now());
+    setDiscoveryAnswers(answers);
+    const computed = computeRequirements(profile, answers);
+    setRequirements(computed);
+    setCurrentStep(3);
+    setIsLoading(false);
   };
 
-  // Load / recompute requirements (now powered by the design-accurate compute function)
+  // Load / recompute requirements (powered by the design-accurate compute function)
   const loadRequirements = async () => {
     setIsLoading(true);
-    try {
-      // Prefer backend when available (for future real requirements endpoint)
-      if (BACKEND_URL && businessId && !businessId.startsWith('local-')) {
-        try {
-          await fetchWithTimeout(`${BACKEND_URL}/api/v1/businesses/${businessId}/requirements`);
-        } catch {}
-      }
-      const computed = computeRequirements(profile, discoveryAnswers);
-      setRequirements(computed);
-      setCurrentStep(3);
-    } catch (e) {
-      const computed = computeRequirements(profile, discoveryAnswers);
-      setRequirements(computed);
-      setCurrentStep(3);
-    } finally {
-      setIsLoading(false);
-    }
+    const computed = computeRequirements(profile, discoveryAnswers);
+    setRequirements(computed);
+    setCurrentStep(3);
+    setIsLoading(false);
   };
 
   // When business_type changes, also ensure location is valid (already handled in onChange)
@@ -1286,60 +1228,37 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       entity_name: profile.name || null,
     };
 
-    // Use real backend + Grok LLM only when BACKEND_URL is configured.
-    // In production without a backend, we fall back to client-side filename + text classification (still produces good requirements + score).
-    if (BACKEND_URL) {
-      let bid = businessId;
-      // Auto-create backend business record if needed
-      if (!bid || bid.startsWith('local-')) {
-        try {
-          const createRes = await fetch(`${BACKEND_URL}/api/v1/businesses`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              name: profile.name || 'Business',
-              municipality: profile.municipality || 'San Juan',
-              industry: profile.industry || 'Other',
-              business_structure: profile.business_structure || 'llc',
-              is_home_based: /home/i.test(profile.location_type || ''),
-              employee_count: profile.number_of_employees || 0,
-              physical_address: null,
-            }),
-          });
-          if (createRes.ok) {
-            const data = await createRes.json();
-            bid = data.id;
-            setBusinessId(bid);
-          }
-        } catch (e) {
-          console.warn('Auto business create for upload failed', e);
+    // Real Grok LLM analysis runs server-side in this same Next.js app
+    // (route handler at /api/analyze-document). No separate backend or
+    // NEXT_PUBLIC_BACKEND_URL needed. If the server key isn't configured or
+    // the call fails, we fall back to client-side filename/text classification.
+    try {
+      const res = await fetch(`/api/analyze-document`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename,
+          content,
+          requirement_code: reqCode,   // unique, targeted prompt per document type
+          business_context: {
+            name: profile.name || null,
+            municipality: profile.municipality || null,
+            industry: profile.industry || null,
+            location_type: profile.location_type || null,
+          },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        analysis = data.analysis;
+        if (analysis?.extracted) {
+          extracted = { ...extracted, ...analysis.extracted };
         }
+      } else {
+        console.warn('LLM analyze returned non-ok status', res.status);
       }
-
-      if (bid && !bid.startsWith('local-')) {
-        try {
-          const res = await fetch(`${BACKEND_URL}/api/v1/businesses/${bid}/analyze-document`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              filename, 
-              content,
-              requirement_code: reqCode   // Pass so backend can use a unique, targeted prompt for this specific document type
-            }),
-          });
-          if (res.ok) {
-            const data = await res.json();
-            analysis = data.analysis;
-            if (analysis?.extracted) {
-              extracted = { ...extracted, ...analysis.extracted };
-            }
-          } else {
-            console.warn('Backend analyze returned non-ok');
-          }
-        } catch (e) {
-          console.warn('LLM document analysis via backend failed, will fallback to filename-based classification', e);
-        }
-      }
+    } catch (e) {
+      console.warn('LLM document analysis failed, falling back to filename-based classification', e);
     }
 
     if (!analysis) {
@@ -1487,22 +1406,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       let score = 68;
       let newFindings: Finding[] = [];
 
-      // Prefer real backend validation when BACKEND_URL is configured and we have a backend id
-      if (BACKEND_URL && businessId && !businessId.startsWith('local-')) {
-        try {
-          const res = await fetch(`${BACKEND_URL}/api/v1/businesses/${businessId}/validations`, { method: 'POST' });
-          const data = await res.json();
-          score = data.readiness_score || 68;
-          
-          const fRes = await fetch(`${BACKEND_URL}/api/v1/businesses/${businessId}/findings`);
-          newFindings = await fRes.json();
-        } catch (e) {
-          // fall through to client simulation
-        }
-      }
-
-      if (newFindings.length === 0) {
-        // Client-side simulation of the Validation Engine (used when backend not available)
+      {
+        // Client-side Validation Engine (readiness score + findings).
         const missing = requirements.filter(r => r.mandatory && r.status === 'pending').length;
         score = Math.max(40, 95 - (missing * 12));
 
