@@ -17,6 +17,8 @@ interface BusinessProfile {
   industry: string;
   business_type: string;
   location_type: string;
+  business_structure: string;
+  number_of_employees: number | null;
   customers_visit: boolean | null;
   food_prepared_or_sold: boolean | null;
   alcohol_sold: boolean | null;
@@ -27,7 +29,12 @@ interface BusinessProfile {
   physical_location: boolean | null;
   products_manufactured: boolean | null;
   vehicles_used: boolean | null;
-  employee_count?: number;
+  commercial_signage: boolean | null;
+  outdoor_seating: boolean | null;
+  live_entertainment: boolean | null;
+  short_term_rental: boolean | null;
+  medical_waste: boolean | null;
+  import_export: boolean | null;
 }
 
 interface Finding {
@@ -389,12 +396,26 @@ const MUNICIPALITIES = [
 function computeRequirements(profile: BusinessProfile, answers: Record<string, any>): Requirement[] {
   const reqs: Requirement[] = [];
   const industry = profile.industry;
-  const locationType = profile.location_type || answers.location_type;
-  const isHome = locationType === 'Home-Based Business' || profile.location_type === 'Home-Based Business';
-  const hasFood = profile.food_prepared_or_sold === true || answers.has_food_service || industry === 'Food & Beverage';
-  const hasAlcohol = profile.alcohol_sold === true || answers.alcohol_sales;
-  const requiresProfLicenses = profile.professional_licenses_required === true || answers.professional_licenses;
-  const isMedical = industry === 'Healthcare' || requiresProfLicenses;
+  const locationType = profile.location_type;
+  const isHome = locationType === 'Home-Based Business';
+  const isOnlineOnly = locationType === 'Online Only';
+  const hasPhysical = !isOnlineOnly;
+  const customersVisit = profile.customers_visit === true;
+  const hasFood = profile.food_prepared_or_sold === true;
+  const hasAlcohol = profile.alcohol_sold === true;
+  const hasHealthcare = profile.healthcare_services === true;
+  const hasProfLicenses = profile.professional_licenses_required === true;
+  const hasHazardous = profile.hazardous_materials === true;
+  const hasEmployees = profile.employees_hired === true;
+  const hasPhysicalOp = profile.physical_location === true;
+  const manufactures = profile.products_manufactured === true;
+  const usesVehicles = profile.vehicles_used === true;
+  const hasSignage = profile.commercial_signage === true;
+  const hasOutdoor = profile.outdoor_seating === true;
+  const hasEntertainment = profile.live_entertainment === true;
+  const isShortTerm = profile.short_term_rental === true;
+  const hasMedicalWaste = profile.medical_waste === true;
+  const hasImportExport = profile.import_export === true;
 
   // Universal core (from design + real PR sources: Dept of State, Hacienda, OGPe, Municipal)
   reqs.push(
@@ -486,11 +507,24 @@ export default function SmartPRDemo() {
     industry: '',
     business_type: '',
     location_type: '',
+    business_structure: 'llc',
+    number_of_employees: null,
     customers_visit: null,
     food_prepared_or_sold: null,
     alcohol_sold: null,
     professional_licenses_required: null,
-    employee_count: undefined,
+    healthcare_services: null,
+    hazardous_materials: null,
+    employees_hired: null,
+    physical_location: null,
+    products_manufactured: null,
+    vehicles_used: null,
+    commercial_signage: null,
+    outdoor_seating: null,
+    live_entertainment: null,
+    short_term_rental: null,
+    medical_waste: null,
+    import_export: null,
   });
   const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, any>>({});
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -930,6 +964,35 @@ Rule Set: demo-v0.1 (local)
                 </select>
               </div>
 
+              {/* Business Structure */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Structure</label>
+                <select 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  value={profile.business_structure} 
+                  onChange={e => setProfile({ ...profile, business_structure: e.target.value })}
+                >
+                  <option value="llc">LLC</option>
+                  <option value="corporation">Corporation</option>
+                  <option value="sole_proprietorship">Sole Proprietorship</option>
+                  <option value="partnership">Partnership</option>
+                  <option value="professional_corporation">Professional Corporation</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              {/* Number of Employees */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Number of Employees</label>
+                <input 
+                  type="number" 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  placeholder="e.g. 5" 
+                  value={profile.number_of_employees ?? ''} 
+                  onChange={e => setProfile({ ...profile, number_of_employees: parseInt(e.target.value) || null })} 
+                />
+              </div>
+
               {/* Additional Regulatory Trigger Questions */}
               <div className="space-y-4 pt-2">
                 <div>
@@ -1048,6 +1111,78 @@ Rule Set: demo-v0.1 (local)
                     </label>
                     <label className="flex items-center gap-2 text-sm text-[#0A2540]">
                       <input type="radio" name="vehicles_used" checked={profile.vehicles_used === false} onChange={() => setProfile({ ...profile, vehicles_used: false })} /> No
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will the business have commercial signage?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="commercial_signage" checked={profile.commercial_signage === true} onChange={() => setProfile({ ...profile, commercial_signage: true })} /> Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="commercial_signage" checked={profile.commercial_signage === false} onChange={() => setProfile({ ...profile, commercial_signage: false })} /> No
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will there be outdoor seating?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="outdoor_seating" checked={profile.outdoor_seating === true} onChange={() => setProfile({ ...profile, outdoor_seating: true })} /> Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="outdoor_seating" checked={profile.outdoor_seating === false} onChange={() => setProfile({ ...profile, outdoor_seating: false })} /> No
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will there be live entertainment?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="live_entertainment" checked={profile.live_entertainment === true} onChange={() => setProfile({ ...profile, live_entertainment: true })} /> Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="live_entertainment" checked={profile.live_entertainment === false} onChange={() => setProfile({ ...profile, live_entertainment: false })} /> No
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will this be a short-term rental or tourism activity?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="short_term_rental" checked={profile.short_term_rental === true} onChange={() => setProfile({ ...profile, short_term_rental: true })} /> Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="short_term_rental" checked={profile.short_term_rental === false} onChange={() => setProfile({ ...profile, short_term_rental: false })} /> No
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will medical waste be generated?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="medical_waste" checked={profile.medical_waste === true} onChange={() => setProfile({ ...profile, medical_waste: true })} /> Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="medical_waste" checked={profile.medical_waste === false} onChange={() => setProfile({ ...profile, medical_waste: false })} /> No
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will import/export activity occur?</label>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="import_export" checked={profile.import_export === true} onChange={() => setProfile({ ...profile, import_export: true })} /> Yes
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                      <input type="radio" name="import_export" checked={profile.import_export === false} onChange={() => setProfile({ ...profile, import_export: false })} /> No
                     </label>
                   </div>
                 </div>
