@@ -11,7 +11,7 @@ import {
 
 // SmartPR
 // Puerto Rico Business Licensing Readiness Platform
-// Real LLM-powered document identification and validation (Grok via backend)
+// Real LLM-powered document identification and validation (AI via backend)
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
@@ -1294,7 +1294,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setFindings(newFindings);
   };
 
-  // === Real local file upload + LLM document identification (uses .env key + grok model via backend) ===
+  // === Real local file upload + LLM document identification (uses .env key + AI model via backend) ===
   const readAsPlainText = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -1369,14 +1369,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const fileBlob = new Blob([arrayBuffer], { type: file.type || 'application/pdf' });
 
     let analysis: any = null;
-    let llmRan = false;        // true only when the server-side Grok call returned a result
+    let llmRan = false;        // true only when the server-side AI call returned a result
     let llmError: string | null = null;
     let extracted: any = {
       business_name: profile.name || null,
       entity_name: profile.name || null,
     };
 
-    // Real Grok LLM analysis runs server-side in this same Next.js app
+    // Real LLM analysis runs server-side in this same Next.js app
     // (route handler at /api/analyze-document). No separate backend or
     // NEXT_PUBLIC_BACKEND_URL needed. If the server key isn't configured or
     // the call fails, we fall back to client-side filename/text classification.
@@ -1443,7 +1443,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           { check: "Not Expired", result: "warning", details: "Verify date" }
         ],
         overall_status: docType === 'Unknown' ? 'Needs Review' : 'Complete',
-        notes: `Processed uploaded file "${filename}" using Grok AI document intelligence.`
+        notes: `Processed uploaded file "${filename}" using AI document intelligence.`
       };
     }
 
@@ -1547,20 +1547,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         kind: 'error',
         title: L('Could not analyze with AI', language),
         detail: llmError
-          ? `${llmError}. ${L('Add OPENROUTER_API_KEY in your environment to enable Grok analysis.', language)}`
+          ? `${llmError}. ${L('Add OPENROUTER_API_KEY in your environment to enable AI analysis.', language)}`
           : L('AI analysis unavailable. Using basic classification.', language),
       });
     } else if (newStatus === 'passed') {
       setUploadNotice({
         kind: 'success',
         title: `✓ ${reqLabel} ${L('passed', language)}`,
-        detail: `${L('Grok verified', language)} ${analysis.document_type}. ${L('Readiness score updated.', language)}`,
+        detail: `${L('AI verified', language)} ${analysis.document_type}. ${L('Readiness score updated.', language)}`,
       });
     } else {
       setUploadNotice({
         kind: 'warning',
         title: `${reqLabel} ${L('needs review', language)}`,
-        detail: analysis.notes || `${L('Grok analyzed', language)} ${analysis.document_type} ${L("but couldn't fully verify it.", language)}`,
+        detail: analysis.notes || `${L('AI analyzed', language)} ${analysis.document_type} ${L("but couldn't fully verify it.", language)}`,
       });
     }
 
@@ -1886,7 +1886,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(slate[0], slate[1], slate[2]);
       doc.text(
-        san(`${tr('Generated')}: ${new Date().toLocaleString()}  |  SmartPR  |  ${tr('Powered by Grok AI')}`),
+        san(`${tr('Generated')}: ${new Date().toLocaleString()}  |  SmartPR  |  ${tr('Powered by AI')}`),
         MARGIN,
         PAGE_H - 8
       );
@@ -2558,7 +2558,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <li>{L("The platform's responsibility ends at:", language)} <strong>Prepare • Validate • Organize • Package</strong>.</li>
                 <li>{L('All final approvals are made exclusively by the Government of Puerto Rico and its agencies.', language)}</li>
               </ul>
-              <div className="mt-3 text-[10px] opacity-75">{L('Data is stored for this workspace session. All analysis uses the configured Grok AI model.', language)}</div>
+              <div className="mt-3 text-[10px] opacity-75">{L('Data is stored for this workspace session. All analysis uses the configured AI model.', language)}</div>
             </div>
 
             <div className="mt-6 flex gap-3 text-sm">

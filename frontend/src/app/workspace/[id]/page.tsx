@@ -262,7 +262,7 @@ export default function WorkspacePage() {
         </div>
 
         <div className="text-[11px] text-[#0A2540]/40 mt-4">
-          {t("Generated")} {new Date(data.generatedAt).toLocaleString()} · SmartPR · {t("Powered by Grok AI")}
+          {t("Generated")} {new Date(data.generatedAt).toLocaleString()} · SmartPR · {t("Powered by AI")}
         </div>
       </main>
     </div>
