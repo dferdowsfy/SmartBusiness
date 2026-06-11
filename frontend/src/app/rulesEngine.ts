@@ -1,0 +1,184 @@
+// ============================================================================
+// SmartPR database-driven rules engine (pure, dependency-injected).
+//
+// All requirement generation comes from the SmartPR Knowledge Base tables
+// (municipalities, business_types, questions, documents, rules). NO business
+// rules are hardcoded here — this module only *interprets* the rule rows.
+//
+// The KB is passed in (not imported) so the same engine runs unchanged in the
+// Next.js app and in standalone Node tests.
+// ============================================================================
+
+export type Flag = "tourism" | "coastal" | "historic" | "metro" | "island";
+
+export interface KBMunicipality { id: string; name: string; flags: Flag[] }
+export interface KBBusinessType { id: string; industry_id: string; name: string; description: string }
+export interface KBQuestion { id: string; question: string; type: string; options?: string[] }
+export interface KBDocument { id: string; name: string; agency: string; category: string }
+export interface KBRule {
+  id: string;
+  rule_type: "business_type" | "question_trigger" | "municipality" | "municipality_flag";
+  business_type_id: string | null;
+  question_id: string | null;
+  expected_answer: string | null;
+  municipality_flag: Flag | null;
+  requires_document_id: string;
+}
+
+export interface KnowledgeBase {
+  municipalities: KBMunicipality[];
+  businessTypes: KBBusinessType[];
+  questions: KBQuestion[];
+  documents: KBDocument[];
+  rules: KBRule[];
+}
+
+// Engine inputs. `answers` maps KB question id -> answer value (boolean or string).
+export interface EngineInput {
+  municipalityName?: string | null;
+  businessTypeName?: string | null;
+  answers: Record<string, boolean | string | undefined>;
+}
+
+export interface GeneratedRequirement {
+  document_id: string;
+  document_name: string;
+  agency: string;
+  category: string;
+  reason: string;
+  source_rule_id: string;
+}
+
+export interface EngineDebug {
+  municipalitySelected: string | null;
+  municipalityFlags: Flag[];
+  businessType: string | null;
+  businessTypeId: string | null;
+  questionsTriggered: { question_id: string; question: string; answer: boolean | string }[];
+  rulesMatched: { rule_id: string; rule_type: string; document_id: string; reason: string }[];
+  documentsGenerated: string[];
+}
+
+export interface EngineResult {
+  requirements: GeneratedRequirement[];
+  debug: EngineDebug;
+}
+
+const truthy = (v: boolean | string | undefined): boolean =>
+  v === true || v === "true" || v === "yes" || v === "Yes";
+
+// Compare an answer against a rule's expected_answer. For boolean triggers the
+// expected_answer is "true"; otherwise an exact (case-insensitive) match.
+function answerMatches(answer: boolean | string | undefined, expected: string | null): boolean {
+  if (expected === null || expected === "true") return truthy(answer);
+  if (answer === undefined) return false;
+  return String(answer).toLowerCase() === expected.toLowerCase();
+}
+
+export function runRulesEngine(kb: KnowledgeBase, input: EngineInput): EngineResult {
+  const docById = new Map(kb.documents.map((d) => [d.id, d]));
+  const qById = new Map(kb.questions.map((q) => [q.id, q]));
+
+  const municipality = input.municipalityName
+    ? kb.municipalities.find(
+        (m) => m.name.toLowerCase() === String(input.municipalityName).toLowerCase()
+      ) ?? null
+    : null;
+  const flags: Flag[] = municipality ? municipality.flags : [];
+
+  const businessType = input.businessTypeName
+    ? kb.businessTypes.find(
+        (b) => b.name.toLowerCase() === String(input.businessTypeName).toLowerCase()
+      ) ?? null
+    : null;
+
+  // documentId -> first matching rule (keep the strongest/earliest reason).
+  const matched = new Map<string, { rule: KBRule; reason: string }>();
+  const rulesMatched: EngineDebug["rulesMatched"] = [];
+  const triggered: EngineDebug["questionsTriggered"] = [];
+  const triggeredSeen = new Set<string>();
+
+  const add = (rule: KBRule, reason: string) => {
+    rulesMatched.push({
+      rule_id: rule.id,
+      rule_type: rule.rule_type,
+      document_id: rule.requires_document_id,
+      reason,
+    });
+    if (!matched.has(rule.requires_document_id)) {
+      matched.set(rule.requires_document_id, { rule, reason });
+    }
+  };
+
+  for (const rule of kb.rules) {
+    switch (rule.rule_type) {
+      case "municipality":
+        // Universal / municipality baseline — applies whenever a municipality
+        // is selected (every PR business has one).
+        if (municipality) add(rule, `Municipality selected (${municipality.name})`);
+        break;
+
+      case "municipality_flag":
+        if (
+          rule.municipality_flag &&
+          flags.includes(rule.municipality_flag) &&
+          (rule.business_type_id === null ||
+            (businessType && rule.business_type_id === businessType.id))
+        ) {
+          const btPart = rule.business_type_id && businessType ? ` + Business Type = ${businessType.name}` : "";
+          add(rule, `Municipality Flag = ${rule.municipality_flag}${btPart}`);
+        }
+        break;
+
+      case "business_type":
+        if (businessType && rule.business_type_id === businessType.id) {
+          add(rule, `Business Type = ${businessType.name}`);
+        }
+        break;
+
+      case "question_trigger":
+        if (rule.question_id) {
+          const ans = input.answers[rule.question_id];
+          if (answerMatches(ans, rule.expected_answer)) {
+            const q = qById.get(rule.question_id);
+            const reason = `Question: ${q ? q.question : rule.question_id} | Answer: Yes`;
+            add(rule, reason);
+            if (!triggeredSeen.has(rule.question_id)) {
+              triggeredSeen.add(rule.question_id);
+              triggered.push({
+                question_id: rule.question_id,
+                question: q ? q.question : rule.question_id,
+                answer: ans as boolean | string,
+              });
+            }
+          }
+        }
+        break;
+    }
+  }
+
+  const requirements: GeneratedRequirement[] = [...matched.entries()].map(([docId, { rule, reason }]) => {
+    const d = docById.get(docId);
+    return {
+      document_id: docId,
+      document_name: d ? d.name : docId,
+      agency: d ? d.agency : "",
+      category: d ? d.category : "",
+      reason,
+      source_rule_id: rule.id,
+    };
+  });
+
+  return {
+    requirements,
+    debug: {
+      municipalitySelected: municipality ? municipality.name : null,
+      municipalityFlags: flags,
+      businessType: businessType ? businessType.name : null,
+      businessTypeId: businessType ? businessType.id : null,
+      questionsTriggered: triggered,
+      rulesMatched,
+      documentsGenerated: requirements.map((r) => r.document_id),
+    },
+  };
+}
