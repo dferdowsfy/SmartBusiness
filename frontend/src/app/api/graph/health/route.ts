@@ -10,12 +10,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TABLES = [
-  "graph_nodes",
-  "graph_edges",
   "submissions",
+  "question_responses",
+  "requirements_generated",
   "document_validations",
+  "readiness_scores",
   "scenario_patterns",
-  "rejection_intelligence",
 ];
 
 export async function GET() {
