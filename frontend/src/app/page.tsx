@@ -464,9 +464,9 @@ Rule Set: demo-v0.1 (local)
 
             <div className="bg-white border rounded-2xl p-8 space-y-6">
               <div>
-                <label className="block text-sm font-medium mb-1.5">Business Name</label>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Name</label>
                 <input 
-                  className="w-full border rounded-lg px-4 py-2.5" 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
                   placeholder="ABC Restaurant LLC" 
                   value={profile.name} 
                   onChange={e => setProfile({ ...profile, name: e.target.value })} 
@@ -475,14 +475,14 @@ Rule Set: demo-v0.1 (local)
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">Municipality</label>
-                  <select className="w-full border rounded-lg px-4 py-2.5" value={profile.municipality} onChange={e => setProfile({...profile, municipality: e.target.value})}>
+                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Municipality</label>
+                  <select className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.municipality} onChange={e => setProfile({...profile, municipality: e.target.value})}>
                     {MUNICIPALITIES.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">Industry</label>
-                  <select className="w-full border rounded-lg px-4 py-2.5" value={profile.industry} onChange={e => setProfile({...profile, industry: e.target.value})}>
+                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Industry</label>
+                  <select className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.industry} onChange={e => setProfile({...profile, industry: e.target.value})}>
                     {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
                   </select>
                 </div>
@@ -490,21 +490,21 @@ Rule Set: demo-v0.1 (local)
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">Business Structure</label>
-                  <select className="w-full border rounded-lg px-4 py-2.5" value={profile.business_structure} onChange={e => setProfile({...profile, business_structure: e.target.value})}>
+                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Structure</label>
+                  <select className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.business_structure} onChange={e => setProfile({...profile, business_structure: e.target.value})}>
                     <option value="llc">LLC</option>
                     <option value="corporation">Corporation</option>
                     <option value="sole_proprietorship">Sole Proprietorship</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1.5">Employees</label>
-                  <input type="number" className="w-full border rounded-lg px-4 py-2.5" value={profile.employee_count} onChange={e => setProfile({...profile, employee_count: parseInt(e.target.value) || 0})} />
+                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Employees</label>
+                  <input type="number" className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.employee_count} onChange={e => setProfile({...profile, employee_count: parseInt(e.target.value) || 0})} />
                 </div>
               </div>
 
               <div className="flex items-center gap-3 pt-2">
-                <label className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-2 text-sm text-[#0A2540]">
                   <input type="checkbox" checked={profile.is_home_based} onChange={e => setProfile({...profile, is_home_based: e.target.checked})} />
                   Home-based business
                 </label>
@@ -513,7 +513,7 @@ Rule Set: demo-v0.1 (local)
               {/* Dynamic follow-ups (from design) */}
               {profile.industry === 'Restaurant' && (
                 <div className="bg-slate-50 border rounded-xl p-4 text-sm">
-                  <div className="font-medium mb-2">Additional questions for Restaurant / Food Service</div>
+                  <div className="font-medium mb-2 text-[#0A2540]">Additional questions for Restaurant / Food Service</div>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[#0A2540]/80">
                     <div>✓ Commercial kitchen</div>
                     <div>✓ Indoor seating</div>
