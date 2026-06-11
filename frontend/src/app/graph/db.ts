@@ -11,15 +11,20 @@ import { Pool } from "pg";
 
 let pool: Pool | null = null;
 
+// Prefer the pooled connection (DATABASE_URL); fall back to DIRECT_URL.
+export function connectionUrl(): string | undefined {
+  return process.env.DATABASE_URL || process.env.DIRECT_URL;
+}
+
 export function isEnabled(): boolean {
-  return !!process.env.DATABASE_URL;
+  return !!connectionUrl();
 }
 
 export function getPool(): Pool | null {
   if (!isEnabled()) return null;
   if (!pool) {
     pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString: connectionUrl(),
       // Hosted Postgres (Supabase/Neon) typically requires SSL.
       ssl: process.env.PGSSL_DISABLE ? undefined : { rejectUnauthorized: false },
       max: 4,
