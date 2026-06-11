@@ -35,3 +35,8 @@ yarn-error.log*
 docs/*.pptx
 docs/*.docx
 /tmp/
+# Generated deliverables and samples
+deliverables/
+*.zip
+*.pdf
+

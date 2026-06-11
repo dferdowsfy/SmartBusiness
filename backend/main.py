@@ -74,55 +74,269 @@ def _call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> st
     except Exception as e:
         return f"AI call failed: {str(e)}. Falling back to rules."
 
-async def ai_identify_and_extract_document(document_text: str, filename: str, business_context: dict) -> dict:
+async def ai_identify_and_extract_document(document_text: str, filename: str, business_context: dict, requirement_code: Optional[str] = None) -> dict:
     """
-    Use AI to:
-    - Identify what kind of document this is (match to requirement codes)
-    - Extract key structured fields (business name, dates, IDs, etc.)
-    - Determine confidence
+    SMARTPR DOCUMENT VALIDATION ENGINE
+    Uses the LLM (Grok via OpenRouter) for high-accuracy identification + field extraction.
+    When requirement_code is provided, a unique specialized prompt is used so the model
+    focuses on the exact fields and formats expected for that specific licensing item
+    (acting as intelligent OCR + validator on the provided text content).
     """
-    system = """You are an expert Puerto Rico business licensing document analyst.
-Return ONLY valid JSON with this exact structure (no markdown, no extra text):
-{
-  "document_type": "one of: certificate_of_incorporation, ein_letter, merchant_registration, health_permit, fire_certification, lease_or_property_docs, professional_license, or other",
-  "matched_requirement_code": "the best matching code from the list above or null",
-  "extracted": {
+    # Build a specialized prompt block based on the exact requirement being uploaded for.
+    # This ensures different documents get different extraction priorities (e.g. EIN specifically hunts for the EIN number).
+    specialized_instructions = ""
+    req = (requirement_code or "").lower()
+
+    if "ein" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (EIN Letter):
+- Treat the provided text as OCR output from an official IRS EIN confirmation letter.
+- Specifically hunt for and extract the 9-digit Employer Identification Number (EIN). 
+  It usually appears in the format XX-XXXXXXX (e.g. 66-1234567).
+- Prioritize placing the clean EIN into "license_or_permit_number".
+- Also extract business_name / entity_name exactly as shown.
+- Validation checks MUST include "EIN Format Valid", "EIN Found", "Business Name Match".
+- If no properly formatted EIN is present, set overall_status to "Missing Information" or "Needs Review".
+"""
+    elif "health" in req or "sanitary" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Health / Sanitary Permit):
+- Treat the provided text as OCR from a Departamento de Salud Health Permit.
+- Specifically extract the permit number, facility name, expiration date, and any "uso" or classification.
+- Place the permit number in "permit_number".
+- Validation checks MUST include "Health Permit Number Found", "Not Expired", "Facility Name Match".
+"""
+    elif "fire" in req or "bombero" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Fire Certification):
+- Treat the provided text as OCR from a Certificado de Bomberos / Fire Safety document.
+- Specifically extract the certificate number, business name, and expiration.
+- Place certificate number in "license_or_permit_number".
+- Validation checks MUST include "Fire Certificate Number Found", "Not Expired".
+"""
+    elif "permiso" in req or "unico" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Permiso Único):
+- Treat the provided text as OCR from an official OGPe Permiso Único.
+- Extract permit number, business name, address, expiration, and use classification.
+- Place permit number in "permit_number".
+- Validation checks MUST include "Permit Number Found", "Address Match", "Permit Active".
+"""
+    elif "merchant" in req or "registro" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Merchant Registration):
+- Treat the provided text as OCR from Hacienda Registro de Comerciante / Merchant Certificate.
+- Specifically extract the Merchant Number (often SURI-related), business name, and address.
+- Place merchant number in "merchant_number".
+- Validation checks MUST include "Merchant Number Extracted", "Merchant Registration Found".
+"""
+    elif "patente" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Patente Municipal):
+- Extract the municipal account / patente number, municipality name, and business name.
+- Place the account number in "license_or_permit_number".
+"""
+    elif "lease" in req:
+        specialized_instructions = """
+SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Lease Agreement):
+- Extract tenant name, property address, lease start/end dates, landlord.
+- Validate that the tenant roughly matches the business context.
+"""
+    else:
+        specialized_instructions = """
+GENERAL DOCUMENT INSTRUCTIONS:
+- Perform careful extraction as if performing OCR + intelligent document processing on the text.
+"""
+
+    # Build the complete system prompt with specialized per-requirement instructions prepended.
+    # This gives each upload a unique focused prompt (e.g. EIN upload specifically searches for and validates the EIN number).
+    ocr_directive = "You are performing high-accuracy document intelligence as if using OCR + LLM extraction on the uploaded file text (the text may be noisy from scanning). Be extremely precise with numbers, dates, and names."
+
+    system = f"""You are an expert Puerto Rico business licensing document analyst for the SmartPR validation engine.
+
+{ocr_directive}
+
+{specialized_instructions}
+
+Follow these rules EXACTLY for every document.
+
+DOCUMENT CLASSIFICATION:
+Determine document_type from this list only:
+Certificate of Incorporation, Articles of Organization, IRS EIN Letter, Merchant Registration Certificate, Permiso Único, Patente Municipal, Health Permit, Fire Certification, CFPM Certificate, Professional License, Contractor License, Tourism Registration, Lease Agreement, Property Deed, Floor Plan, Insurance Certificate, Workers Compensation Certificate, Medical Waste Contract, Alcohol Permit, Environmental Permit, Sign Permit, Background Check Documentation, Business Address Documentation, Unknown
+
+Return ONLY valid JSON (no markdown, no extra text) with this exact structure:
+{{
+  "document_type": "exact type from list above",
+  "confidence": 0.0 to 1.0,
+  "extracted": {{
     "business_name": "string or null",
     "entity_name": "string or null",
+    "owner": "string or null",
+    "address": "string or null",
     "issue_date": "YYYY-MM-DD or null",
     "expiration_date": "YYYY-MM-DD or null",
     "license_or_permit_number": "string or null",
-    "address": "string or null",
-    "owner": "string or null"
-  },
-  "confidence": 0.0 to 1.0,
-  "notes": "short explanation of what you saw"
-}"""
+    "merchant_number": "string or null",
+    "permit_number": "string or null"
+  }},
+  "validation_checks": [
+    {{"check": "Business Name Match", "result": "pass|fail|warning", "details": "short explanation"}},
+    {{"check": "Address Match", "result": "pass|fail|warning", "details": "..."}},
+    {{"check": "Required Fields Present", "result": "pass|fail|warning", "details": "..."}},
+    {{"check": "Not Expired", "result": "pass|fail|warning", "details": "..."}},
+    {{"check": "Official Appearance", "result": "pass|fail|warning", "details": "..."}}
+  ],
+  "overall_status": "Complete|Needs Review|Missing Information|Mismatch|Expired",
+  "notes": "short summary"
+}}
+
+Follow these specific rules for each type:"""
+
+CERTIFICATE OF INCORPORATION / LLC FORMATION / Articles of Organization:
+Look For: Business Name, Entity Type, Entity Number, Puerto Rico Department of State, Formation Date, Good Standing.
+Extract: business_name, entity_name, issue_date (formation), license_or_permit_number (entity number).
+Validate: Business Name exists and matches intake, document appears official (has Dept of State, seal, etc.).
+In validation_checks include "Entity Found", "Name Match", "Formation Date Found".
+
+IRS EIN LETTER:
+Look For: IRS, Employer Identification Number, Business Name.
+Extract: license_or_permit_number as EIN, business_name.
+Validate: EIN exists, Business Name matches intake.
+Checks: "EIN Found", "Name Match".
+
+MERCHANT REGISTRATION CERTIFICATE / REGISTRO DE COMERCIANTE:
+Look For: Registro de Comerciante, Departamento de Hacienda, SURI, Merchant Number, Business Name, Physical Address, Issue Date, Certificate Status.
+Extract: merchant_number, business_name, address, issue_date.
+Validate: Business Name matches intake, Address matches intake, Merchant Number exists, Certificate appears active.
+Checks: "Merchant Registration Found", "Merchant Number Extracted", "Address Match", "Name Match".
+Note: Merchant Registration is required for businesses operating in Puerto Rico. (Hacienda de Puerto Rico)
+
+PERMISO ÚNICO:
+Look For: Permiso Único, Single Business Portal, OGPe, Permit Number, Business Name, Business Address, Expiration Date, Use Classification.
+Extract: permit_number, business_name, address, expiration_date, use_type.
+Validate: Permit Number exists, Business Name matches, Address matches, Permit not expired.
+Checks: "Permit Number Found", "Address Match", "Permit Active".
+Note: Permiso Único consolidates use permits, fire, health, and other operational approvals.
+
+PATENTE MUNICIPAL:
+Look For: Municipality Name, Patente Municipal, Business Name, Municipal Account Number, Issue Date.
+Extract: (use address or notes for municipality), business_name, license_or_permit_number as account.
+Validate: Municipality matches intake, Business Name matches.
+Checks: "Municipal License Found", "Municipality Match".
+
+LEASE AGREEMENT:
+Look For: Tenant Name, Property Address, Lease Start/End Date, Landlord Name.
+Extract: owner (tenant), address, issue_date (start), expiration_date (end).
+Validate: Tenant matches business owner or entity, Address matches intake, Lease active (not expired).
+Checks: "Active Lease Found", "Address Match".
+
+PROPERTY DEED:
+Look For: Owner Name, Property Address, Parcel Information.
+Extract: owner, address.
+Validate: Owner matches intake, Address matches.
+Checks: "Property Ownership Verified".
+
+FLOOR PLAN:
+Look For: Drawing Sheet, Architectural Plan, Dimensions, Scale, Room Labels.
+Validate: Drawing appears legitimate, Contains usable layout.
+Do NOT make compliance determination.
+Return "Floor Plan Uploaded" in notes.
+
+HEALTH PERMIT:
+Look For: Departamento de Salud, License Number, Facility Name, Expiration Date.
+Extract: permit_number, business_name, expiration_date.
+Validate: Not expired, Business Name matches.
+Checks: "Health Permit Found", "Permit Active".
+
+FIRE CERTIFICATION / Certificado de Bomberos:
+Look For: Certificado de Bomberos, Fire Prevention Certificate, Certificate Number, Business Name, Expiration.
+Extract: license_or_permit_number, business_name, expiration_date.
+Validate: Not expired, Name matches.
+Checks: "Fire Certificate Found", "Certificate Active".
+
+CFPM CERTIFICATE:
+Look For: Certified Food Protection Manager, ServSafe, Prometric, National Registry, Certificate Number, Expiration.
+Extract: owner (holder), license_or_permit_number, expiration_date.
+Validate: Not expired, Certificate present.
+Checks: "CFPM Certification Found".
+
+PROFESSIONAL LICENSE:
+Look For: Professional Board, License Number, License Holder, Expiration.
+Extract: owner, license_or_permit_number, expiration_date.
+Validate: Not expired, Name matches business owner or professional.
+Checks: "Professional License Found".
+
+CONTRACTOR LICENSE:
+Look For: Contractor Registration, License Number, Business Name, Expiration.
+Extract: license_or_permit_number, business_name, expiration_date.
+Validate: Not expired, Name matches.
+Checks: "Contractor License Found".
+
+INSURANCE CERTIFICATE:
+Look For: Certificate Holder, Carrier, Policy Number, Coverage Dates.
+Extract: license_or_permit_number (policy), expiration_date.
+Validate: Policy active, Business name matches.
+Checks: "Insurance Active".
+
+ALCOHOL LICENSE / Permit:
+Look For: Alcohol Permit, License Number, Business Name, Expiration.
+Extract: license_or_permit_number, business_name, expiration_date.
+Validate: Active, Name Match.
+Checks: "Alcohol Permit Found".
+
+For every document also run UNIVERSAL VALIDATION RULES:
+- Business Name Match (compare to business_context name)
+- Address Match if present (compare to business_context address)
+- Expiration Date present and not expired
+- Required Signatures / Seal present if typical for type
+- Required License/Permit Number present if expected
+- Required Agency Name present
+
+In validation_checks include the universal ones + type-specific.
+
+Determine overall_status:
+- Complete: all key checks pass, no critical issues, high confidence
+- Needs Review: minor issues or missing non-critical fields
+- Missing Information: required fields missing
+- Mismatch: name or address does not match intake
+- Expired: expiration date in past
+
+Always compare extracted fields against the business_context provided (name, municipality, address if available).
+
+Confidence should be high only if type is clear and key matches succeed.
+
+Return ONLY the JSON. No other text."""
 
     user = f"""Filename: {filename}
-Business context: {business_context}
+Business context (intake profile): {business_context}
 
-Document content / text:
-{document_text[:4000]}
+Document content / text (may be simulated or OCR):
+{document_text[:4500]}
 
-Analyze and return the JSON only."""
+Follow the SMARTPR DOCUMENT VALIDATION ENGINE rules exactly. Analyze and return ONLY the JSON."""
 
-    response = _call_ai(system, user)
+    response = _call_ai(system, user, max_tokens=2000)
     
-    # Try to parse JSON from response
     import json, re
     try:
-        # Clean common wrappers
         cleaned = re.sub(r'```json|```', '', response).strip()
         data = json.loads(cleaned)
+        # Ensure required fields
+        if 'overall_status' not in data:
+            data['overall_status'] = 'Needs Review'
+        if 'confidence' not in data:
+            data['confidence'] = 0.5
+        if 'validation_checks' not in data:
+            data['validation_checks'] = []
         return data
-    except:
+    except Exception as e:
         return {
-            "document_type": "other",
-            "matched_requirement_code": None,
+            "document_type": "Unknown",
+            "confidence": 0.2,
             "extracted": {},
-            "confidence": 0.3,
-            "notes": f"AI response could not be parsed. Raw: {response[:300]}"
+            "validation_checks": [{"check": "Parse Error", "result": "fail", "details": str(e)}],
+            "overall_status": "Needs Review",
+            "notes": f"AI response could not be parsed. Raw: {response[:400]}"
         }
 
 async def ai_validate_requirements(business: dict, requirements: list, extracted_docs: list) -> dict:
@@ -335,6 +549,7 @@ async def get_findings(business_id: str):
 class DocumentInput(BaseModel):
     filename: str
     content: str  # Text content of the document (or description / OCR text). For images/PDFs, paste key text or base64 note.
+    requirement_code: Optional[str] = None  # e.g. "ein_letter", "health_permit" — enables unique tailored prompts
     # In a production version we would accept UploadFile + use vision.
 
 @app.post("/api/v1/businesses/{business_id}/analyze-document")
@@ -345,10 +560,12 @@ async def analyze_document(business_id: str, payload: DocumentInput):
     b = BUSINESSES[business_id]
     
     # Use the Grok model via OpenRouter to identify the document and extract structured data
+    # Pass requirement_code so we can use a specialized prompt for the exact document type being uploaded
     analysis = await ai_identify_and_extract_document(
         document_text=payload.content,
         filename=payload.filename,
-        business_context=b
+        business_context=b,
+        requirement_code=payload.requirement_code
     )
     
     # Store the analyzed document
