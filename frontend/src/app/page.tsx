@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { L } from './i18n';
+import { computeRequirementsFromKB, runRulesEngineForProfile } from './kb';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { 
@@ -55,6 +56,9 @@ interface Requirement {
   status: 'pending' | 'uploaded' | 'passed' | 'warning';
   agency: string;
   reason: string;
+  document_id?: string;
+  category?: string;
+  source_rule?: string;
 }
 
 const INDUSTRIES = [
@@ -724,153 +728,9 @@ function computeMunicipalityNotices(profile: BusinessProfile): string[] {
 // Core compute logic - matches the approved rules engine design + seed data
 // Updated to use the new Step 1 fields (location_type, food_prepared_or_sold, alcohol_sold, professional_licenses_required, etc.)
 function computeRequirements(profile: BusinessProfile, answers: Record<string, any>): Requirement[] {
-  const reqs: Requirement[] = [];
-  const industry = profile.industry;
-  const locationType = profile.location_type;
-  const isHome = locationType === 'Home-Based Business';
-  const isOnlineOnly = locationType === 'Online Only';
-  const hasPhysical = !isOnlineOnly;
-  const customersVisit = profile.customers_visit === true;
-  const hasFood = profile.food_prepared_or_sold === true;
-  const hasAlcohol = profile.alcohol_sold === true;
-  const hasHealthcare = profile.healthcare_services === true;
-  const hasProfLicenses = profile.professional_licenses_required === true;
-  const hasHazardous = profile.hazardous_materials === true;
-  const hasEmployees = profile.employees_hired === true;
-  const hasPhysicalOp = profile.physical_location === true;
-  const manufactures = profile.products_manufactured === true;
-  const usesVehicles = profile.vehicles_used === true;
-  const hasSignage = profile.commercial_signage === true;
-  const hasOutdoor = profile.outdoor_seating === true;
-  const hasEntertainment = profile.live_entertainment === true;
-  const isShortTerm = profile.short_term_rental === true;
-  const hasMedicalWaste = profile.medical_waste === true;
-  const hasImportExport = profile.import_export === true;
-
-  // Universal core (from design + real PR sources: Dept of State, Hacienda, OGPe, Municipal)
-  reqs.push(
-    { code: 'certificate_of_incorporation', name: 'Certificate of Incorporation / LLC Formation', mandatory: true, status: 'pending', agency: 'Department of State', reason: 'Required for all formal business entities in Puerto Rico.' },
-    { code: 'ein_letter', name: 'IRS EIN Confirmation Letter', mandatory: true, status: 'pending', agency: 'IRS', reason: 'Federal tax ID required for all businesses operating in PR.' },
-    { code: 'merchant_registration', name: 'Merchant Registration Certificate (Registro de Comerciante)', mandatory: true, status: 'pending', agency: 'Hacienda (SURI)', reason: 'Mandatory to legally operate as a merchant and collect sales tax (IVU).' },
-    { code: 'permiso_unico', name: 'Single Use Permit / Permiso Único', mandatory: true, status: 'pending', agency: 'OGPe / SBP', reason: 'Consolidates use permit, zoning, and often fire/sanitary approvals via the Single Business Portal.' },
-    { code: 'patente_municipal', name: `Patente Municipal (${profile.municipality})`, mandatory: true, status: 'pending', agency: 'Municipal Government', reason: `Municipal business tax/license required in the ${profile.municipality} municipality. Usually requires Permiso Único first.` }
-  );
-
-  // ---- Base municipality rules (apply to all 78 municipalities) ----
-  if (profile.municipality) {
-    reqs.push(
-      { code: 'municipal_registration', name: 'Municipal Registration', mandatory: true, status: 'pending', agency: 'Municipal Government', reason: `Registration with the ${profile.municipality} municipal government is required to operate within the municipality.` },
-      { code: 'municipal_tax_compliance', name: 'Municipal Tax Compliance', mandatory: true, status: 'pending', agency: 'Municipal Government', reason: `Proof of municipal tax compliance is required; rates vary by municipality (${profile.municipality}).` }
-    );
-  }
-
-  // Food / Restaurant triggered (Departamento de Salud + Bomberos)
-  if (hasFood) {
-    reqs.push(
-      { code: 'health_permit', name: 'Health / Sanitary Permit', mandatory: true, status: 'pending', agency: 'Departamento de Salud', reason: 'Required for any business preparing or serving food. Follows FDA Food Code (CFPM also needed).' },
-      { code: 'fire_certification', name: 'Fire Safety Certification (Certificado de Bomberos)', mandatory: true, status: 'pending', agency: 'Cuerpo de Bomberos', reason: 'Fire prevention and safety inspection certificate required for physical commercial locations, especially food service.' },
-      { code: 'food_manager_cert', name: 'Certified Food Protection Manager (CFPM)', mandatory: true, status: 'pending', agency: 'Departamento de Salud', reason: 'Person-in-charge must hold current accredited CFPM certification for potentially hazardous food handling.' }
-    );
-  }
-
-  // Alcohol additional
-  if (hasAlcohol) {
-    reqs.push({ code: 'alcohol_permit', name: 'Alcohol Sales / Beverage Permit', mandatory: true, status: 'pending', agency: 'Hacienda / OGPe', reason: 'Additional licensing for alcohol sales and service.' });
-  }
-
-  // Non home-based physical location
-  if (!isHome) {
-    reqs.push({ code: 'lease_or_property_docs', name: 'Lease Agreement or Property Docs + Floor Plans / Photos', mandatory: true, status: 'pending', agency: 'OGPe / Municipal', reason: 'Proof of legal right to use the commercial space. Required for Permiso Único and most municipal approvals.' });
-  }
-
-  // Professional / Healthcare services (handled in the expanded professional block below)
-  // Construction
-  if (industry === 'Construction') {
-    reqs.push({ code: 'contractor_license', name: 'Contractor License / Trade Certification', mandatory: true, status: 'pending', agency: 'Department of State', reason: 'Required for construction trades and public work.' });
-  }
-
-  // Retail general
-  if (industry === 'Retail' || industry === 'Retail Store') {
-    reqs.push({ code: 'crim_clearance', name: 'CRIM Property Tax Clearance', mandatory: false, status: 'pending', agency: 'CRIM', reason: 'Often requested by municipalities for Patente.' });
-  }
-
-  // Professional Services, Real Estate, Finance, etc.
-  if (industry === 'Professional Services' || industry === 'Real Estate' || industry === 'Finance & Insurance' || hasProfLicenses) {
-    reqs.push(
-      { code: 'professional_licenses', name: 'Professional Licenses for Staff', mandatory: true, status: 'pending', agency: 'Department of State Examining Boards', reason: 'Required for attorneys, CPAs, insurance agents, real estate brokers, engineers, architects, etc.' },
-      { code: 'malpractice_or_eo_insurance', name: 'Professional Liability / E&O Insurance', mandatory: false, status: 'pending', agency: 'Various', reason: 'Strongly recommended for professional service providers.' }
-    );
-  }
-
-  // Manufacturing
-  if (industry === 'Manufacturing') {
-    reqs.push({ code: 'environmental_permit', name: 'Environmental / Manufacturing Permit', mandatory: true, status: 'pending', agency: 'Environmental Quality Board / OGPe', reason: 'Required for manufacturing operations, especially food, pharma, or chemical.' });
-  }
-
-  // Transportation & Logistics
-  if (industry === 'Transportation & Logistics') {
-    reqs.push({ code: 'transportation_permit', name: 'Transportation / PUC Permit', mandatory: true, status: 'pending', agency: 'Public Service Commission', reason: 'Required for trucking, courier, taxi, rideshare, and logistics companies.' });
-  }
-
-  // Tourism / Accommodation
-  if (industry === 'Accommodation & Tourism') {
-    reqs.push({ code: 'tourism_permit', name: 'Tourism / Short-Term Rental Permit', mandatory: false, status: 'pending', agency: 'Tourism Company / Municipal', reason: 'Often required for hotels, resorts, Airbnbs, and tour operators.' });
-  }
-
-  // Beauty & Personal Care
-  if (industry === 'Beauty & Personal Care') {
-    reqs.push({ code: 'health_permit_beauty', name: 'Health / Sanitation Permit (Beauty)', mandatory: true, status: 'pending', agency: 'Departamento de Salud', reason: 'Required for salons, spas, tattoo shops, and cosmetic services.' });
-  }
-
-  // Education & Training
-  if (industry === 'Education & Training') {
-    reqs.push({ code: 'education_license', name: 'Education / Childcare License', mandatory: true, status: 'pending', agency: 'Department of Education / Licensing Board', reason: 'Required for private schools, daycares, and vocational training.' });
-  }
-
-  // Short-term rental / tourism
-  if (isShortTerm || industry === 'Accommodation & Tourism') {
-    reqs.push({ code: 'tourism_registration', name: 'Short-Term Rental / Tourism Registration', mandatory: true, status: 'pending', agency: 'Tourism Company / Municipal', reason: 'Required for short-term rentals, hotels, resorts, and tourism activities.' });
-  }
-
-  // Signage
-  if (hasSignage) {
-    reqs.push({ code: 'sign_permit', name: 'Sign Permit / Rótulo Permit', mandatory: false, status: 'pending', agency: 'Municipal Government / OGPe', reason: 'Exterior signage may require municipal or permit approval.' });
-  }
-
-  // Outdoor seating
-  if (hasOutdoor) {
-    reqs.push({ code: 'outdoor_seating_auth', name: 'Outdoor Seating Authorization', mandatory: false, status: 'pending', agency: 'Municipal Government', reason: 'Public space or sidewalk use approval may be required for outdoor seating.' });
-  }
-
-  // Live entertainment
-  if (hasEntertainment) {
-    reqs.push({ code: 'entertainment_permit', name: 'Entertainment Permit', mandatory: false, status: 'pending', agency: 'Municipal Government / OGPe', reason: 'May be required for live entertainment.' });
-  }
-
-  // Import / Export
-  if (hasImportExport) {
-    reqs.push({ code: 'import_export_reg', name: 'Import / Export Registration', mandatory: false, status: 'pending', agency: 'Hacienda / Customs', reason: 'Required if import/export activity occurs.' });
-  }
-
-  // Home-based specific (only base + declaration, unless triggers)
-  if (isHome) {
-    reqs.push(
-      { code: 'residential_proof', name: 'Proof of Residential Address', mandatory: true, status: 'pending', agency: 'General', reason: 'Required for home-based businesses.' },
-      { code: 'home_declaration', name: 'Home Business Declaration', mandatory: true, status: 'pending', agency: 'Municipal Government', reason: 'Required for home-based businesses.' }
-    );
-  }
-
-  // Online only (minimal physical)
-  if (isOnlineOnly) {
-    // Only base documents; no physical ones unless other triggers
-  }
-
-  // Additional for specific business types if needed (extend as per prompt)
-  if (profile.business_type.includes('Tattoo')) {
-    reqs.push({ code: 'tattoo_auth', name: 'Tattoo / Body Art Health Authorization', mandatory: true, status: 'pending', agency: 'Departamento de Salud', reason: 'Required for tattoo and body art services.' });
-  }
-
-  return reqs;
+  // Database-driven: requirements come entirely from the SmartPR Knowledge
+  // Base tables via the rules engine (no hardcoded business rules here).
+  return computeRequirementsFromKB(profile as any, answers) as Requirement[];
 }
 
 export default function SmartPR() {
@@ -934,6 +794,15 @@ export default function SmartPR() {
     const id = setTimeout(() => setUploadNotice(null), 6000);
     return () => clearTimeout(id);
   }, [uploadNotice]);
+
+  // Hidden debug mode for the rules engine (enable with ?debug=1 in the URL).
+  const [debugMode, setDebugMode] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      setDebugMode(params.get('debug') === '1' || params.has('debug'));
+    }
+  }, []);
 
   const t = (key: string): string => {
     const dict: Record<string, { en: string; es: string }> = {
@@ -2625,6 +2494,40 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           </div>
         </div>
       )}
+
+      {/* Hidden rules-engine debug panel (enable with ?debug=1) */}
+      {debugMode && (() => {
+        const dbg = runRulesEngineForProfile(profile as any, discoveryAnswers).debug;
+        return (
+          <div className="fixed bottom-0 right-0 z-50 w-full sm:w-[440px] max-h-[60vh] overflow-auto bg-[#0A2540] text-white text-[11px] font-mono shadow-2xl border-l border-t border-white/20">
+            <div className="px-3 py-2 font-bold border-b border-white/20 flex justify-between">
+              <span>SmartPR Rules Engine — Debug</span>
+              <span className="opacity-60">?debug=1</span>
+            </div>
+            <div className="p-3 space-y-2">
+              <div><span className="opacity-60">Municipality Selected:</span> {dbg.municipalitySelected || '—'}</div>
+              <div><span className="opacity-60">Municipality Flags:</span> {dbg.municipalityFlags.join(', ') || '—'}</div>
+              <div><span className="opacity-60">Business Type:</span> {dbg.businessType || '—'} {dbg.businessTypeId ? `(${dbg.businessTypeId})` : ''}</div>
+              <div>
+                <div className="opacity-60">Questions Triggered ({dbg.questionsTriggered.length}):</div>
+                {dbg.questionsTriggered.map((q, i) => (
+                  <div key={i} className="pl-2">• {q.question_id} = {String(q.answer)}</div>
+                ))}
+              </div>
+              <div>
+                <div className="opacity-60">Rules Matched ({dbg.rulesMatched.length}):</div>
+                {dbg.rulesMatched.map((r, i) => (
+                  <div key={i} className="pl-2">• {r.rule_id} [{r.rule_type}] → {r.document_id} — {r.reason}</div>
+                ))}
+              </div>
+              <div>
+                <div className="opacity-60">Documents Generated ({dbg.documentsGenerated.length}):</div>
+                <div className="pl-2">{dbg.documentsGenerated.join(', ') || '—'}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

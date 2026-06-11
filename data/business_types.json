@@ -1,0 +1,842 @@
+[
+  {
+    "id": "BT_RESTAURANT",
+    "industry_id": "IND_FOOD",
+    "name": "Restaurant",
+    "description": "Restaurant operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FAST_FOOD_RESTAURANT",
+    "industry_id": "IND_FOOD",
+    "name": "Fast Food Restaurant",
+    "description": "Fast Food Restaurant operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BAKERY",
+    "industry_id": "IND_FOOD",
+    "name": "Bakery",
+    "description": "Bakery operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CAFE",
+    "industry_id": "IND_FOOD",
+    "name": "Cafe",
+    "description": "Cafe operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BAR",
+    "industry_id": "IND_FOOD",
+    "name": "Bar",
+    "description": "Bar operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FOOD_TRUCK",
+    "industry_id": "IND_FOOD",
+    "name": "Food Truck",
+    "description": "Food Truck operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CATERING_BUSINESS",
+    "industry_id": "IND_FOOD",
+    "name": "Catering Business",
+    "description": "Catering Business operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ICE_CREAM_SHOP",
+    "industry_id": "IND_FOOD",
+    "name": "Ice Cream Shop",
+    "description": "Ice Cream Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_JUICE_BAR",
+    "industry_id": "IND_FOOD",
+    "name": "Juice Bar",
+    "description": "Juice Bar operating in Puerto Rico."
+  },
+  {
+    "id": "BT_COMMERCIAL_KITCHEN",
+    "industry_id": "IND_FOOD",
+    "name": "Commercial Kitchen",
+    "description": "Commercial Kitchen operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MEDICAL_OFFICE",
+    "industry_id": "IND_HEALTH",
+    "name": "Medical Office",
+    "description": "Medical Office operating in Puerto Rico."
+  },
+  {
+    "id": "BT_DENTAL_OFFICE",
+    "industry_id": "IND_HEALTH",
+    "name": "Dental Office",
+    "description": "Dental Office operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PHARMACY",
+    "industry_id": "IND_HEALTH",
+    "name": "Pharmacy",
+    "description": "Pharmacy operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CLINICAL_LABORATORY",
+    "industry_id": "IND_HEALTH",
+    "name": "Clinical Laboratory",
+    "description": "Clinical Laboratory operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MENTAL_HEALTH_PRACTICE",
+    "industry_id": "IND_HEALTH",
+    "name": "Mental Health Practice",
+    "description": "Mental Health Practice operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PHYSICAL_THERAPY_CLINIC",
+    "industry_id": "IND_HEALTH",
+    "name": "Physical Therapy Clinic",
+    "description": "Physical Therapy Clinic operating in Puerto Rico."
+  },
+  {
+    "id": "BT_VETERINARY_CLINIC",
+    "industry_id": "IND_HEALTH",
+    "name": "Veterinary Clinic",
+    "description": "Veterinary Clinic operating in Puerto Rico."
+  },
+  {
+    "id": "BT_URGENT_CARE_CENTER",
+    "industry_id": "IND_HEALTH",
+    "name": "Urgent Care Center",
+    "description": "Urgent Care Center operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MEDICAL_SPA",
+    "industry_id": "IND_HEALTH",
+    "name": "Medical Spa",
+    "description": "Medical Spa operating in Puerto Rico."
+  },
+  {
+    "id": "BT_HOME_HEALTH_AGENCY",
+    "industry_id": "IND_HEALTH",
+    "name": "Home Health Agency",
+    "description": "Home Health Agency operating in Puerto Rico."
+  },
+  {
+    "id": "BT_LAW_FIRM",
+    "industry_id": "IND_PROF",
+    "name": "Law Firm",
+    "description": "Law Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CPA_FIRM",
+    "industry_id": "IND_PROF",
+    "name": "CPA Firm",
+    "description": "CPA Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CONSULTING_FIRM",
+    "industry_id": "IND_PROF",
+    "name": "Consulting Firm",
+    "description": "Consulting Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MARKETING_AGENCY",
+    "industry_id": "IND_PROF",
+    "name": "Marketing Agency",
+    "description": "Marketing Agency operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ENGINEERING_FIRM",
+    "industry_id": "IND_PROF",
+    "name": "Engineering Firm",
+    "description": "Engineering Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ARCHITECTURE_FIRM",
+    "industry_id": "IND_PROF",
+    "name": "Architecture Firm",
+    "description": "Architecture Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_NOTARY_SERVICES",
+    "industry_id": "IND_PROF",
+    "name": "Notary Services",
+    "description": "Notary Services operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TRANSLATION_SERVICES",
+    "industry_id": "IND_PROF",
+    "name": "Translation Services",
+    "description": "Translation Services operating in Puerto Rico."
+  },
+  {
+    "id": "BT_STAFFING_AGENCY",
+    "industry_id": "IND_PROF",
+    "name": "Staffing Agency",
+    "description": "Staffing Agency operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SOFTWARE_COMPANY",
+    "industry_id": "IND_IT",
+    "name": "Software Company",
+    "description": "Software Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SAAS_COMPANY",
+    "industry_id": "IND_IT",
+    "name": "SaaS Company",
+    "description": "SaaS Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_IT_CONSULTING_FIRM",
+    "industry_id": "IND_IT",
+    "name": "IT Consulting Firm",
+    "description": "IT Consulting Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CYBERSECURITY_FIRM",
+    "industry_id": "IND_IT",
+    "name": "Cybersecurity Firm",
+    "description": "Cybersecurity Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MANAGED_SERVICES_PROVIDER",
+    "industry_id": "IND_IT",
+    "name": "Managed Services Provider",
+    "description": "Managed Services Provider operating in Puerto Rico."
+  },
+  {
+    "id": "BT_DATA_ANALYTICS_FIRM",
+    "industry_id": "IND_IT",
+    "name": "Data Analytics Firm",
+    "description": "Data Analytics Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_WEB_DEVELOPMENT_AGENCY",
+    "industry_id": "IND_IT",
+    "name": "Web Development Agency",
+    "description": "Web Development Agency operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CLOTHING_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Clothing Store",
+    "description": "Clothing Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_JEWELRY_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Jewelry Store",
+    "description": "Jewelry Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ELECTRONICS_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Electronics Store",
+    "description": "Electronics Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FURNITURE_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Furniture Store",
+    "description": "Furniture Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_HARDWARE_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Hardware Store",
+    "description": "Hardware Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CONVENIENCE_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Convenience Store",
+    "description": "Convenience Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PET_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Pet Store",
+    "description": "Pet Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_GIFT_SHOP",
+    "industry_id": "IND_RETAIL",
+    "name": "Gift Shop",
+    "description": "Gift Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_E_COMMERCE_BUSINESS",
+    "industry_id": "IND_RETAIL",
+    "name": "E-commerce Business",
+    "description": "E-commerce Business operating in Puerto Rico."
+  },
+  {
+    "id": "BT_COSMETICS_STORE",
+    "industry_id": "IND_RETAIL",
+    "name": "Cosmetics Store",
+    "description": "Cosmetics Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_GENERAL_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "General Contractor",
+    "description": "General Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ELECTRICAL_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "Electrical Contractor",
+    "description": "Electrical Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PLUMBING_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "Plumbing Contractor",
+    "description": "Plumbing Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_HVAC_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "HVAC Contractor",
+    "description": "HVAC Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ROOFING_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "Roofing Contractor",
+    "description": "Roofing Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CONCRETE_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "Concrete Contractor",
+    "description": "Concrete Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_LANDSCAPING_COMPANY",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "Landscaping Company",
+    "description": "Landscaping Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SPECIALTY_TRADE_CONTRACTOR",
+    "industry_id": "IND_CONSTRUCTION",
+    "name": "Specialty Trade Contractor",
+    "description": "Specialty Trade Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_HOTEL",
+    "industry_id": "IND_TOURISM",
+    "name": "Hotel",
+    "description": "Hotel operating in Puerto Rico."
+  },
+  {
+    "id": "BT_RESORT",
+    "industry_id": "IND_TOURISM",
+    "name": "Resort",
+    "description": "Resort operating in Puerto Rico."
+  },
+  {
+    "id": "BT_GUEST_HOUSE",
+    "industry_id": "IND_TOURISM",
+    "name": "Guest House",
+    "description": "Guest House operating in Puerto Rico."
+  },
+  {
+    "id": "BT_AIRBNB_SHORT_TERM_RENTAL",
+    "industry_id": "IND_TOURISM",
+    "name": "Airbnb / Short-Term Rental",
+    "description": "Airbnb / Short-Term Rental operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TOUR_OPERATOR",
+    "industry_id": "IND_TOURISM",
+    "name": "Tour Operator",
+    "description": "Tour Operator operating in Puerto Rico."
+  },
+  {
+    "id": "BT_EXCURSION_COMPANY",
+    "industry_id": "IND_TOURISM",
+    "name": "Excursion Company",
+    "description": "Excursion Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CAR_RENTAL_BUSINESS",
+    "industry_id": "IND_TOURISM",
+    "name": "Car Rental Business",
+    "description": "Car Rental Business operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TRAVEL_AGENCY",
+    "industry_id": "IND_TOURISM",
+    "name": "Travel Agency",
+    "description": "Travel Agency operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BEAUTY_SALON",
+    "industry_id": "IND_BEAUTY",
+    "name": "Beauty Salon",
+    "description": "Beauty Salon operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BARBERSHOP",
+    "industry_id": "IND_BEAUTY",
+    "name": "Barbershop",
+    "description": "Barbershop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_NAIL_SALON",
+    "industry_id": "IND_BEAUTY",
+    "name": "Nail Salon",
+    "description": "Nail Salon operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SPA",
+    "industry_id": "IND_BEAUTY",
+    "name": "Spa",
+    "description": "Spa operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MASSAGE_THERAPY_STUDIO",
+    "industry_id": "IND_BEAUTY",
+    "name": "Massage Therapy Studio",
+    "description": "Massage Therapy Studio operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TATTOO_SHOP",
+    "industry_id": "IND_BEAUTY",
+    "name": "Tattoo Shop",
+    "description": "Tattoo Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ESTHETICS_STUDIO",
+    "industry_id": "IND_BEAUTY",
+    "name": "Esthetics Studio",
+    "description": "Esthetics Studio operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FOOD_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Food Manufacturing",
+    "description": "Food Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PHARMACEUTICAL_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Pharmaceutical Manufacturing",
+    "description": "Pharmaceutical Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MEDICAL_DEVICE_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Medical Device Manufacturing",
+    "description": "Medical Device Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TEXTILE_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Textile Manufacturing",
+    "description": "Textile Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FURNITURE_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Furniture Manufacturing",
+    "description": "Furniture Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BEVERAGE_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Beverage Manufacturing",
+    "description": "Beverage Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CHEMICAL_MANUFACTURING",
+    "industry_id": "IND_MANUFACTURING",
+    "name": "Chemical Manufacturing",
+    "description": "Chemical Manufacturing operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TRUCKING_COMPANY",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Trucking Company",
+    "description": "Trucking Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_COURIER_SERVICE",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Courier Service",
+    "description": "Courier Service operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MOVING_COMPANY",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Moving Company",
+    "description": "Moving Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TAXI_SERVICE",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Taxi Service",
+    "description": "Taxi Service operating in Puerto Rico."
+  },
+  {
+    "id": "BT_LOGISTICS_COMPANY",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Logistics Company",
+    "description": "Logistics Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_WAREHOUSE_OPERATOR",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Warehouse Operator",
+    "description": "Warehouse Operator operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FREIGHT_FORWARDING_COMPANY",
+    "industry_id": "IND_TRANSPORT",
+    "name": "Freight Forwarding Company",
+    "description": "Freight Forwarding Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PRIVATE_SCHOOL",
+    "industry_id": "IND_EDUCATION",
+    "name": "Private School",
+    "description": "Private School operating in Puerto Rico."
+  },
+  {
+    "id": "BT_DAYCARE",
+    "industry_id": "IND_EDUCATION",
+    "name": "Daycare",
+    "description": "Daycare operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TUTORING_CENTER",
+    "industry_id": "IND_EDUCATION",
+    "name": "Tutoring Center",
+    "description": "Tutoring Center operating in Puerto Rico."
+  },
+  {
+    "id": "BT_VOCATIONAL_SCHOOL",
+    "industry_id": "IND_EDUCATION",
+    "name": "Vocational School",
+    "description": "Vocational School operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TRAINING_COMPANY",
+    "industry_id": "IND_EDUCATION",
+    "name": "Training Company",
+    "description": "Training Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_AFTER_SCHOOL_PROGRAM",
+    "industry_id": "IND_EDUCATION",
+    "name": "After-School Program",
+    "description": "After-School Program operating in Puerto Rico."
+  },
+  {
+    "id": "BT_REAL_ESTATE_BROKERAGE",
+    "industry_id": "IND_REALESTATE",
+    "name": "Real Estate Brokerage",
+    "description": "Real Estate Brokerage operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PROPERTY_MANAGEMENT_COMPANY",
+    "industry_id": "IND_REALESTATE",
+    "name": "Property Management Company",
+    "description": "Property Management Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_REAL_ESTATE_DEVELOPER",
+    "industry_id": "IND_REALESTATE",
+    "name": "Real Estate Developer",
+    "description": "Real Estate Developer operating in Puerto Rico."
+  },
+  {
+    "id": "BT_APPRAISAL_FIRM",
+    "industry_id": "IND_REALESTATE",
+    "name": "Appraisal Firm",
+    "description": "Appraisal Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_REAL_ESTATE_INVESTMENT_FIRM",
+    "industry_id": "IND_REALESTATE",
+    "name": "Real Estate Investment Firm",
+    "description": "Real Estate Investment Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_AUTO_REPAIR_SHOP",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Auto Repair Shop",
+    "description": "Auto Repair Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BODY_SHOP",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Body Shop",
+    "description": "Body Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CAR_DEALERSHIP",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Car Dealership",
+    "description": "Car Dealership operating in Puerto Rico."
+  },
+  {
+    "id": "BT_AUTO_PARTS_STORE",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Auto Parts Store",
+    "description": "Auto Parts Store operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CAR_WASH",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Car Wash",
+    "description": "Car Wash operating in Puerto Rico."
+  },
+  {
+    "id": "BT_TIRE_SHOP",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Tire Shop",
+    "description": "Tire Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MOTORCYCLE_REPAIR_SHOP",
+    "industry_id": "IND_AUTOMOTIVE",
+    "name": "Motorcycle Repair Shop",
+    "description": "Motorcycle Repair Shop operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FARM",
+    "industry_id": "IND_AGRICULTURE",
+    "name": "Farm",
+    "description": "Farm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_LIVESTOCK_OPERATION",
+    "industry_id": "IND_AGRICULTURE",
+    "name": "Livestock Operation",
+    "description": "Livestock Operation operating in Puerto Rico."
+  },
+  {
+    "id": "BT_AQUACULTURE_OPERATION",
+    "industry_id": "IND_AGRICULTURE",
+    "name": "Aquaculture Operation",
+    "description": "Aquaculture Operation operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PLANT_NURSERY",
+    "industry_id": "IND_AGRICULTURE",
+    "name": "Plant Nursery",
+    "description": "Plant Nursery operating in Puerto Rico."
+  },
+  {
+    "id": "BT_AGRICULTURAL_SERVICES_COMPANY",
+    "industry_id": "IND_AGRICULTURE",
+    "name": "Agricultural Services Company",
+    "description": "Agricultural Services Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_COFFEE_PLANTATION",
+    "industry_id": "IND_AGRICULTURE",
+    "name": "Coffee Plantation",
+    "description": "Coffee Plantation operating in Puerto Rico."
+  },
+  {
+    "id": "BT_INSURANCE_AGENCY",
+    "industry_id": "IND_FINANCE",
+    "name": "Insurance Agency",
+    "description": "Insurance Agency operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MORTGAGE_BROKER",
+    "industry_id": "IND_FINANCE",
+    "name": "Mortgage Broker",
+    "description": "Mortgage Broker operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FINANCIAL_ADVISORY_FIRM",
+    "industry_id": "IND_FINANCE",
+    "name": "Financial Advisory Firm",
+    "description": "Financial Advisory Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ACCOUNTING_FIRM",
+    "industry_id": "IND_FINANCE",
+    "name": "Accounting Firm",
+    "description": "Accounting Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_INVESTMENT_FIRM",
+    "industry_id": "IND_FINANCE",
+    "name": "Investment Firm",
+    "description": "Investment Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CREDIT_SERVICES_COMPANY",
+    "industry_id": "IND_FINANCE",
+    "name": "Credit Services Company",
+    "description": "Credit Services Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SOLAR_INSTALLER",
+    "industry_id": "IND_ENERGY",
+    "name": "Solar Installer",
+    "description": "Solar Installer operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ENERGY_CONSULTING_FIRM",
+    "industry_id": "IND_ENERGY",
+    "name": "Energy Consulting Firm",
+    "description": "Energy Consulting Firm operating in Puerto Rico."
+  },
+  {
+    "id": "BT_UTILITY_CONTRACTOR",
+    "industry_id": "IND_ENERGY",
+    "name": "Utility Contractor",
+    "description": "Utility Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BATTERY_STORAGE_INSTALLER",
+    "industry_id": "IND_ENERGY",
+    "name": "Battery Storage Installer",
+    "description": "Battery Storage Installer operating in Puerto Rico."
+  },
+  {
+    "id": "BT_RENEWABLE_ENERGY_COMPANY",
+    "industry_id": "IND_ENERGY",
+    "name": "Renewable Energy Company",
+    "description": "Renewable Energy Company operating in Puerto Rico."
+  },
+  {
+    "id": "BT_WHOLESALE_FOOD_DISTRIBUTOR",
+    "industry_id": "IND_WHOLESALE",
+    "name": "Wholesale Food Distributor",
+    "description": "Wholesale Food Distributor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_WHOLESALE_GOODS_DISTRIBUTOR",
+    "industry_id": "IND_WHOLESALE",
+    "name": "Wholesale Goods Distributor",
+    "description": "Wholesale Goods Distributor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_BEVERAGE_DISTRIBUTOR",
+    "industry_id": "IND_WHOLESALE",
+    "name": "Beverage Distributor",
+    "description": "Beverage Distributor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_IMPORT_EXPORT_BUSINESS",
+    "industry_id": "IND_WHOLESALE",
+    "name": "Import / Export Business",
+    "description": "Import / Export Business operating in Puerto Rico."
+  },
+  {
+    "id": "BT_WAREHOUSE_DISTRIBUTOR",
+    "industry_id": "IND_WHOLESALE",
+    "name": "Warehouse Distributor",
+    "description": "Warehouse Distributor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_GYM_FITNESS_STUDIO",
+    "industry_id": "IND_ARTS",
+    "name": "Gym / Fitness Studio",
+    "description": "Gym / Fitness Studio operating in Puerto Rico."
+  },
+  {
+    "id": "BT_DANCE_STUDIO",
+    "industry_id": "IND_ARTS",
+    "name": "Dance Studio",
+    "description": "Dance Studio operating in Puerto Rico."
+  },
+  {
+    "id": "BT_MUSIC_VENUE",
+    "industry_id": "IND_ARTS",
+    "name": "Music Venue",
+    "description": "Music Venue operating in Puerto Rico."
+  },
+  {
+    "id": "BT_EVENT_VENUE",
+    "industry_id": "IND_ARTS",
+    "name": "Event Venue",
+    "description": "Event Venue operating in Puerto Rico."
+  },
+  {
+    "id": "BT_THEATER",
+    "industry_id": "IND_ARTS",
+    "name": "Theater",
+    "description": "Theater operating in Puerto Rico."
+  },
+  {
+    "id": "BT_ART_GALLERY",
+    "industry_id": "IND_ARTS",
+    "name": "Art Gallery",
+    "description": "Art Gallery operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SPORTS_FACILITY",
+    "industry_id": "IND_ARTS",
+    "name": "Sports Facility",
+    "description": "Sports Facility operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CONSTRUCTION_GOVERNMENT_CONTRACTOR",
+    "industry_id": "IND_GOVCON",
+    "name": "Construction Government Contractor",
+    "description": "Construction Government Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_IT_GOVERNMENT_CONTRACTOR",
+    "industry_id": "IND_GOVCON",
+    "name": "IT Government Contractor",
+    "description": "IT Government Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_PROFESSIONAL_SERVICES_GOVERNMENT_CONTRACTOR",
+    "industry_id": "IND_GOVCON",
+    "name": "Professional Services Government Contractor",
+    "description": "Professional Services Government Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FACILITIES_GOVERNMENT_CONTRACTOR",
+    "industry_id": "IND_GOVCON",
+    "name": "Facilities Government Contractor",
+    "description": "Facilities Government Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_SECURITY_CONTRACTOR",
+    "industry_id": "IND_GOVCON",
+    "name": "Security Contractor",
+    "description": "Security Contractor operating in Puerto Rico."
+  },
+  {
+    "id": "BT_NONPROFIT_ORGANIZATION",
+    "industry_id": "IND_NONPROFIT",
+    "name": "Nonprofit Organization",
+    "description": "Nonprofit Organization operating in Puerto Rico."
+  },
+  {
+    "id": "BT_RELIGIOUS_ORGANIZATION",
+    "industry_id": "IND_NONPROFIT",
+    "name": "Religious Organization",
+    "description": "Religious Organization operating in Puerto Rico."
+  },
+  {
+    "id": "BT_COMMUNITY_ORGANIZATION",
+    "industry_id": "IND_NONPROFIT",
+    "name": "Community Organization",
+    "description": "Community Organization operating in Puerto Rico."
+  },
+  {
+    "id": "BT_FOUNDATION",
+    "industry_id": "IND_NONPROFIT",
+    "name": "Foundation",
+    "description": "Foundation operating in Puerto Rico."
+  },
+  {
+    "id": "BT_CHARITY",
+    "industry_id": "IND_NONPROFIT",
+    "name": "Charity",
+    "description": "Charity operating in Puerto Rico."
+  }
+]

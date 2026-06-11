@@ -1,0 +1,242 @@
+[
+  {
+    "id": "DOC_CERT_INCORPORATION",
+    "name": "Certificate of Incorporation",
+    "agency": "Department of State",
+    "category": "State"
+  },
+  {
+    "id": "DOC_ARTICLES_ORGANIZATION",
+    "name": "Articles of Organization",
+    "agency": "Department of State",
+    "category": "State"
+  },
+  {
+    "id": "DOC_DBA_REGISTRATION",
+    "name": "DBA / Trade Name Registration",
+    "agency": "Department of State",
+    "category": "State"
+  },
+  {
+    "id": "DOC_EIN",
+    "name": "IRS EIN Confirmation Letter",
+    "agency": "IRS",
+    "category": "Federal"
+  },
+  {
+    "id": "DOC_MERCHANT_REGISTRATION",
+    "name": "Merchant Registration Certificate (Registro de Comerciante)",
+    "agency": "Departamento de Hacienda",
+    "category": "State"
+  },
+  {
+    "id": "DOC_SURI_REGISTRATION",
+    "name": "SURI Account Registration",
+    "agency": "Departamento de Hacienda",
+    "category": "State"
+  },
+  {
+    "id": "DOC_PERMISO_UNICO",
+    "name": "Permiso Único",
+    "agency": "OGPe",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_ZONING",
+    "name": "Zoning / Use Certification",
+    "agency": "OGPe",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_OCCUPANCY",
+    "name": "Occupancy Documentation",
+    "agency": "OGPe",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_PATENTE_MUNICIPAL",
+    "name": "Patente Municipal",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_MUNICIPAL_REGISTRATION",
+    "name": "Municipal Registration",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_MUNICIPAL_TAX_COMPLIANCE",
+    "name": "Municipal Tax Compliance Certificate",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_HEALTH_PERMIT",
+    "name": "Health / Sanitary Permit",
+    "agency": "Departamento de Salud",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_FIRE_CERT",
+    "name": "Fire Safety Certification (Certificado de Bomberos)",
+    "agency": "Cuerpo de Bomberos",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_CFPM",
+    "name": "Certified Food Protection Manager (CFPM)",
+    "agency": "Departamento de Salud",
+    "category": "Professional"
+  },
+  {
+    "id": "DOC_ALCOHOL_LICENSE",
+    "name": "Alcohol Beverage License",
+    "agency": "Departamento de Hacienda",
+    "category": "State"
+  },
+  {
+    "id": "DOC_PROFESSIONAL_LICENSE",
+    "name": "Professional License",
+    "agency": "Department of State Examining Boards",
+    "category": "Professional"
+  },
+  {
+    "id": "DOC_CONTRACTOR_LICENSE",
+    "name": "Contractor License",
+    "agency": "Department of State",
+    "category": "Professional"
+  },
+  {
+    "id": "DOC_TOURISM_REGISTRATION",
+    "name": "Tourism Registration",
+    "agency": "Compañía de Turismo",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_INSURANCE",
+    "name": "General Liability Insurance Certificate",
+    "agency": "Insurance Carrier",
+    "category": "Insurance"
+  },
+  {
+    "id": "DOC_WORKERS_COMP",
+    "name": "Workers Compensation Insurance (CFSE)",
+    "agency": "Corporación del Fondo del Seguro del Estado",
+    "category": "Insurance"
+  },
+  {
+    "id": "DOC_LEASE_AGREEMENT",
+    "name": "Lease Agreement",
+    "agency": "Property Owner",
+    "category": "Property"
+  },
+  {
+    "id": "DOC_PROPERTY_DEED",
+    "name": "Property Deed (Escritura)",
+    "agency": "Property Registry",
+    "category": "Property"
+  },
+  {
+    "id": "DOC_FLOOR_PLANS",
+    "name": "Floor Plans",
+    "agency": "Licensed Architect / Engineer",
+    "category": "Property"
+  },
+  {
+    "id": "DOC_ENVIRONMENTAL_PERMIT",
+    "name": "Environmental Permit",
+    "agency": "Junta de Calidad Ambiental / DRNA",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_MEDICAL_WASTE_PERMIT",
+    "name": "Medical Waste Management Permit",
+    "agency": "Junta de Calidad Ambiental",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_SIGN_PERMIT",
+    "name": "Sign / Rótulo Permit",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_OUTDOOR_SEATING_AUTH",
+    "name": "Outdoor Seating Authorization",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_ENTERTAINMENT_PERMIT",
+    "name": "Entertainment Permit",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_IMPORT_EXPORT_REG",
+    "name": "Import / Export Registration",
+    "agency": "Departamento de Hacienda",
+    "category": "State"
+  },
+  {
+    "id": "DOC_HOME_DECLARATION",
+    "name": "Home Business Declaration",
+    "agency": "Municipal Government",
+    "category": "Municipal"
+  },
+  {
+    "id": "DOC_CRIM_CLEARANCE",
+    "name": "CRIM Property Tax Clearance",
+    "agency": "CRIM",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_TRANSPORT_PERMIT",
+    "name": "Transportation / PUC Permit",
+    "agency": "Comisión de Servicio Público",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_VEHICLE_REGISTRATION",
+    "name": "Commercial Vehicle Registration",
+    "agency": "DTOP",
+    "category": "State"
+  },
+  {
+    "id": "DOC_CHILDCARE_LICENSE",
+    "name": "Childcare / Education License",
+    "agency": "Departamento de la Familia / Educación",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_BACKGROUND_CHECK",
+    "name": "Background Check Documentation (Certificado de Antecedentes Penales)",
+    "agency": "Policía de Puerto Rico",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_PESTICIDE_LICENSE",
+    "name": "Pesticide Applicator License",
+    "agency": "Departamento de Agricultura",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_AGRICULTURE_REGISTRATION",
+    "name": "Bona Fide Farmer Registration",
+    "agency": "Departamento de Agricultura",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_FIREARMS_LICENSE",
+    "name": "Weapons / Firearms Dealer License",
+    "agency": "Policía de Puerto Rico",
+    "category": "Regulatory"
+  },
+  {
+    "id": "DOC_NONPROFIT_REGISTRATION",
+    "name": "Nonprofit Registration / 501(c)(3) Determination",
+    "agency": "IRS / Department of State",
+    "category": "Federal"
+  }
+]
