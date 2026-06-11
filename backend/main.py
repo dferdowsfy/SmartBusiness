@@ -44,11 +44,23 @@ app = FastAPI(
 )
 
 # CORS
-cors_origins = os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+# Defaults to allowing all origins so the only required variables are the
+# OpenRouter API key and model. Optionally restrict by setting
+# BACKEND_CORS_ORIGINS to a comma-separated list of allowed frontend URLs.
+_cors_env = os.getenv("BACKEND_CORS_ORIGINS", "").strip()
+if _cors_env:
+    cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    cors_origins = ["*"]
+    # Browsers forbid wildcard origins together with credentials, so disable
+    # credentials when allowing all origins (this app uses no cookies/auth).
+    allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in cors_origins],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
