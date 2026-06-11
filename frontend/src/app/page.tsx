@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { L } from './i18n';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { 
@@ -900,6 +901,21 @@ export default function SmartPR() {
     return dict[key]?.[language] || key;
   };
 
+  // Translate requirement name/reason, handling the dynamic Patente Municipal
+  // strings (which embed the municipality and so can't be matched verbatim).
+  const trReqName = (req: { code: string; name: string }) => {
+    if (req.code === 'patente_municipal') return `Patente Municipal (${profile.municipality})`;
+    return L(req.name, language);
+  };
+  const trReqReason = (req: { code: string; reason: string }) => {
+    if (req.code === 'patente_municipal') {
+      return language === 'es'
+        ? `Impuesto/licencia municipal requerido en el municipio de ${profile.municipality}. Usualmente requiere primero el Permiso Único.`
+        : req.reason;
+    }
+    return L(req.reason, language);
+  };
+
   // Recompute requirements whenever profile or answers change (demo of the rules engine)
   const updateRequirements = (newProfile?: BusinessProfile, newAnswers?: Record<string, any>) => {
     const p = newProfile || profile;
@@ -1297,6 +1313,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           filename,
           content,
           requirement_code: reqCode,   // unique, targeted prompt per document type
+          lang: language,              // so AI notes/findings come back in the selected language
           business_context: {
             name: profile.name || null,
             municipality: profile.municipality || null,
@@ -1426,48 +1443,49 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const newFindings: Finding[] = [...findings];
     const status = analysis.overall_status;
     let sev: 'critical' | 'warning' | 'informational' = 'informational';
-    let title = `${filename} processed`;
-    let desc = analysis.notes || `Identified as ${analysis.document_type}. Confidence ${Math.round((analysis.confidence || 0) * 100)}%.`;
-    let action = 'Document added and analyzed.';
+    let title = `${filename} ${L('processed', language)}`;
+    let desc = analysis.notes || `${L('Identified as', language)} ${analysis.document_type}. ${L('Confidence', language)} ${Math.round((analysis.confidence || 0) * 100)}%.`;
+    let action = L('Document added and analyzed.', language);
 
     if (status === 'Complete' || status === 'Verified') {
       sev = 'informational';
-      title = `${analysis.document_type} verified via Grok AI`;
-      action = 'Readiness score updated.';
+      title = `${analysis.document_type} — ${L('verified via Grok AI', language)}`;
+      action = L('Readiness score updated.', language);
     } else if (status === 'Needs Review' || status === 'Missing Information') {
       sev = 'warning';
-      title = `${analysis.document_type} needs review`;
-      action = 'Review fields or re-upload.';
+      title = `${analysis.document_type} — ${L('needs review', language)}`;
+      action = L('Review fields or re-upload.', language);
     } else if (status === 'Mismatch' || status === 'Expired') {
       sev = 'critical';
-      title = `${analysis.document_type} has issues`;
-      action = 'Address before submission.';
+      title = `${analysis.document_type} — ${L('has issues', language)}`;
+      action = L('Address before submission.', language);
     }
 
     newFindings.push({ severity: sev, title, description: desc, recommended_action: action });
     setFindings(newFindings);
 
     // Visible toast so the user immediately sees the LLM result for this upload.
-    const reqLabel = requirements.find(r => r.code === reqCode)?.name || analysis.document_type || filename;
+    const reqObj = requirements.find(r => r.code === reqCode);
+    const reqLabel = reqObj ? trReqName(reqObj) : (analysis.document_type || filename);
     if (!llmRan) {
       setUploadNotice({
         kind: 'error',
-        title: `Could not analyze with AI`,
+        title: L('Could not analyze with AI', language),
         detail: llmError
-          ? `${llmError}. Add OPENROUTER_API_KEY in your environment to enable Grok analysis.`
-          : 'AI analysis unavailable. Using basic classification.',
+          ? `${llmError}. ${L('Add OPENROUTER_API_KEY in your environment to enable Grok analysis.', language)}`
+          : L('AI analysis unavailable. Using basic classification.', language),
       });
     } else if (newStatus === 'passed') {
       setUploadNotice({
         kind: 'success',
-        title: `✓ ${reqLabel} passed`,
-        detail: `Grok verified ${analysis.document_type}. Readiness score updated.`,
+        title: `✓ ${reqLabel} ${L('passed', language)}`,
+        detail: `${L('Grok verified', language)} ${analysis.document_type}. ${L('Readiness score updated.', language)}`,
       });
     } else {
       setUploadNotice({
         kind: 'warning',
-        title: `${reqLabel} needs review`,
-        detail: analysis.notes || `Grok analyzed ${analysis.document_type} but couldn't fully verify it.`,
+        title: `${reqLabel} ${L('needs review', language)}`,
+        detail: analysis.notes || `${L('Grok analyzed', language)} ${analysis.document_type} ${L("but couldn't fully verify it.", language)}`,
       });
     }
 
@@ -1500,24 +1518,24 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         if (missing > 0) {
           newFindings.push({
             severity: 'critical',
-            title: `${missing} Critical Items Missing`,
-            description: 'Required documents or permits have not been uploaded or validated.',
-            recommended_action: 'Upload the missing items shown in the checklist.'
+            title: `${missing} ${L('Critical Items Missing', language)}`,
+            description: L('Required documents or permits have not been uploaded or validated.', language),
+            recommended_action: L('Upload the missing items shown in the checklist.', language)
           });
         }
         if (profile.industry === 'Restaurant') {
           newFindings.push({
             severity: 'warning',
-            title: 'Insurance expires soon',
-            description: 'One of your insurance certificates is approaching expiration.',
-            recommended_action: 'Renew and re-upload the certificate before submission.'
+            title: L('Insurance expires soon', language),
+            description: L('One of your insurance certificates is approaching expiration.', language),
+            recommended_action: L('Renew and re-upload the certificate before submission.', language)
           });
         }
         newFindings.push({
           severity: 'informational',
-          title: 'Municipal recommendation recommended',
-          description: 'Some municipalities require a local planning letter.',
-          recommended_action: 'Contact your municipal Oficina de Planificación.'
+          title: L('Municipal recommendation recommended', language),
+          description: L('Some municipalities require a local planning letter.', language),
+          recommended_action: L('Contact your municipal Oficina de Planificación.', language)
         });
       }
 
@@ -1594,6 +1612,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     let y = 0;
     const lineH = 5.2;
+    const tr = (s: string) => L(s, language); // localize PDF text to selected language
 
     const ensureSpace = (needed: number) => {
       if (y + needed > PAGE_H - 16) {
@@ -1647,22 +1666,22 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     doc.text('SMARTPR', MARGIN, 13);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text('PUERTO RICO BUSINESS LICENSING READINESS', MARGIN + 34, 13);
+    doc.text(san(tr('PUERTO RICO BUSINESS LICENSING READINESS')), MARGIN + 34, 13);
 
     // ---- Title ----
     y = 32;
     doc.setTextColor(navy[0], navy[1], navy[2]);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
-    doc.text('Submission Readiness Report', MARGIN, y);
+    doc.text(san(tr('Submission Readiness Report')), MARGIN, y);
     y += 9;
 
     // ---- Business meta ----
     const metaRows: [string, string][] = [
-      ['Business Name', profile.name || 'N/A'],
-      ['Municipality', profile.municipality || 'N/A'],
-      ['Industry', profile.industry || 'N/A'],
-      ['Business Type', profile.business_type || 'N/A'],
+      [tr('Business Name'), profile.name || 'N/A'],
+      [tr('Municipality'), profile.municipality || 'N/A'],
+      [tr('Industry'), profile.industry || 'N/A'],
+      [tr('Business Type'), profile.business_type || 'N/A'],
     ];
     doc.setFontSize(10);
     metaRows.forEach(([k, v]) => {
@@ -1683,7 +1702,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     ).length;
     const total = requirements.filter(r => r.mandatory).length;
     const ready = total > 0 && completed === total;
-    const statusText = ready ? 'READY FOR SUBMISSION' : 'NEEDS REVIEW';
+    const statusText = ready ? tr('READY FOR SUBMISSION') : tr('NEEDS REVIEW');
     const band: [number, number, number] = ready ? teal : [217, 119, 6];
     ensureSpace(13);
     doc.setFillColor(band[0], band[1], band[2]);
@@ -1692,7 +1711,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text(
-      `${statusText}   |   Readiness ${readinessScore ?? 'N/A'}%   |   ${completed} of ${total} required documents validated`,
+      san(`${statusText}   |   ${tr('Readiness')} ${readinessScore ?? 'N/A'}%   |   ${completed} ${tr('of')} ${total} ${tr('required documents validated')}`),
       MARGIN + 4,
       y + 7.2
     );
@@ -1700,24 +1719,24 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     doc.setFont('helvetica', 'normal');
 
     // ---- Required documents ----
-    sectionHeading('REQUIRED DOCUMENTS');
+    sectionHeading(tr('REQUIRED DOCUMENTS'));
     requirements.slice(0, 12).forEach(r => {
       const done = r.status === 'passed' || r.status === 'uploaded';
-      writeText(`${done ? '[x]' : '[ ]'}  ${r.name}  (${r.agency})`, MARGIN + 2, { gap: 0.6 });
+      writeText(`${done ? '[x]' : '[ ]'}  ${trReqName(r)}  (${L(r.agency, language)})`, MARGIN + 2, { gap: 0.6 });
     });
     if (requirements.length > 12) {
-      writeText(`... and ${requirements.length - 12} more`, MARGIN + 2, { gap: 0.6, color: slate });
+      writeText(`${tr('... and')} ${requirements.length - 12} ${tr('more')}`, MARGIN + 2, { gap: 0.6, color: slate });
     }
 
     // ---- Uploaded documents ----
-    sectionHeading('UPLOADED & VALIDATED DOCUMENTS');
+    sectionHeading(tr('UPLOADED & VALIDATED DOCUMENTS'));
     if (uploadedDocs.length === 0) {
-      writeText('No documents uploaded yet.', MARGIN + 2, { color: slate });
+      writeText(tr('No documents uploaded yet.'), MARGIN + 2, { color: slate });
     } else {
       uploadedDocs.slice(0, 12).forEach((d, i) => {
         const a = d.ai_analysis;
         const st = a?.overall_status || 'Unknown';
-        writeText(`${i + 1}.  ${d.name} — ${a?.document_type || 'Document'}  (${st})`, MARGIN + 2, {
+        writeText(`${i + 1}.  ${d.name} — ${a?.document_type || 'Document'}  (${L(st, language)})`, MARGIN + 2, {
           gap: 0.6,
         });
       });
@@ -1725,33 +1744,33 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     // ---- Missing / pending ----
     const missing = requirements.filter(r => r.mandatory && r.status === 'pending');
-    sectionHeading('MISSING / PENDING DOCUMENTS');
+    sectionHeading(tr('MISSING / PENDING DOCUMENTS'));
     if (missing.length === 0) {
-      writeText('None — all mandatory items validated.', MARGIN + 2, { color: teal });
+      writeText(tr('None — all mandatory items validated.'), MARGIN + 2, { color: teal });
     } else {
-      missing.forEach(m => writeText(`-  ${m.name}`, MARGIN + 2, { gap: 0.6 }));
+      missing.forEach(m => writeText(`-  ${trReqName(m)}`, MARGIN + 2, { gap: 0.6 }));
     }
 
     // ---- Findings ----
-    sectionHeading('FINDINGS & RECOMMENDATIONS');
+    sectionHeading(tr('FINDINGS & RECOMMENDATIONS'));
     if (findings.length === 0) {
-      writeText('No findings recorded.', MARGIN + 2, { color: slate });
+      writeText(tr('No findings recorded.'), MARGIN + 2, { color: slate });
     } else {
       findings.slice(0, 8).forEach(f => {
-        writeText(`[${f.severity.toUpperCase()}]  ${f.title}`, MARGIN + 2, { gap: 0.4, bold: true });
-        if (f.description) writeText(f.description, MARGIN + 6, { gap: 0.4, color: slate });
+        writeText(`[${f.severity.toUpperCase()}]  ${L(f.title, language)}`, MARGIN + 2, { gap: 0.4, bold: true });
+        if (f.description) writeText(L(f.description, language), MARGIN + 6, { gap: 0.4, color: slate });
         if (f.recommended_action)
-          writeText(`-> ${f.recommended_action}`, MARGIN + 6, { gap: 1.2, color: slate });
+          writeText(`-> ${L(f.recommended_action, language)}`, MARGIN + 6, { gap: 1.2, color: slate });
       });
     }
 
     // ---- Next steps ----
-    sectionHeading('RECOMMENDED NEXT STEPS');
+    sectionHeading(tr('RECOMMENDED NEXT STEPS'));
     [
-      '1. Review any items marked Needs Review or Warning.',
-      '2. Address expiring documents or mismatches before submission.',
-      '3. Share the Submission Package ZIP with your attorney, accountant, or permit expediter.',
-      '4. Use the SmartPR Workspace to track updates and re-validate as needed.',
+      tr('1. Review any items marked Needs Review or Warning.'),
+      tr('2. Address expiring documents or mismatches before submission.'),
+      tr('3. Share the Submission Package ZIP with your attorney, accountant, or permit expediter.'),
+      tr('4. Use the SmartPR Workspace to track updates and re-validate as needed.'),
     ].forEach(s => writeText(s, MARGIN + 2, { gap: 0.6 }));
 
     // ---- Disclaimer ----
@@ -1765,8 +1784,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     y += 6;
     doc.setTextColor(153, 27, 30);
     doc.setFontSize(8.5);
-    const disclaimer =
-      'SmartPR determines READINESS for submission to Puerto Rico government agencies. It does NOT approve, grant, or issue any license or permit. All approvals are made exclusively by the Government of Puerto Rico and its agencies. This package is for preparation and organization only. Platform scope: Prepare, Validate, Organize, Package.';
+    const disclaimer = tr(
+      'SmartPR determines READINESS for submission to Puerto Rico government agencies. It does NOT approve, grant, or issue any license or permit. All approvals are made exclusively by the Government of Puerto Rico and its agencies. This package is for preparation and organization only. Platform scope: Prepare, Validate, Organize, Package.'
+    );
     doc.splitTextToSize(san(disclaimer), CONTENT_W - 8).forEach((ln: string) => {
       doc.text(ln, MARGIN + 4, y);
       y += 4.2;
@@ -1784,11 +1804,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(slate[0], slate[1], slate[2]);
       doc.text(
-        san(`Generated: ${new Date().toLocaleString()}  |  SmartPR  |  Powered by Grok AI`),
+        san(`${tr('Generated')}: ${new Date().toLocaleString()}  |  SmartPR  |  ${tr('Powered by Grok AI')}`),
         MARGIN,
         PAGE_H - 8
       );
-      doc.text(`Page ${p} of ${pages}`, PAGE_W - MARGIN, PAGE_H - 8, { align: 'right' });
+      doc.text(san(`${tr('Page')} ${p} ${tr('of')} ${pages}`), PAGE_W - MARGIN, PAGE_H - 8, { align: 'right' });
     }
 
     return doc.output('blob');
@@ -1860,6 +1880,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const totalM = requirements.filter(r => r.mandatory).length;
     return {
       v: 1,
+      lang: language,
       name: profile.name || 'Business',
       municipality: profile.municipality || '',
       industry: profile.industry || '',
@@ -2002,7 +2023,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         {/* Progress */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2 text-sm">
-            <div className="font-medium text-[#0A2540]">SmartPR Readiness Workflow — Step {currentStep} of 9</div>
+            <div className="font-medium text-[#0A2540]">{L('SmartPR Readiness Workflow', language)} — {L('Step', language)} {currentStep} {L('of', language)} 9</div>
             <div className="text-[#0A2540]/60">{progress}% complete</div>
           </div>
           <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -2139,7 +2160,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               {questionList.length > 0 && currentQuestionIndex < questionList.length && (
                 <div className="border-2 border-[#0A2540] rounded-2xl p-8 bg-white">
                   <div className="text-2xl font-semibold mb-8 text-[#0A2540]">
-                    {questionList[currentQuestionIndex].text}
+                    {L(questionList[currentQuestionIndex].text, language)}
                   </div>
                   <div className="grid grid-cols-1 gap-4">
                     <button
@@ -2156,14 +2177,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     </button>
                   </div>
                   <div className="text-center mt-4 text-sm text-[#0A2540]/60">
-                    Question {currentQuestionIndex + 1} of {questionList.length}
+                    {L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {questionList.length}
                   </div>
                 </div>
               )}
 
               {questionList.length > 0 && currentQuestionIndex >= questionList.length && (
                 <div className="text-center text-sm text-[#0A2540]/70 py-2">
-                  All relevant questions answered for this business type.
+                  {L('All relevant questions answered for this business type.', language)}
                 </div>
               )}
 
@@ -2185,13 +2206,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           <div>
             <div className="flex items-end justify-between mb-6">
               <div>
-                <div className="text-sm text-[#0D9488] font-medium">SMARTPR READINESS CHECKLIST</div>
-                <h2 className="text-2xl font-semibold text-[#0A2540]">{profile.name || 'Your Business'} — {profile.municipality}</h2>
+                <div className="text-sm text-[#0D9488] font-medium">{L('SMARTPR READINESS CHECKLIST', language)}</div>
+                <h2 className="text-2xl font-semibold text-[#0A2540]">{profile.name || L('Your Business', language)} — {profile.municipality}</h2>
               </div>
               {readinessScore !== null && (
                 <div className="text-right">
                   <div className="text-4xl font-semibold tabular-nums text-[#0A2540]">{readinessScore}<span className="text-2xl">%</span></div>
-                  <div className="text-xs text-[#0A2540]/60">READINESS SCORE</div>
+                  <div className="text-xs text-[#0A2540]/60">{L('READINESS SCORE', language)}</div>
                 </div>
               )}
             </div>
@@ -2200,14 +2221,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               {/* Checklist */}
               <div className="lg:col-span-7 bg-white border rounded-2xl p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <div className="font-medium text-[#0A2540]">Required Items for this business ({completedMandatory}/{totalMandatory} mandatory complete)</div>
+                  <div className="font-medium text-[#0A2540]">{L('Required Items for this business', language)} ({completedMandatory}/{totalMandatory} {L('mandatory complete', language)})</div>
                   <div className="text-sm text-[#0D9488]">{checklistProgress}%</div>
                 </div>
 
                 <div className="space-y-2">
                   {requirements.length === 0 && currentStep === 3 && (
                     <button onClick={loadRequirements} className="w-full py-3 border border-dashed rounded-xl text-[#0D9488] hover:bg-slate-50 flex items-center justify-center gap-2">
-                      Compute Requirements from Rules Engine <ArrowRight className="w-4 h-4" />
+                      {L('Compute Requirements from Rules Engine', language)} <ArrowRight className="w-4 h-4" />
                     </button>
                   )}
 
@@ -2221,16 +2242,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       const conf = Math.round((analysis.confidence || 0) * 100);
                       if (st === 'Complete') {
                         icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
-                        extra = ` ✓ Complete (conf ${conf}%)`;
+                        extra = ` ✓ ${L('Complete', language)} (${L('conf', language)} ${conf}%)`;
                       } else if (st === 'Needs Review' || st === 'Missing Information') {
                         icon = <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />;
-                        extra = ` ⚠ ${st}`;
+                        extra = ` ⚠ ${L(st, language)}`;
                       } else if (st === 'Mismatch' || st === 'Expired') {
                         icon = <span className="text-red-600 mt-0.5 flex-shrink-0">✕</span>;
-                        extra = ` ✕ ${st}`;
+                        extra = ` ✕ ${L(st, language)}`;
                       } else {
                         icon = <span className="text-yellow-600 mt-0.5 flex-shrink-0">◐</span>;
-                        extra = ` ◐ ${st}`;
+                        extra = ` ◐ ${L(st, language)}`;
                       }
                     } else if (req.status === 'uploaded' || req.status === 'passed') {
                       icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
@@ -2241,18 +2262,18 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                           <div className="flex items-start gap-3 flex-1">
                             {icon}
                             <div className="min-w-0">
-                              <div className="font-medium text-[#0A2540]">{req.name}{extra}</div>
+                              <div className="font-medium text-[#0A2540]">{trReqName(req)}{extra}</div>
                               <div className="text-xs text-[#0A2540]/70 mt-0.5">
-                                <span className="font-semibold">{req.agency}</span> • {req.mandatory ? 'Mandatory' : 'Recommended'}
+                                <span className="font-semibold">{L(req.agency, language)}</span> • {req.mandatory ? L('Mandatory', language) : L('Recommended', language)}
                               </div>
-                              <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{req.reason}</div>
+                              <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
                             </div>
                           </div>
                           <button 
                             onClick={() => triggerFileUpload(req.code)}
                             className="text-xs px-3 py-1.5 rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white flex items-center gap-1 flex-shrink-0"
                           >
-                            <Upload className="w-3.5 h-3.5" /> Upload
+                            <Upload className="w-3.5 h-3.5" /> {L('Upload', language)}
                           </button>
                         </div>
                       </div>
@@ -2262,19 +2283,19 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
                 {requirements.length > 0 && currentStep < 7 && (
                   <button onClick={runValidation} disabled={isLoading} className="mt-6 w-full bg-[#0D9488] text-white rounded-full py-3 font-medium flex items-center justify-center gap-2">
-                    Run Validation Engine {isLoading && <RefreshCw className="animate-spin w-4 h-4" />}
+                    {L('Run Validation Engine', language)} {isLoading && <RefreshCw className="animate-spin w-4 h-4" />}
                   </button>
                 )}
 
                 {/* Prominent call-to-action when everything is validated */}
                 {completedMandatory === totalMandatory && readinessScore !== null && currentStep < 9 && (
                   <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                    <div className="font-medium text-emerald-800">All required documents validated.</div>
+                    <div className="font-medium text-emerald-800">{L('All required documents validated.', language)}</div>
                     <button 
                       onClick={() => setCurrentStep(9)}
                       className="mt-2 w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg py-2 text-sm font-medium"
                     >
-                      View SUBMISSION DELIVERABLES →
+                      {L('View SUBMISSION DELIVERABLES', language)} →
                     </button>
                   </div>
                 )}
@@ -2284,13 +2305,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <div className="lg:col-span-5 space-y-4">
                 {findings.length > 0 && (
                   <div className="bg-white border rounded-2xl p-6">
-                    <div className="font-medium mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> Findings</div>
+                    <div className="font-medium mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4" /> {L('Findings', language)}</div>
                     <div className="space-y-3 text-sm">
                       {findings.map((f, i) => (
                         <div key={i} className={`p-3 rounded-lg border-l-4 ${f.severity === 'critical' ? 'border-red-600 bg-red-50' : f.severity === 'warning' ? 'border-amber-600 bg-amber-50' : 'border-blue-600 bg-blue-50'}`}>
-                          <div className="font-medium">{f.title}</div>
-                          <div className="text-[#0A2540]/80 mt-0.5">{f.description}</div>
-                          <div className="mt-1 text-xs text-[#0A2540]/60">→ {f.recommended_action}</div>
+                          <div className="font-medium">{L(f.title, language)}</div>
+                          <div className="text-[#0A2540]/80 mt-0.5">{L(f.description, language)}</div>
+                          <div className="mt-1 text-xs text-[#0A2540]/60">→ {L(f.recommended_action, language)}</div>
                         </div>
                       ))}
                     </div>
@@ -2302,20 +2323,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     onClick={() => setCurrentStep(9)} 
                     className="w-full bg-[#0A2540] text-white rounded-2xl py-4 flex items-center justify-center gap-3 text-sm font-medium hover:bg-black"
                   >
-                    <Download className="w-4 h-4" /> SUBMISSION DELIVERABLES
+                    <Download className="w-4 h-4" /> {L('SUBMISSION DELIVERABLES', language)}
                   </button>
                 )}
 
                 <div className="text-[10px] text-[#0A2540]/60 px-1">
-                  SmartPR provides AI-assisted readiness assessment and document organization for Puerto Rico business licensing.
+                  {L('SmartPR provides AI-assisted readiness assessment and document organization for Puerto Rico business licensing.', language)}
                 </div>
               </div>
             </div>
 
             {/* Quick nav */}
             <div className="mt-8 flex gap-3 text-sm">
-              <button onClick={() => setCurrentStep(1)} className="px-4 py-2 border rounded-full">← Back to Discovery</button>
-              {currentStep < 9 && <button onClick={() => setCurrentStep((currentStep + 1) as Step)} className="px-4 py-2 border rounded-full flex items-center gap-1">Skip to next step <ArrowRight className="w-3.5 h-3.5" /></button>}
+              <button onClick={() => setCurrentStep(1)} className="px-4 py-2 border rounded-full">← {L('Back to Discovery', language)}</button>
+              {currentStep < 9 && <button onClick={() => setCurrentStep((currentStep + 1) as Step)} className="px-4 py-2 border rounded-full flex items-center gap-1">{L('Skip to next step', language)} <ArrowRight className="w-3.5 h-3.5" /></button>}
             </div>
           </div>
         )}
@@ -2324,18 +2345,18 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         {currentStep === 9 && (
           <div className="max-w-4xl mx-auto">
             <div className="text-center mb-8">
-              <div className="inline-block px-4 py-1 rounded-full bg-[#0A2540] text-white text-sm tracking-[2px] mb-3">FINAL STEP</div>
-              <h1 className="text-4xl font-semibold tracking-tight text-[#0A2540]">SUBMISSION DELIVERABLES</h1>
-              <p className="text-[#0A2540]/70 mt-2">All validated materials are ready. This platform prepares you for submission — it does not file with government.</p>
+              <div className="inline-block px-4 py-1 rounded-full bg-[#0A2540] text-white text-sm tracking-[2px] mb-3">{L('FINAL STEP', language)}</div>
+              <h1 className="text-4xl font-semibold tracking-tight text-[#0A2540]">{L('SUBMISSION DELIVERABLES', language)}</h1>
+              <p className="text-[#0A2540]/70 mt-2">{L('All validated materials are ready. This platform prepares you for submission — it does not file with government.', language)}</p>
             </div>
 
             {/* Business + Status Summary */}
             <div className="bg-white border-2 border-[#0A2540] rounded-2xl p-8 mb-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                <div><span className="text-[#0A2540]/60">Business Name</span><div className="font-medium text-[#0A2540] text-lg">{profile.name || '—'}</div></div>
-                <div><span className="text-[#0A2540]/60">Municipality</span><div className="font-medium text-[#0A2540] text-lg">{profile.municipality || '—'}</div></div>
-                <div><span className="text-[#0A2540]/60">Business Type</span><div className="font-medium text-[#0A2540] text-lg">{profile.business_type || '—'}</div></div>
-                <div><span className="text-[#0A2540]/60">Readiness Score</span><div className="font-semibold text-3xl text-[#0A2540] tabular-nums">{readinessScore ?? '—'}<span className="text-xl">%</span></div></div>
+                <div><span className="text-[#0A2540]/60">{L('Business Name', language)}</span><div className="font-medium text-[#0A2540] text-lg">{profile.name || '—'}</div></div>
+                <div><span className="text-[#0A2540]/60">{L('Municipality', language)}</span><div className="font-medium text-[#0A2540] text-lg">{profile.municipality || '—'}</div></div>
+                <div><span className="text-[#0A2540]/60">{L('Business Type', language)}</span><div className="font-medium text-[#0A2540] text-lg">{profile.business_type || '—'}</div></div>
+                <div><span className="text-[#0A2540]/60">{L('Readiness Score', language)}</span><div className="font-semibold text-3xl text-[#0A2540] tabular-nums">{readinessScore ?? '—'}<span className="text-xl">%</span></div></div>
               </div>
 
               <div className="mt-6 pt-6 border-t">
@@ -2346,11 +2367,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   return (
                     <div>
                       <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium ${isReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {isReady ? 'READY FOR SUBMISSION' : 'IN PROGRESS — REVIEW REQUIRED'}
+                        {isReady ? L('READY FOR SUBMISSION', language) : L('IN PROGRESS — REVIEW REQUIRED', language)}
                       </div>
                       <div className="mt-3 text-[#0A2540]">
-                        {completed} of {total} Required Documents Validated
-                        {findings.filter(f => f.severity === 'critical').length === 0 && ' • No Critical Issues Found'}
+                        {completed} {L('of', language)} {total} {L('Required Documents Validated', language)}
+                        {findings.filter(f => f.severity === 'critical').length === 0 && ` • ${L('No Critical Issues Found', language)}`}
                       </div>
                     </div>
                   );
@@ -2366,18 +2387,18 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="w-9 h-9 rounded-lg bg-[#0A2540]/10 flex items-center justify-center mb-4">
                     <FileText className="w-5 h-5 text-[#0A2540]" />
                   </div>
-                  <div className="font-semibold text-[#0A2540] text-lg mb-1">1. DOWNLOAD READINESS REPORT</div>
+                  <div className="font-semibold text-[#0A2540] text-lg mb-1">{L('1. DOWNLOAD READINESS REPORT', language)}</div>
                   <div className="text-sm text-[#0A2540]/70 mb-4">
-                    Professional PDF with Business Profile, Readiness Score, Validation Summary, Required/Uploaded/Missing Documents, Findings, Warnings, and Recommended Next Steps.
+                    {L('Professional PDF with Business Profile, Readiness Score, Validation Summary, Required/Uploaded/Missing Documents, Findings, Warnings, and Recommended Next Steps.', language)}
                   </div>
-                  <div className="text-[11px] text-[#0A2540]/50">Human-readable summary for your records, attorney, or consultant.</div>
+                  <div className="text-[11px] text-[#0A2540]/50">{L('Human-readable summary for your records, attorney, or consultant.', language)}</div>
                 </div>
                 <button
                   onClick={downloadReadinessReport}
                   disabled={isLoading}
                   className="mt-6 w-full bg-[#0A2540] hover:bg-black text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  <Download className="w-4 h-4" /> Download PDF Report
+                  <Download className="w-4 h-4" /> {L('Download PDF Report', language)}
                 </button>
               </div>
 
@@ -2387,9 +2408,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="w-9 h-9 rounded-lg bg-[#0A2540]/10 flex items-center justify-center mb-4">
                     <Archive className="w-5 h-5 text-[#0A2540]" />
                   </div>
-                  <div className="font-semibold text-[#0A2540] text-lg mb-1">2. DOWNLOAD SUBMISSION PACKAGE ZIP</div>
+                  <div className="font-semibold text-[#0A2540] text-lg mb-1">{L('2. DOWNLOAD SUBMISSION PACKAGE ZIP', language)}</div>
                   <div className="text-sm text-[#0A2540]/70 mb-4">
-                    Complete ZIP containing the Readiness Report PDF + all your validated uploaded documents, automatically renamed and sorted in submission order:
+                    {L('Complete ZIP containing the Readiness Report PDF + all your validated uploaded documents, automatically renamed and sorted in submission order:', language)}
                   </div>
                   <div className="text-[11px] font-mono text-[#0A2540]/60 leading-tight mb-2">
                     01_Entity_Formation.pdf<br />
@@ -2398,14 +2419,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     04_Permiso_Unico.pdf<br />
                     ...
                   </div>
-                  <div className="text-[11px] text-[#0A2540]/50">Ready to share with accountants, attorneys, municipalities, or permit expediters.</div>
+                  <div className="text-[11px] text-[#0A2540]/50">{L('Ready to share with accountants, attorneys, municipalities, or permit expediters.', language)}</div>
                 </div>
                 <button
                   onClick={downloadSubmissionPackage}
                   disabled={isLoading || uploadedDocs.filter(d => d.fileBlob).length === 0}
                   className="mt-6 w-full bg-[#0A2540] hover:bg-black text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  <Download className="w-4 h-4" /> Download ZIP Package
+                  <Download className="w-4 h-4" /> {L('Download ZIP Package', language)}
                 </button>
               </div>
 
@@ -2415,17 +2436,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="w-9 h-9 rounded-lg bg-[#0A2540]/10 flex items-center justify-center mb-4">
                     <Building2 className="w-5 h-5 text-[#0A2540]" />
                   </div>
-                  <div className="font-semibold text-[#0A2540] text-lg mb-1">3. OPEN SMARTPR WORKSPACE</div>
+                  <div className="font-semibold text-[#0A2540] text-lg mb-1">{L('3. OPEN SMARTPR WORKSPACE', language)}</div>
                   <div className="text-sm text-[#0A2540]/70 mb-4">
-                    Permanent link to your readiness workspace. Stores profile, questionnaire responses, required &amp; uploaded documents, validation results, reports, and activity history.
+                    {L('Permanent link to your readiness workspace. Stores profile, questionnaire responses, required & uploaded documents, validation results, reports, and activity history.', language)}
                   </div>
-                  <div className="text-xs text-[#0A2540]/60">Future uploads and re-validation supported.</div>
+                  <div className="text-xs text-[#0A2540]/60">{L('Future uploads and re-validation supported.', language)}</div>
                 </div>
                 <button
                   onClick={openSmartPRWorkspace}
                   className="mt-6 w-full border-2 border-[#0A2540] hover:bg-[#0A2540] hover:text-white text-[#0A2540] rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2"
                 >
-                  Open Workspace <ExternalLink className="w-4 h-4" />
+                  {L('Open Workspace', language)} <ExternalLink className="w-4 h-4" />
                 </button>
                 {activeWorkspaceId && (
                   <div className="mt-2 text-[10px] text-center text-[#0A2540]/50 font-mono">/workspace/{activeWorkspaceId}</div>
@@ -2435,21 +2456,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
             {/* Official Disclaimers */}
             <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-sm text-red-900">
-              <div className="font-semibold mb-2">IMPORTANT DISCLAIMER — READ CAREFULLY</div>
+              <div className="font-semibold mb-2">{L('IMPORTANT DISCLAIMER — READ CAREFULLY', language)}</div>
               <ul className="list-disc pl-5 space-y-1 text-xs">
-                <li>Do NOT submit this package or any SmartPR output to government agencies as an official filing.</li>
-                <li>Do NOT claim that SmartPR approves, grants, or issues any license or permit.</li>
-                <li>Do NOT file permits or applications using these materials as the sole source.</li>
-                <li>SmartPR is a <strong>readiness and compliance preparation platform</strong>, not a government filing system.</li>
-                <li>The platform&apos;s responsibility ends at: <strong>Prepare • Validate • Organize • Package</strong>.</li>
-                <li>All final approvals are made exclusively by the Government of Puerto Rico and its agencies.</li>
+                <li>{L('Do NOT submit this package or any SmartPR output to government agencies as an official filing.', language)}</li>
+                <li>{L('Do NOT claim that SmartPR approves, grants, or issues any license or permit.', language)}</li>
+                <li>{L('Do NOT file permits or applications using these materials as the sole source.', language)}</li>
+                <li>{L('SmartPR is a', language)} <strong>{L('readiness and compliance preparation platform', language)}</strong>, {L('not a government filing system.', language)}</li>
+                <li>{L("The platform's responsibility ends at:", language)} <strong>Prepare • Validate • Organize • Package</strong>.</li>
+                <li>{L('All final approvals are made exclusively by the Government of Puerto Rico and its agencies.', language)}</li>
               </ul>
-              <div className="mt-3 text-[10px] opacity-75">Data is stored for this workspace session. All analysis uses the configured Grok AI model.</div>
+              <div className="mt-3 text-[10px] opacity-75">{L('Data is stored for this workspace session. All analysis uses the configured Grok AI model.', language)}</div>
             </div>
 
             <div className="mt-6 flex gap-3 text-sm">
-              <button onClick={() => setCurrentStep(3)} className="px-4 py-2 border rounded-full">← Back to Checklist</button>
-              <button onClick={() => setCurrentStep(1)} className="px-4 py-2 border rounded-full">Start New Business</button>
+              <button onClick={() => setCurrentStep(3)} className="px-4 py-2 border rounded-full">← {L('Back to Checklist', language)}</button>
+              <button onClick={() => setCurrentStep(1)} className="px-4 py-2 border rounded-full">{L('Start New Business', language)}</button>
             </div>
           </div>
         )}
@@ -2474,7 +2495,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <div className="text-sm uppercase tracking-widest text-[#0A2540]/60">SmartPR</div>
-                <div className="text-2xl font-semibold text-[#0A2540]">Workspace</div>
+                <div className="text-2xl font-semibold text-[#0A2540]">{L('Workspace', language)}</div>
               </div>
               <button onClick={() => setShowWorkspaceModal(false)} className="text-[#0A2540]/40 hover:text-[#0A2540]">✕</button>
             </div>
@@ -2484,14 +2505,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
 
             <div className="text-sm text-[#0A2540]/80 mb-4">
-              Your readiness workspace opened in a new tab. This is a shareable, self-contained link
-              showing your AI-approved deliverables, requirements checklist, and findings. The link
-              has also been copied to your clipboard.
+              {L('Your readiness workspace opened in a new tab. This is a shareable, self-contained link showing your AI-approved deliverables, requirements checklist, and findings. The link has also been copied to your clipboard.', language)}
             </div>
 
             <div className="text-xs text-[#0A2540]/60 mb-6">
-              Share it with your attorney, accountant, or permit expediter — it renders anywhere
-              without a login.
+              {L('Share it with your attorney, accountant, or permit expediter — it renders anywhere without a login.', language)}
             </div>
 
             <div className="flex gap-3">
@@ -2502,13 +2520,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 }}
                 className="flex-1 border border-[#0A2540] text-[#0A2540] rounded-xl py-2.5 text-sm hover:bg-[#0A2540] hover:text-white"
               >
-                Open Workspace Again
+                {L('Open Workspace Again', language)}
               </button>
               <button
                 onClick={() => setShowWorkspaceModal(false)}
                 className="flex-1 bg-[#0A2540] text-white rounded-xl py-2.5 text-sm"
               >
-                Close
+                {L('Close', language)}
               </button>
             </div>
           </div>

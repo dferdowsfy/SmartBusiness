@@ -21,6 +21,7 @@ type DocPayload = {
   filename?: string;
   content?: string;
   requirement_code?: string;
+  lang?: string;
   business_context?: Record<string, unknown>;
 };
 
@@ -178,8 +179,13 @@ export async function POST(request: Request) {
   const content = (payload.content || "").slice(0, 4500);
   const requirementCode = payload.requirement_code || "";
   const businessContext = payload.business_context || {};
+  const isEs = payload.lang === "es";
 
-  const system = buildSystemPrompt(requirementCode);
+  const langDirective = isEs
+    ? '\n\nIMPORTANT: Write all human-readable free-text fields ("notes" and the "details" of each validation_check) in SPANISH. Keep the JSON keys, document_type values, and date formats exactly as specified in English.'
+    : "";
+
+  const system = buildSystemPrompt(requirementCode) + langDirective;
   const user = `Filename: ${filename}
 Business context (intake profile): ${JSON.stringify(businessContext)}
 

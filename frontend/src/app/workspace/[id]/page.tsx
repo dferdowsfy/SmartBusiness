@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { L, type Lang } from "../../i18n";
 
 type ApprovedDoc = { name: string; type: string; status: string; req?: string };
 type Requirement = { name: string; agency: string; status: string; mandatory: boolean };
@@ -12,6 +13,7 @@ type Finding = {
 };
 type Payload = {
   v: number;
+  lang?: Lang;
   name: string;
   municipality: string;
   industry: string;
@@ -91,6 +93,8 @@ export default function WorkspacePage() {
   const ready = data.total > 0 && data.completed === data.total;
   const approvedDocs = data.approved.filter((d) => isApproved(d.status));
   const otherDocs = data.approved.filter((d) => !isApproved(d.status));
+  const lang: Lang = data.lang || "en";
+  const t = (s: string) => L(s, lang);
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-[#0A2540]">
@@ -100,10 +104,10 @@ export default function WorkspacePage() {
           <div className="flex items-center gap-3">
             <div className="font-bold tracking-wide text-lg">SMARTPR</div>
             <div className="text-xs uppercase tracking-widest text-white/70 hidden sm:block">
-              Puerto Rico Business Licensing Readiness
+              {t("PUERTO RICO BUSINESS LICENSING READINESS")}
             </div>
           </div>
-          <div className="text-xs text-white/70">Readiness Workspace</div>
+          <div className="text-xs text-white/70">{t("Readiness Workspace")}</div>
         </div>
       </header>
 
@@ -120,21 +124,21 @@ export default function WorkspacePage() {
             ready ? "bg-[#0D9488]" : "bg-amber-600"
           }`}
         >
-          <div className="font-semibold">{ready ? "READY FOR SUBMISSION" : "NEEDS REVIEW"}</div>
-          <div className="text-sm">Readiness {data.score ?? "N/A"}%</div>
+          <div className="font-semibold">{ready ? t("READY FOR SUBMISSION") : t("NEEDS REVIEW")}</div>
+          <div className="text-sm">{t("Readiness")} {data.score ?? "N/A"}%</div>
           <div className="text-sm">
-            {data.completed} of {data.total} required documents validated
+            {data.completed} {t("of")} {data.total} {t("required documents validated")}
           </div>
         </div>
 
         {/* Approved deliverables */}
         <section className="mb-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
-            Approved Deliverables
+            {t("Approved Deliverables")}
           </h2>
           {approvedDocs.length === 0 ? (
             <p className="text-sm text-[#0A2540]/60">
-              No deliverables have been approved by the AI yet.
+              {t("No deliverables have been approved by the AI yet.")}
             </p>
           ) : (
             <div className="space-y-3">
@@ -149,7 +153,7 @@ export default function WorkspacePage() {
                   <div className="min-w-0">
                     <div className="font-medium truncate">{d.name}</div>
                     <div className="text-xs text-[#0A2540]/60">
-                      {d.type} · {d.status}
+                      {d.type} · {t(d.status)}
                     </div>
                   </div>
                 </div>
@@ -162,7 +166,7 @@ export default function WorkspacePage() {
         {otherDocs.length > 0 && (
           <section className="mb-8">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
-              Uploaded — Needs Review
+              {t("Uploaded — Needs Review")}
             </h2>
             <div className="space-y-3">
               {otherDocs.map((d, i) => (
@@ -176,7 +180,7 @@ export default function WorkspacePage() {
                   <div className="min-w-0">
                     <div className="font-medium truncate">{d.name}</div>
                     <div className="text-xs text-[#0A2540]/60">
-                      {d.type} · {d.status}
+                      {d.type} · {t(d.status)}
                     </div>
                   </div>
                 </div>
@@ -188,7 +192,7 @@ export default function WorkspacePage() {
         {/* Full requirements checklist */}
         <section className="mb-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
-            Requirements Checklist
+            {t("Requirements Checklist")}
           </h2>
           <div className="bg-white border rounded-xl divide-y">
             {data.requirements.map((r, i) => {
@@ -202,8 +206,8 @@ export default function WorkspacePage() {
                   >
                     {done ? "✓" : ""}
                   </span>
-                  <span className="flex-1">{r.name}</span>
-                  <span className="text-xs text-[#0A2540]/50">{r.agency}</span>
+                  <span className="flex-1">{t(r.name)}</span>
+                  <span className="text-xs text-[#0A2540]/50">{t(r.agency)}</span>
                 </div>
               );
             })}
@@ -214,7 +218,7 @@ export default function WorkspacePage() {
         {data.findings.length > 0 && (
           <section className="mb-8">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
-              Findings &amp; Recommendations
+              {t("Findings & Recommendations")}
             </h2>
             <div className="space-y-3">
               {data.findings.map((f, i) => (
@@ -222,12 +226,12 @@ export default function WorkspacePage() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#0A2540]/50">
                     {f.severity}
                   </div>
-                  <div className="font-medium">{f.title}</div>
+                  <div className="font-medium">{t(f.title)}</div>
                   {f.description && (
-                    <div className="text-sm text-[#0A2540]/70 mt-0.5">{f.description}</div>
+                    <div className="text-sm text-[#0A2540]/70 mt-0.5">{t(f.description)}</div>
                   )}
                   {f.recommended_action && (
-                    <div className="text-sm text-[#0D9488] mt-1">→ {f.recommended_action}</div>
+                    <div className="text-sm text-[#0D9488] mt-1">→ {t(f.recommended_action)}</div>
                   )}
                 </div>
               ))}
@@ -237,14 +241,13 @@ export default function WorkspacePage() {
 
         {/* Disclaimer */}
         <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-xs text-red-900">
-          SmartPR determines READINESS for submission to Puerto Rico government agencies. It does
-          NOT approve, grant, or issue any license or permit. All approvals are made exclusively by
-          the Government of Puerto Rico and its agencies. This workspace is for preparation and
-          organization only.
+          {t(
+            "SmartPR determines READINESS for submission to Puerto Rico government agencies. It does NOT approve, grant, or issue any license or permit. All approvals are made exclusively by the Government of Puerto Rico and its agencies. This workspace is for preparation and organization only."
+          )}
         </div>
 
         <div className="text-[11px] text-[#0A2540]/40 mt-4">
-          Generated {new Date(data.generatedAt).toLocaleString()} · SmartPR · Powered by Grok AI
+          {t("Generated")} {new Date(data.generatedAt).toLocaleString()} · SmartPR · {t("Powered by Grok AI")}
         </div>
       </main>
     </div>
