@@ -1,0 +1,314 @@
+[
+  {
+    "document_id": "DOC_CERT_INCORPORATION",
+    "required_fields": [
+      "business_name",
+      "entity_number",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_ARTICLES_ORGANIZATION",
+    "required_fields": [
+      "business_name",
+      "entity_number",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_DBA_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "trade_name",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_EIN",
+    "required_fields": [
+      "business_name",
+      "ein"
+    ]
+  },
+  {
+    "document_id": "DOC_MERCHANT_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "merchant_number",
+      "address"
+    ]
+  },
+  {
+    "document_id": "DOC_SURI_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "suri_account_number"
+    ]
+  },
+  {
+    "document_id": "DOC_PERMISO_UNICO",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "address",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_ZONING",
+    "required_fields": [
+      "business_name",
+      "address",
+      "use_classification"
+    ]
+  },
+  {
+    "document_id": "DOC_OCCUPANCY",
+    "required_fields": [
+      "business_name",
+      "address",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_PATENTE_MUNICIPAL",
+    "required_fields": [
+      "business_name",
+      "municipality",
+      "account_number"
+    ]
+  },
+  {
+    "document_id": "DOC_MUNICIPAL_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "municipality",
+      "registration_number"
+    ]
+  },
+  {
+    "document_id": "DOC_MUNICIPAL_TAX_COMPLIANCE",
+    "required_fields": [
+      "business_name",
+      "municipality",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_HEALTH_PERMIT",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_FIRE_CERT",
+    "required_fields": [
+      "certificate_number",
+      "business_name",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_CFPM",
+    "required_fields": [
+      "holder_name",
+      "certificate_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_ALCOHOL_LICENSE",
+    "required_fields": [
+      "license_number",
+      "business_name",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_PROFESSIONAL_LICENSE",
+    "required_fields": [
+      "holder_name",
+      "license_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_CONTRACTOR_LICENSE",
+    "required_fields": [
+      "business_name",
+      "license_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_TOURISM_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "registration_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_INSURANCE",
+    "required_fields": [
+      "business_name",
+      "policy_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_WORKERS_COMP",
+    "required_fields": [
+      "business_name",
+      "policy_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_LEASE_AGREEMENT",
+    "required_fields": [
+      "tenant_name",
+      "address",
+      "start_date",
+      "end_date"
+    ]
+  },
+  {
+    "document_id": "DOC_PROPERTY_DEED",
+    "required_fields": [
+      "owner_name",
+      "address"
+    ]
+  },
+  {
+    "document_id": "DOC_FLOOR_PLANS",
+    "required_fields": [
+      "address",
+      "scale"
+    ]
+  },
+  {
+    "document_id": "DOC_ENVIRONMENTAL_PERMIT",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_MEDICAL_WASTE_PERMIT",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_SIGN_PERMIT",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "address"
+    ]
+  },
+  {
+    "document_id": "DOC_OUTDOOR_SEATING_AUTH",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "address"
+    ]
+  },
+  {
+    "document_id": "DOC_ENTERTAINMENT_PERMIT",
+    "required_fields": [
+      "permit_number",
+      "business_name",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_IMPORT_EXPORT_REG",
+    "required_fields": [
+      "business_name",
+      "registration_number"
+    ]
+  },
+  {
+    "document_id": "DOC_HOME_DECLARATION",
+    "required_fields": [
+      "business_name",
+      "address"
+    ]
+  },
+  {
+    "document_id": "DOC_CRIM_CLEARANCE",
+    "required_fields": [
+      "business_name",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_TRANSPORT_PERMIT",
+    "required_fields": [
+      "business_name",
+      "permit_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_VEHICLE_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "plate_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_CHILDCARE_LICENSE",
+    "required_fields": [
+      "business_name",
+      "license_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_BACKGROUND_CHECK",
+    "required_fields": [
+      "holder_name",
+      "issue_date"
+    ]
+  },
+  {
+    "document_id": "DOC_PESTICIDE_LICENSE",
+    "required_fields": [
+      "holder_name",
+      "license_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_AGRICULTURE_REGISTRATION",
+    "required_fields": [
+      "business_name",
+      "registration_number"
+    ]
+  },
+  {
+    "document_id": "DOC_FIREARMS_LICENSE",
+    "required_fields": [
+      "business_name",
+      "license_number",
+      "expiration_date"
+    ]
+  },
+  {
+    "document_id": "DOC_NONPROFIT_REGISTRATION",
+    "required_fields": [
+      "organization_name",
+      "registration_number"
+    ]
+  }
+]

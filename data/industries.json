@@ -1,0 +1,102 @@
+[
+  {
+    "id": "IND_FOOD",
+    "name": "Food & Beverage",
+    "description": "Businesses involved in food preparation, service, or sales."
+  },
+  {
+    "id": "IND_HEALTH",
+    "name": "Healthcare",
+    "description": "Medical, dental, and clinical care providers and facilities."
+  },
+  {
+    "id": "IND_PROF",
+    "name": "Professional Services",
+    "description": "Licensed and advisory professional service firms."
+  },
+  {
+    "id": "IND_IT",
+    "name": "Information Technology",
+    "description": "Software, IT services, and technology companies."
+  },
+  {
+    "id": "IND_RETAIL",
+    "name": "Retail",
+    "description": "Businesses selling goods directly to consumers."
+  },
+  {
+    "id": "IND_CONSTRUCTION",
+    "name": "Construction",
+    "description": "Contractors and construction trade businesses."
+  },
+  {
+    "id": "IND_TOURISM",
+    "name": "Tourism & Hospitality",
+    "description": "Lodging, tours, and visitor-oriented businesses."
+  },
+  {
+    "id": "IND_BEAUTY",
+    "name": "Beauty & Personal Care",
+    "description": "Salons, spas, and personal care services."
+  },
+  {
+    "id": "IND_MANUFACTURING",
+    "name": "Manufacturing",
+    "description": "Businesses producing goods at scale."
+  },
+  {
+    "id": "IND_TRANSPORT",
+    "name": "Transportation & Logistics",
+    "description": "Movement and storage of goods and people."
+  },
+  {
+    "id": "IND_EDUCATION",
+    "name": "Education & Training",
+    "description": "Schools, training, and childcare providers."
+  },
+  {
+    "id": "IND_REALESTATE",
+    "name": "Real Estate",
+    "description": "Real estate brokerage, management, and development."
+  },
+  {
+    "id": "IND_AUTOMOTIVE",
+    "name": "Automotive",
+    "description": "Vehicle sales, repair, and related services."
+  },
+  {
+    "id": "IND_AGRICULTURE",
+    "name": "Agriculture & Farming",
+    "description": "Crop, livestock, and agricultural operations."
+  },
+  {
+    "id": "IND_FINANCE",
+    "name": "Finance & Insurance",
+    "description": "Financial, insurance, and accounting services."
+  },
+  {
+    "id": "IND_ENERGY",
+    "name": "Energy & Utilities",
+    "description": "Energy generation, installation, and utility services."
+  },
+  {
+    "id": "IND_WHOLESALE",
+    "name": "Wholesale Distribution",
+    "description": "Bulk distribution and import/export of goods."
+  },
+  {
+    "id": "IND_ARTS",
+    "name": "Arts, Entertainment & Recreation",
+    "description": "Venues, studios, and recreational facilities."
+  },
+  {
+    "id": "IND_GOVCON",
+    "name": "Government Contractors",
+    "description": "Businesses contracting with government agencies."
+  },
+  {
+    "id": "IND_NONPROFIT",
+    "name": "Nonprofit & Religious Organizations",
+    "description": "Nonprofit, charitable, and religious organizations."
+  }
+]
