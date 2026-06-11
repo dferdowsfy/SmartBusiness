@@ -1204,13 +1204,58 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   // === Real local file upload + LLM document identification (uses .env key + grok model via backend) ===
-  const readFileAsText = (file: File): Promise<string> => {
+  const readAsPlainText = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(String(reader.result || ''));
       reader.onerror = () => resolve(`[Binary or unreadable content from ${file.name}]`);
       reader.readAsText(file);
     });
+  };
+
+  // Extract real text from a PDF using pdf.js so the LLM receives clean,
+  // readable content (e.g. the EIN/permit numbers) instead of raw binary bytes.
+  const extractPdfText = async (file: File): Promise<string> => {
+    const pdfjs: any = await import('pdfjs-dist');
+    // Point pdf.js at its bundled worker (Turbopack/webpack resolve this URL).
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      'pdfjs-dist/build/pdf.worker.min.mjs',
+      import.meta.url
+    ).toString();
+
+    const buffer = await file.arrayBuffer();
+    const doc = await pdfjs.getDocument({ data: buffer }).promise;
+    const parts: string[] = [];
+    const maxPages = Math.min(doc.numPages, 15); // cap for performance
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await doc.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((it: any) => (typeof it.str === 'string' ? it.str : ''))
+        .join(' ');
+      parts.push(pageText);
+    }
+    return parts.join('\n').trim();
+  };
+
+  // Returns the best available text for LLM analysis, choosing the right
+  // extractor based on file type. PDFs go through pdf.js; everything else is
+  // read as plain text.
+  const readFileAsText = async (file: File): Promise<string> => {
+    const isPdf =
+      file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (isPdf) {
+      try {
+        const text = await extractPdfText(file);
+        if (text && text.length > 0) return text;
+        // Scanned/image-only PDF with no embedded text layer.
+        return `[No selectable text found in PDF "${file.name}" — it may be a scanned image.]`;
+      } catch (e) {
+        console.warn('PDF text extraction failed, falling back to raw read', e);
+        return readAsPlainText(file);
+      }
+    }
+    return readAsPlainText(file);
   };
 
   const triggerFileUpload = (reqCode: string) => {
