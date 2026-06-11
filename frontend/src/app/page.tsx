@@ -15,8 +15,12 @@ interface BusinessProfile {
   name: string;
   municipality: string;
   industry: string;
-  business_structure: string;
-  is_home_based: boolean;
+  business_type: string;
+  location_type: string;
+  customers_visit: boolean | null;
+  food_prepared_or_sold: boolean | null;
+  alcohol_sold: boolean | null;
+  professional_licenses_required: boolean | null;
   employee_count?: number;
 }
 
@@ -36,17 +40,188 @@ interface Requirement {
   reason: string;
 }
 
-const INDUSTRIES = ['Restaurant', 'Medical Office', 'Retail Store', 'Professional Services', 'Construction', 'Tourism'];
-const MUNICIPALITIES = ['San Juan', 'Bayamón', 'Carolina', 'Ponce', 'Aguada', 'Other'];
+const INDUSTRIES = [
+  "Accommodation & Tourism",
+  "Agriculture & Farming",
+  "Arts, Entertainment & Recreation",
+  "Automotive",
+  "Beauty & Personal Care",
+  "Construction",
+  "Education & Training",
+  "Financial Services",
+  "Food & Beverage",
+  "Government & Non-Profit",
+  "Healthcare",
+  "Information Technology",
+  "Manufacturing",
+  "Professional Services",
+  "Real Estate",
+  "Retail",
+  "Transportation & Logistics",
+  "Utilities & Energy",
+  "Wholesale Distribution",
+  "Other"
+];
+
+const BUSINESS_TYPES: Record<string, string[]> = {
+  "Food & Beverage": [
+    "Food & Beverage",
+    "Restaurant",
+    "Fast Food Restaurant",
+    "Food Truck",
+    "Bakery",
+    "Cafe",
+    "Coffee Shop",
+    "Bar",
+    "Nightclub",
+    "Catering Business",
+    "Commercial Kitchen",
+    "Ice Cream Shop",
+    "Juice Bar",
+    "Convenience Store with Food",
+    "Grocery Store",
+    "Supermarket",
+    "Liquor Store"
+  ],
+  "Healthcare": [
+    "Healthcare",
+    "Medical Office",
+    "Dental Office",
+    "Pharmacy",
+    "Laboratory",
+    "Mental Health Practice",
+    "Psychologist Office",
+    "Physical Therapy Clinic",
+    "Veterinary Clinic",
+    "Home Health Agency",
+    "Urgent Care Center",
+    "Diagnostic Imaging Center"
+  ],
+  "Construction": [
+    "Construction",
+    "General Contractor",
+    "Electrical Contractor",
+    "Plumbing Contractor",
+    "Engineering Firm",
+    "Architecture Firm"
+  ],
+  "Professional Services": [
+    "Professional Services",
+    "Attorney Office",
+    "CPA Firm",
+    "Tax Preparation",
+    "Consulting Firm",
+    "Marketing Agency",
+    "Engineering Firm",
+    "Architecture Firm",
+    "Insurance Agency",
+    "Real Estate Brokerage",
+    "Property Management",
+    "Staffing Agency"
+  ],
+  "Retail": [
+    "Retail",
+    "Clothing Store",
+    "Jewelry Store",
+    "Electronics Store",
+    "Furniture Store",
+    "Hardware Store",
+    "Sporting Goods Store",
+    "Pet Store",
+    "Cannabis Dispensary",
+    "Gift Shop",
+    "E-commerce Business"
+  ],
+  "Accommodation & Tourism": [
+    "Accommodation & Tourism",
+    "Hotel",
+    "Resort",
+    "Short-Term Rental",
+    "Airbnb Host",
+    "Vacation Rental Manager",
+    "Tour Operator",
+    "Excursion Company",
+    "Car Rental Business",
+    "Water Sports Business",
+    "Marina"
+  ],
+  "Beauty & Personal Care": [
+    "Beauty & Personal Care",
+    "Beauty Salon",
+    "Barbershop",
+    "Nail Salon",
+    "Spa",
+    "Massage Therapy",
+    "Tattoo Shop",
+    "Cosmetic Clinic"
+  ],
+  "Manufacturing": [
+    "Manufacturing",
+    "Food Manufacturing",
+    "Pharmaceutical Manufacturing",
+    "Medical Device Manufacturing",
+    "Textile Manufacturing",
+    "Furniture Manufacturing",
+    "Beverage Manufacturing"
+  ],
+  "Transportation & Logistics": [
+    "Transportation & Logistics",
+    "Trucking Company",
+    "Courier Service",
+    "Moving Company",
+    "Taxi Service",
+    "Rideshare Fleet",
+    "Maritime Transportation",
+    "Logistics Company",
+    "Warehouse Operator"
+  ],
+  "Education & Training": [
+    "Education & Training",
+    "Private School",
+    "Daycare",
+    "Tutoring Center",
+    "Vocational School",
+    "Training Company"
+  ]
+};
+
+const LOCATION_TYPES = [
+  "Home-Based Business",
+  "Commercial Office",
+  "Retail Storefront",
+  "Industrial Facility",
+  "Restaurant / Food Service Location",
+  "Mobile Business",
+  "Online / Remote Only",
+  "Shared Workspace / Coworking",
+  "Warehouse",
+  "Mixed Use Property"
+];
+
+const MUNICIPALITIES = [
+  "Adjuntas", "Aguada", "Aguadilla", "Aguas Buenas", "Aibonito", "Añasco", "Arecibo", "Arroyo",
+  "Barceloneta", "Barranquitas", "Bayamón", "Cabo Rojo", "Caguas", "Camuy", "Canóvanas", "Carolina",
+  "Cataño", "Cayey", "Ceiba", "Ciales", "Cidra", "Coamo", "Comerío", "Corozal", "Culebra", "Dorado",
+  "Fajardo", "Florida", "Guánica", "Guayama", "Guayanilla", "Guaynabo", "Gurabo", "Hatillo",
+  "Hormigueros", "Humacao", "Isabela", "Jayuya", "Juana Díaz", "Juncos", "Lajas", "Lares", "Las Marías",
+  "Las Piedras", "Loíza", "Luquillo", "Manatí", "Maricao", "Maunabo", "Mayagüez", "Moca", "Morovis",
+  "Naguabo", "Naranjito", "Orocovis", "Patillas", "Peñuelas", "Ponce", "Quebradillas", "Rincón",
+  "Río Grande", "Sabana Grande", "Salinas", "San Germán", "San Juan", "San Lorenzo", "San Sebastián",
+  "Santa Isabel", "Toa Alta", "Toa Baja", "Trujillo Alto", "Utuado", "Vega Alta", "Vega Baja", "Vieques",
+  "Villalba", "Yabucoa", "Yauco"
+];
 
 // Core compute logic - matches the approved rules engine design + seed data
+// Updated to use the new Step 1 fields (location_type, food_prepared_or_sold, alcohol_sold, professional_licenses_required, etc.)
 function computeRequirements(profile: BusinessProfile, answers: Record<string, any>): Requirement[] {
   const reqs: Requirement[] = [];
   const industry = profile.industry;
-  const isHome = profile.is_home_based;
-  const hasFood = answers.has_food_service || industry === 'Restaurant';
-  const hasAlcohol = answers.alcohol_sales;
-  const isMedical = industry === 'Medical Office' || answers.provides_healthcare;
+  const locationType = profile.location_type || answers.location_type;
+  const isHome = locationType === 'Home-Based Business' || profile.location_type === 'Home-Based Business';
+  const hasFood = profile.food_prepared_or_sold === true || answers.has_food_service || industry === 'Food & Beverage';
+  const hasAlcohol = profile.alcohol_sold === true || answers.alcohol_sales;
+  const requiresProfLicenses = profile.professional_licenses_required === true || answers.professional_licenses;
+  const isMedical = industry === 'Healthcare' || requiresProfLicenses;
 
   // Universal core (from design + real PR sources: Dept of State, Hacienda, OGPe, Municipal)
   reqs.push(
@@ -90,8 +265,41 @@ function computeRequirements(profile: BusinessProfile, answers: Record<string, a
   }
 
   // Retail general
-  if (industry === 'Retail Store') {
+  if (industry === 'Retail' || industry === 'Retail Store') {
     reqs.push({ code: 'crim_clearance', name: 'CRIM Property Tax Clearance', mandatory: false, status: 'pending', agency: 'CRIM', reason: 'Often requested by municipalities for Patente.' });
+  }
+
+  // Professional Services, Real Estate, Finance, etc.
+  if (industry === 'Professional Services' || industry === 'Real Estate' || industry === 'Financial Services' || requiresProfLicenses) {
+    reqs.push(
+      { code: 'professional_licenses', name: 'Professional Licenses for Staff', mandatory: true, status: 'pending', agency: 'Department of State Examining Boards', reason: 'Required for attorneys, CPAs, insurance agents, real estate brokers, engineers, architects, etc.' },
+      { code: 'malpractice_or_eo_insurance', name: 'Professional Liability / E&O Insurance', mandatory: false, status: 'pending', agency: 'Various', reason: 'Strongly recommended for professional service providers.' }
+    );
+  }
+
+  // Manufacturing
+  if (industry === 'Manufacturing') {
+    reqs.push({ code: 'environmental_permit', name: 'Environmental / Manufacturing Permit', mandatory: true, status: 'pending', agency: 'Environmental Quality Board / OGPe', reason: 'Required for manufacturing operations, especially food, pharma, or chemical.' });
+  }
+
+  // Transportation & Logistics
+  if (industry === 'Transportation & Logistics') {
+    reqs.push({ code: 'transportation_permit', name: 'Transportation / PUC Permit', mandatory: true, status: 'pending', agency: 'Public Service Commission', reason: 'Required for trucking, courier, taxi, rideshare, and logistics companies.' });
+  }
+
+  // Tourism / Accommodation
+  if (industry === 'Accommodation & Tourism') {
+    reqs.push({ code: 'tourism_permit', name: 'Tourism / Short-Term Rental Permit', mandatory: false, status: 'pending', agency: 'Tourism Company / Municipal', reason: 'Often required for hotels, resorts, Airbnbs, and tour operators.' });
+  }
+
+  // Beauty & Personal Care
+  if (industry === 'Beauty & Personal Care') {
+    reqs.push({ code: 'health_permit_beauty', name: 'Health / Sanitation Permit (Beauty)', mandatory: true, status: 'pending', agency: 'Departamento de Salud', reason: 'Required for salons, spas, tattoo shops, and cosmetic services.' });
+  }
+
+  // Education & Training
+  if (industry === 'Education & Training') {
+    reqs.push({ code: 'education_license', name: 'Education / Childcare License', mandatory: true, status: 'pending', agency: 'Department of Education / Licensing Board', reason: 'Required for private schools, daycares, and vocational training.' });
   }
 
   return reqs;
@@ -100,12 +308,16 @@ function computeRequirements(profile: BusinessProfile, answers: Record<string, a
 export default function SmartPRDemo() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [profile, setProfile] = useState<BusinessProfile>({
-    name: 'Mi Restaurante Boricua LLC',
-    municipality: 'San Juan',
-    industry: 'Restaurant',
-    business_structure: 'llc',
-    is_home_based: false,
-    employee_count: 8,
+    name: '',
+    municipality: '',
+    industry: '',
+    business_type: '',
+    location_type: '',
+    customers_visit: null,
+    food_prepared_or_sold: null,
+    alcohol_sold: null,
+    professional_licenses_required: null,
+    employee_count: undefined,
   });
   const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, any>>({});
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -126,20 +338,18 @@ export default function SmartPRDemo() {
     setRequirements(computed);
   };
 
-  // Dynamic follow-up questions based on design
+  // Dynamic follow-up questions / flags based on the new Step 1 fields
   const getFollowUpQuestions = (ind?: string) => {
     const industry = ind || profile.industry;
-    const q: Record<string, any> = {};
-    if (industry === 'Restaurant') {
-      q.has_food_service = true;
-      q.alcohol_sales = false;
-      q.indoor_seating = true;
-      q.commercial_kitchen = true;
-    }
-    if (industry === 'Medical Office') {
-      q.licensed_professionals = 2;
-      q.provides_healthcare = true;
-    }
+    const q: Record<string, any> = {
+      has_food_service: profile.food_prepared_or_sold === true,
+      alcohol_sales: profile.alcohol_sold === true,
+      provides_healthcare: profile.industry === 'Healthcare' || profile.professional_licenses_required === true,
+      customers_visit: profile.customers_visit,
+      professional_licenses: profile.professional_licenses_required,
+      location_type: profile.location_type,
+      business_type: profile.business_type,
+    };
     return q;
   };
 
@@ -150,7 +360,7 @@ export default function SmartPRDemo() {
       setDiscoveryAnswers(newAnswers);
       updateRequirements(profile, newAnswers);
     }
-  }, [profile.industry, profile.municipality, profile.is_home_based, currentStep]);
+  }, [profile.industry, profile.municipality, profile.location_type, profile.food_prepared_or_sold, profile.alcohol_sold, profile.professional_licenses_required, currentStep]);
 
   const progress = Math.round(((currentStep - 1) / 8) * 100);
 
@@ -171,7 +381,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // Step 1: Save profile + discovery (calls backend optionally)
   const handleStartDiscovery = async () => {
     setIsLoading(true);
-    const answers = { ...getFollowUpQuestions() };
+    const answers = { 
+      ...getFollowUpQuestions(),
+      customers_visit: profile.customers_visit,
+      food_prepared_or_sold: profile.food_prepared_or_sold,
+      alcohol_sold: profile.alcohol_sold,
+      professional_licenses_required: profile.professional_licenses_required,
+      location_type: profile.location_type,
+      business_type: profile.business_type,
+    };
 
     try {
       let bid = businessId;
@@ -456,93 +674,207 @@ Rule Set: demo-v0.1 (local)
           </div>
         </div>
 
-        {/* STEP 1: Business Discovery */}
+        {/* STEP 1: Business Discovery - Updated per spec */}
         {currentStep === 1 && (
           <div className="max-w-2xl">
-            <h1 className="text-3xl font-semibold tracking-tight text-[#0A2540] mb-2">Step 1 — Business Discovery</h1>
-            <p className="text-[#0A2540]/80 mb-8">Answer a few questions. Follow-ups appear based on your industry (exactly as designed).</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-[#0A2540] mb-2">Tell us about your business</h1>
+            <p className="text-[#0A2540]/80 mb-8">Please provide the following details about your business.</p>
 
             <div className="bg-white border rounded-2xl p-8 space-y-6">
+              {/* Business Name */}
               <div>
                 <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Name</label>
                 <input 
                   className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  placeholder="ABC Restaurant LLC" 
+                  placeholder="e.g. Mi Restaurante Boricua LLC" 
                   value={profile.name} 
                   onChange={e => setProfile({ ...profile, name: e.target.value })} 
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Municipality</label>
-                  <select className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.municipality} onChange={e => setProfile({...profile, municipality: e.target.value})}>
-                    {MUNICIPALITIES.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Industry</label>
-                  <select className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.industry} onChange={e => setProfile({...profile, industry: e.target.value})}>
-                    {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                  </select>
+              {/* Municipality - Searchable */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Municipality</label>
+                <input 
+                  type="text"
+                  list="municipalities-list"
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  placeholder="Search Municipality" 
+                  value={profile.municipality} 
+                  onChange={e => setProfile({ ...profile, municipality: e.target.value })} 
+                />
+                <datalist id="municipalities-list">
+                  {MUNICIPALITIES.map(m => <option key={m} value={m} />)}
+                </datalist>
+              </div>
+
+              {/* Industry */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Industry</label>
+                <select 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  value={profile.industry} 
+                  onChange={e => {
+                    const newIndustry = e.target.value;
+                    setProfile({ 
+                      ...profile, 
+                      industry: newIndustry,
+                      business_type: '' // reset business type when industry changes
+                    });
+                  }}
+                >
+                  <option value="">Select Industry</option>
+                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </div>
+
+              {/* Business Type - Dynamic based on Industry */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Type</label>
+                <select 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  value={profile.business_type} 
+                  onChange={e => setProfile({ ...profile, business_type: e.target.value })}
+                >
+                  <option value="">Select Business Type</option>
+                  {(BUSINESS_TYPES[profile.industry] || [profile.industry, "Other"].filter(Boolean)).map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Business Location Type */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Location Type</label>
+                <select 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  value={profile.location_type} 
+                  onChange={e => setProfile({ ...profile, location_type: e.target.value })}
+                >
+                  <option value="">Select Location Type</option>
+                  {LOCATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+
+              {/* Will customers visit this location? */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will customers visit this location?</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="customers_visit" 
+                      checked={profile.customers_visit === true} 
+                      onChange={() => setProfile({ ...profile, customers_visit: true })} 
+                    /> 
+                    Yes
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="customers_visit" 
+                      checked={profile.customers_visit === false} 
+                      onChange={() => setProfile({ ...profile, customers_visit: false })} 
+                    /> 
+                    No
+                  </label>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Business Structure</label>
-                  <select className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.business_structure} onChange={e => setProfile({...profile, business_structure: e.target.value})}>
-                    <option value="llc">LLC</option>
-                    <option value="corporation">Corporation</option>
-                    <option value="sole_proprietorship">Sole Proprietorship</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Employees</label>
-                  <input type="number" className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" value={profile.employee_count} onChange={e => setProfile({...profile, employee_count: parseInt(e.target.value) || 0})} />
+              {/* Will food be prepared or sold? */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will food be prepared or sold?</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="food_prepared_or_sold" 
+                      checked={profile.food_prepared_or_sold === true} 
+                      onChange={() => setProfile({ ...profile, food_prepared_or_sold: true })} 
+                    /> 
+                    Yes
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="food_prepared_or_sold" 
+                      checked={profile.food_prepared_or_sold === false} 
+                      onChange={() => setProfile({ ...profile, food_prepared_or_sold: false })} 
+                    /> 
+                    No
+                  </label>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
-                <label className="flex items-center gap-2 text-sm text-[#0A2540]">
-                  <input type="checkbox" checked={profile.is_home_based} onChange={e => setProfile({...profile, is_home_based: e.target.checked})} />
-                  Home-based business
-                </label>
+              {/* Will alcohol be sold? */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will alcohol be sold?</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="alcohol_sold" 
+                      checked={profile.alcohol_sold === true} 
+                      onChange={() => setProfile({ ...profile, alcohol_sold: true })} 
+                    /> 
+                    Yes
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="alcohol_sold" 
+                      checked={profile.alcohol_sold === false} 
+                      onChange={() => setProfile({ ...profile, alcohol_sold: false })} 
+                    /> 
+                    No
+                  </label>
+                </div>
               </div>
 
-              {/* Dynamic follow-ups (from design) */}
-              {profile.industry === 'Restaurant' && (
-                <div className="bg-slate-50 border rounded-xl p-4 text-sm">
-                  <div className="font-medium mb-2 text-[#0A2540]">Additional questions for Restaurant / Food Service</div>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[#0A2540]/80">
-                    <div>✓ Commercial kitchen</div>
-                    <div>✓ Indoor seating</div>
-                    <div>○ Alcohol sales</div>
-                    <div>✓ Food preparation on site</div>
-                  </div>
+              {/* Will professional licenses be required? */}
+              <div>
+                <label className="block text-sm font-medium mb-2 text-[#0A2540]">Will professional licenses be required?</label>
+                <div className="flex gap-6">
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="professional_licenses_required" 
+                      checked={profile.professional_licenses_required === true} 
+                      onChange={() => setProfile({ ...profile, professional_licenses_required: true })} 
+                    /> 
+                    Yes
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-[#0A2540]">
+                    <input 
+                      type="radio" 
+                      name="professional_licenses_required" 
+                      checked={profile.professional_licenses_required === false} 
+                      onChange={() => setProfile({ ...profile, professional_licenses_required: false })} 
+                    /> 
+                    No
+                  </label>
                 </div>
-              )}
+              </div>
+
+              {/* Number of Employees */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">Number of Employees</label>
+                <input 
+                  type="number" 
+                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
+                  placeholder="e.g. 5" 
+                  value={profile.employee_count ?? ''} 
+                  onChange={e => setProfile({ ...profile, employee_count: parseInt(e.target.value) || undefined })} 
+                />
+              </div>
 
               <button 
                 onClick={handleStartDiscovery} 
-                disabled={!profile.name || isLoading}
+                disabled={!profile.name || !profile.industry || isLoading}
                 className="mt-4 w-full bg-[#0A2540] hover:bg-black text-white rounded-full py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                Continue to Requirements {isLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+                Next → {isLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
               </button>
-            </div>
-
-            {/* Quick examples - makes the demo excellent for identifying requirements per business type */}
-            <div className="mt-8">
-              <div className="text-sm font-medium text-[#0A2540] mb-3">Quick Test Different Business Types (see exact requirements instantly):</div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => loadExample({ industry: 'Restaurant', name: 'Mi Restaurante Boricua LLC', municipality: 'San Juan', is_home_based: false })} className="px-3 py-1.5 text-sm rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white">Restaurant (San Juan, not home)</button>
-                <button onClick={() => loadExample({ industry: 'Medical Office', name: 'Clínica San Jorge', municipality: 'Bayamón', is_home_based: false })} className="px-3 py-1.5 text-sm rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white">Medical Office</button>
-                <button onClick={() => loadExample({ industry: 'Retail Store', name: 'Tienda El Coquí', municipality: 'Carolina', is_home_based: true })} className="px-3 py-1.5 text-sm rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white">Retail (Home-based)</button>
-                <button onClick={() => loadExample({ industry: 'Construction', name: 'Construcciones PR LLC', municipality: 'Ponce', is_home_based: false })} className="px-3 py-1.5 text-sm rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white">Construction</button>
-                <button onClick={() => loadExample({ industry: 'Professional Services', name: 'Bufete Legal Caribe', municipality: 'San Juan', is_home_based: true })} className="px-3 py-1.5 text-sm rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white">Professional Services (Home)</button>
-              </div>
-              <p className="text-[10px] text-[#0A2540]/70 mt-2">Each example loads the precise licenses, permits, and documents required for that business profile per the Puerto Rico rules (Hacienda, OGPe, Salud, Bomberos, Municipal, Examining Boards, etc.).</p>
             </div>
 
             <p className="text-xs text-center text-[#0A2540]/70 mt-6">This is a faithful local implementation of the Step 1 flow + rules engine from the approved SmartPR design.</p>
