@@ -834,6 +834,10 @@ export default function SmartPR() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
+
+  // Backend is optional for production frontend-only deploys.
+  // Set NEXT_PUBLIC_BACKEND_URL=https://your-backend.example.com to enable real Grok LLM document analysis on uploads.
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
   const [language, setLanguage] = useState<'en' | 'es'>('en'); // Bilingual toggle
 
   const [questionList, setQuestionList] = useState<{id: string; text: string}[]>([]);
@@ -884,8 +888,6 @@ export default function SmartPR() {
     };
     return dict[key]?.[language] || key;
   };
-
-  const BACKEND_URL = 'http://localhost:8000';
 
   // Recompute requirements whenever profile or answers change (demo of the rules engine)
   const updateRequirements = (newProfile?: BusinessProfile, newAnswers?: Record<string, any>) => {
@@ -1034,29 +1036,35 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     try {
       let bid = businessId;
-      // Always use backend for real LLM-powered document intelligence
-      const res = await fetch(`${BACKEND_URL}/api/v1/businesses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile),
-      });
-      const data = await res.json();
-      bid = data.id;
-      setBusinessId(bid);
 
-      await fetch(`${BACKEND_URL}/api/v1/businesses/${bid}/discovery`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers, completed: true }),
-      });
+      if (BACKEND_URL) {
+        // Use real backend when configured (full LLM document features)
+        const res = await fetch(`${BACKEND_URL}/api/v1/businesses`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(profile),
+        });
+        const data = await res.json();
+        bid = data.id;
+        setBusinessId(bid);
+
+        await fetch(`${BACKEND_URL}/api/v1/businesses/${bid}/discovery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers, completed: true }),
+        });
+      } else {
+        // Pure client-side mode (works in production without a backend server)
+        bid = 'local-' + Date.now();
+        setBusinessId(bid);
+      }
 
       setDiscoveryAnswers(answers);
-      // Immediately compute requirements so user sees exactly what is needed for this business
       const computed = computeRequirements(profile, answers);
       setRequirements(computed);
-      setCurrentStep(3); // Jump to checklist with requirements determined from your answers
+      setCurrentStep(3);
     } catch (e) {
-      // Fallback (still provides client-side requirements; LLM document analysis requires backend)
+      // Safe fallback so Step 1 never gets stuck
       const bid = 'local-' + Date.now();
       setBusinessId(bid);
       setDiscoveryAnswers(answers);
@@ -1072,11 +1080,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const loadRequirements = async () => {
     setIsLoading(true);
     try {
-      // Prefer backend when available for consistency with LLM document flow
-      if (businessId && !businessId.startsWith('local-')) {
+      // Prefer backend when available (for future real requirements endpoint)
+      if (BACKEND_URL && businessId && !businessId.startsWith('local-')) {
         try {
-          const res = await fetch(`${BACKEND_URL}/api/v1/businesses/${businessId}/requirements`);
-          await res.json(); // response not directly used; we use client compute for rich UI
+          await fetch(`${BACKEND_URL}/api/v1/businesses/${businessId}/requirements`);
         } catch {}
       }
       const computed = computeRequirements(profile, discoveryAnswers);
@@ -1094,7 +1101,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // When business_type changes, also ensure location is valid (already handled in onChange)
   // The LOCATION_TYPES_BY_BUSINESS_TYPE drives the dynamic options for Field 5.
 
-  // Step 4-5: Document upload + REAL AI identification/extraction (when backend enabled)
+  // Legacy / internal - see processRealFileUpload for current upload logic
   const handleMockUpload = async (reqCode: string) => {
     const docName = `${reqCode.replace(/_/g, ' ')}.pdf`;
     
@@ -1266,58 +1273,59 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       entity_name: profile.name || null,
     };
 
-    const BACKEND_URL = 'http://localhost:8000';
-
-    // Always use the real backend + Grok LLM for document identification (no mock path)
-    let bid = businessId;
-    // Auto-create backend business record if needed so /analyze-document can store against it
-    if (!bid || bid.startsWith('local-')) {
-      try {
-        const createRes = await fetch(`${BACKEND_URL}/api/v1/businesses`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: profile.name || 'Business',
-            municipality: profile.municipality || 'San Juan',
-            industry: profile.industry || 'Other',
-            business_structure: profile.business_structure || 'llc',
-            is_home_based: /home/i.test(profile.location_type || ''),
-            employee_count: profile.number_of_employees || 0,
-            physical_address: null,
-          }),
-        });
-        if (createRes.ok) {
-          const data = await createRes.json();
-          bid = data.id;
-          setBusinessId(bid);
-        }
-      } catch (e) {
-        console.warn('Auto business create for upload failed', e);
-      }
-    }
-
-    if (bid && !bid.startsWith('local-')) {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/v1/businesses/${bid}/analyze-document`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            filename, 
-            content,
-            requirement_code: reqCode   // Pass so backend can use a unique, targeted prompt for this specific document type
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          analysis = data.analysis;
-          if (analysis?.extracted) {
-            extracted = { ...extracted, ...analysis.extracted };
+    // Use real backend + Grok LLM only when BACKEND_URL is configured.
+    // In production without a backend, we fall back to client-side filename + text classification (still produces good requirements + score).
+    if (BACKEND_URL) {
+      let bid = businessId;
+      // Auto-create backend business record if needed
+      if (!bid || bid.startsWith('local-')) {
+        try {
+          const createRes = await fetch(`${BACKEND_URL}/api/v1/businesses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: profile.name || 'Business',
+              municipality: profile.municipality || 'San Juan',
+              industry: profile.industry || 'Other',
+              business_structure: profile.business_structure || 'llc',
+              is_home_based: /home/i.test(profile.location_type || ''),
+              employee_count: profile.number_of_employees || 0,
+              physical_address: null,
+            }),
+          });
+          if (createRes.ok) {
+            const data = await createRes.json();
+            bid = data.id;
+            setBusinessId(bid);
           }
-        } else {
-          console.warn('Backend analyze returned non-ok');
+        } catch (e) {
+          console.warn('Auto business create for upload failed', e);
         }
-      } catch (e) {
-        console.warn('LLM document analysis via backend failed, will fallback to filename-based classification', e);
+      }
+
+      if (bid && !bid.startsWith('local-')) {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/v1/businesses/${bid}/analyze-document`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              filename, 
+              content,
+              requirement_code: reqCode   // Pass so backend can use a unique, targeted prompt for this specific document type
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            analysis = data.analysis;
+            if (analysis?.extracted) {
+              extracted = { ...extracted, ...analysis.extracted };
+            }
+          } else {
+            console.warn('Backend analyze returned non-ok');
+          }
+        } catch (e) {
+          console.warn('LLM document analysis via backend failed, will fallback to filename-based classification', e);
+        }
       }
     }
 
@@ -1466,8 +1474,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       let score = 68;
       let newFindings: Finding[] = [];
 
-      // Prefer real backend validation when a backend business record exists
-      if (businessId && !businessId.startsWith('local-')) {
+      // Prefer real backend validation when BACKEND_URL is configured and we have a backend id
+      if (BACKEND_URL && businessId && !businessId.startsWith('local-')) {
         try {
           const res = await fetch(`${BACKEND_URL}/api/v1/businesses/${businessId}/validations`, { method: 'POST' });
           const data = await res.json();
