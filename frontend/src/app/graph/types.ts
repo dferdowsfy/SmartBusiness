@@ -1,0 +1,58 @@
+// ============================================================================
+// Shared capture-event types for the SmartPR knowledge graph.
+//
+// These cross the client -> /api/graph/capture boundary. The graph is purely
+// OBSERVATIONAL: events describe what the rules engine already produced. They
+// never feed back into requirement generation.
+// ============================================================================
+
+export interface CapturedRequirement {
+  document_id?: string;
+  document: string;      // human label, e.g. "Health Permit"
+  agency: string;
+  reason: string;
+  source_rule?: string;  // rule id, e.g. "RULE_0046" (stored as a Rule node)
+  mandatory?: boolean;
+}
+
+export interface CapturedAnswer {
+  question_id: string;
+  question: string;
+  answer: string | boolean;
+}
+
+// Emitted once, when intake completes and the rules engine has run.
+export interface SubmissionEvent {
+  kind: "submission";
+  submission_id: string;       // client-generated uuid (correlation id)
+  municipality?: string | null;
+  industry?: string | null;
+  business_type?: string | null;
+  location_type?: string | null;
+  answers: CapturedAnswer[];
+  requirements: CapturedRequirement[];
+}
+
+// Emitted each time a document is uploaded and validated.
+export interface ValidationEvent {
+  kind: "validation";
+  submission_id: string;
+  business_type?: string | null;
+  document_type: string;
+  validation_result: "PASS" | "NEEDS_REVIEW" | "FAIL";
+  pass_fail: boolean;
+  confidence: number;          // 0..100
+  expiration_status: "Valid" | "Expired" | "Unknown";
+}
+
+// Emitted when the readiness score is (re)computed.
+export interface ReadinessEvent {
+  kind: "readiness";
+  submission_id: string;
+  business_type?: string | null;
+  score: number;               // 0..100
+  status: string;              // e.g. "Ready For Submission"
+  missing_documents?: string[];
+}
+
+export type CaptureEvent = SubmissionEvent | ValidationEvent | ReadinessEvent;
