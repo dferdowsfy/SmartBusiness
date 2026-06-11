@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { L } from './i18n';
-import { computeRequirementsFromKB, runRulesEngineForProfile } from './kb';
+import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, KB } from './kb';
+import { captureEvent, newSubmissionId } from './graph/client';
+import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { 
@@ -767,6 +769,8 @@ export default function SmartPR() {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [businessId, setBusinessId] = useState<string | null>(null);
+  // Correlation id tying every capture event for this scenario together.
+  const submissionIdRef = useRef<string>('');
 
   // Single-service architecture: discovery/requirements are computed entirely
   // client-side, and LLM document analysis runs server-side in this same
@@ -1010,8 +1014,50 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setDiscoveryAnswers(answers);
     const computed = computeRequirements(profile, answers);
     setRequirements(computed);
+
+    // --- Knowledge-graph capture (observational, fire-and-forget) ---
+    captureScenario(profile, answers, computed);
+
     setCurrentStep(3);
     setIsLoading(false);
+  };
+
+  // Build and emit a "submission" capture event from the current scenario.
+  // Never throws — capture is best-effort and never affects the user flow.
+  const captureScenario = (
+    p: BusinessProfile,
+    answers: Record<string, any>,
+    computed: Requirement[]
+  ) => {
+    try {
+      const submissionId = newSubmissionId();
+      submissionIdRef.current = submissionId;
+      const engineInput = buildEngineInput(p as any, answers);
+      const qText = new Map(KB.questions.map((q) => [q.id, q.question]));
+      const capturedAnswers: CapturedAnswer[] = Object.entries(engineInput.answers)
+        .filter(([, v]) => v !== undefined && v !== null && v !== '')
+        .map(([qid, v]) => ({ question_id: qid, question: qText.get(qid) || qid, answer: v as any }));
+      const capturedReqs: CapturedRequirement[] = computed.map((r) => ({
+        document_id: r.document_id,
+        document: r.name,
+        agency: r.agency,
+        reason: r.reason,
+        source_rule: r.source_rule,
+        mandatory: r.mandatory,
+      }));
+      captureEvent({
+        kind: 'submission',
+        submission_id: submissionId,
+        municipality: p.municipality || null,
+        industry: p.industry || null,
+        business_type: p.business_type || null,
+        location_type: p.location_type || null,
+        answers: capturedAnswers,
+        requirements: capturedReqs,
+      });
+    } catch {
+      /* observational only */
+    }
   };
 
   // Load / recompute requirements (powered by the design-accurate compute function)
@@ -1382,6 +1428,42 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     score = Math.max(0, Math.min(100, Math.round(score - penalties)));
     setReadinessScore(score);
+
+    // --- Knowledge-graph capture: document validation + readiness ---
+    try {
+      const expDate = analysis?.extracted?.expiration_date;
+      const expirationStatus: 'Valid' | 'Expired' | 'Unknown' = expDate
+        ? (new Date(expDate) < new Date() ? 'Expired' : 'Valid')
+        : 'Unknown';
+      const validationResult: 'PASS' | 'NEEDS_REVIEW' | 'FAIL' =
+        newStatus === 'passed' ? 'PASS' : newStatus === 'warning' ? 'NEEDS_REVIEW' : 'NEEDS_REVIEW';
+      captureEvent({
+        kind: 'validation',
+        submission_id: submissionIdRef.current,
+        business_type: profile.business_type || null,
+        document_type: analysis?.document_type || reqCode,
+        validation_result: validationResult,
+        pass_fail: newStatus === 'passed',
+        confidence: Math.round((analysis?.confidence || 0) * 100),
+        expiration_status: expirationStatus,
+      });
+
+      const missingDocuments = updatedReqs
+        .filter((r) => r.mandatory && r.status !== 'passed')
+        .map((r) => r.name);
+      const readinessStatus =
+        score >= 90 ? 'Ready For Submission' : score >= 70 ? 'Nearly Ready' : score >= 40 ? 'In Progress' : 'Getting Started';
+      captureEvent({
+        kind: 'readiness',
+        submission_id: submissionIdRef.current,
+        business_type: profile.business_type || null,
+        score,
+        status: readinessStatus,
+        missing_documents: missingDocuments,
+      });
+    } catch {
+      /* observational only */
+    }
 
     // Findings from this analysis
     const newFindings: Finding[] = [...findings];
