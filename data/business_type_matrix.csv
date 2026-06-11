@@ -1,0 +1,141 @@
+Industry,Business Type,Business Type ID
+Food & Beverage,Restaurant,BT_RESTAURANT
+Food & Beverage,Fast Food Restaurant,BT_FAST_FOOD_RESTAURANT
+Food & Beverage,Bakery,BT_BAKERY
+Food & Beverage,Cafe,BT_CAFE
+Food & Beverage,Bar,BT_BAR
+Food & Beverage,Food Truck,BT_FOOD_TRUCK
+Food & Beverage,Catering Business,BT_CATERING_BUSINESS
+Food & Beverage,Ice Cream Shop,BT_ICE_CREAM_SHOP
+Food & Beverage,Juice Bar,BT_JUICE_BAR
+Food & Beverage,Commercial Kitchen,BT_COMMERCIAL_KITCHEN
+Healthcare,Medical Office,BT_MEDICAL_OFFICE
+Healthcare,Dental Office,BT_DENTAL_OFFICE
+Healthcare,Pharmacy,BT_PHARMACY
+Healthcare,Clinical Laboratory,BT_CLINICAL_LABORATORY
+Healthcare,Mental Health Practice,BT_MENTAL_HEALTH_PRACTICE
+Healthcare,Physical Therapy Clinic,BT_PHYSICAL_THERAPY_CLINIC
+Healthcare,Veterinary Clinic,BT_VETERINARY_CLINIC
+Healthcare,Urgent Care Center,BT_URGENT_CARE_CENTER
+Healthcare,Medical Spa,BT_MEDICAL_SPA
+Healthcare,Home Health Agency,BT_HOME_HEALTH_AGENCY
+Professional Services,Law Firm,BT_LAW_FIRM
+Professional Services,CPA Firm,BT_CPA_FIRM
+Professional Services,Consulting Firm,BT_CONSULTING_FIRM
+Professional Services,Marketing Agency,BT_MARKETING_AGENCY
+Professional Services,Engineering Firm,BT_ENGINEERING_FIRM
+Professional Services,Architecture Firm,BT_ARCHITECTURE_FIRM
+Professional Services,Notary Services,BT_NOTARY_SERVICES
+Professional Services,Translation Services,BT_TRANSLATION_SERVICES
+Professional Services,Staffing Agency,BT_STAFFING_AGENCY
+Information Technology,Software Company,BT_SOFTWARE_COMPANY
+Information Technology,SaaS Company,BT_SAAS_COMPANY
+Information Technology,IT Consulting Firm,BT_IT_CONSULTING_FIRM
+Information Technology,Cybersecurity Firm,BT_CYBERSECURITY_FIRM
+Information Technology,Managed Services Provider,BT_MANAGED_SERVICES_PROVIDER
+Information Technology,Data Analytics Firm,BT_DATA_ANALYTICS_FIRM
+Information Technology,Web Development Agency,BT_WEB_DEVELOPMENT_AGENCY
+Retail,Clothing Store,BT_CLOTHING_STORE
+Retail,Jewelry Store,BT_JEWELRY_STORE
+Retail,Electronics Store,BT_ELECTRONICS_STORE
+Retail,Furniture Store,BT_FURNITURE_STORE
+Retail,Hardware Store,BT_HARDWARE_STORE
+Retail,Convenience Store,BT_CONVENIENCE_STORE
+Retail,Pet Store,BT_PET_STORE
+Retail,Gift Shop,BT_GIFT_SHOP
+Retail,E-commerce Business,BT_E_COMMERCE_BUSINESS
+Retail,Cosmetics Store,BT_COSMETICS_STORE
+Construction,General Contractor,BT_GENERAL_CONTRACTOR
+Construction,Electrical Contractor,BT_ELECTRICAL_CONTRACTOR
+Construction,Plumbing Contractor,BT_PLUMBING_CONTRACTOR
+Construction,HVAC Contractor,BT_HVAC_CONTRACTOR
+Construction,Roofing Contractor,BT_ROOFING_CONTRACTOR
+Construction,Concrete Contractor,BT_CONCRETE_CONTRACTOR
+Construction,Landscaping Company,BT_LANDSCAPING_COMPANY
+Construction,Specialty Trade Contractor,BT_SPECIALTY_TRADE_CONTRACTOR
+Tourism & Hospitality,Hotel,BT_HOTEL
+Tourism & Hospitality,Resort,BT_RESORT
+Tourism & Hospitality,Guest House,BT_GUEST_HOUSE
+Tourism & Hospitality,Airbnb / Short-Term Rental,BT_AIRBNB_SHORT_TERM_RENTAL
+Tourism & Hospitality,Tour Operator,BT_TOUR_OPERATOR
+Tourism & Hospitality,Excursion Company,BT_EXCURSION_COMPANY
+Tourism & Hospitality,Car Rental Business,BT_CAR_RENTAL_BUSINESS
+Tourism & Hospitality,Travel Agency,BT_TRAVEL_AGENCY
+Beauty & Personal Care,Beauty Salon,BT_BEAUTY_SALON
+Beauty & Personal Care,Barbershop,BT_BARBERSHOP
+Beauty & Personal Care,Nail Salon,BT_NAIL_SALON
+Beauty & Personal Care,Spa,BT_SPA
+Beauty & Personal Care,Massage Therapy Studio,BT_MASSAGE_THERAPY_STUDIO
+Beauty & Personal Care,Tattoo Shop,BT_TATTOO_SHOP
+Beauty & Personal Care,Esthetics Studio,BT_ESTHETICS_STUDIO
+Manufacturing,Food Manufacturing,BT_FOOD_MANUFACTURING
+Manufacturing,Pharmaceutical Manufacturing,BT_PHARMACEUTICAL_MANUFACTURING
+Manufacturing,Medical Device Manufacturing,BT_MEDICAL_DEVICE_MANUFACTURING
+Manufacturing,Textile Manufacturing,BT_TEXTILE_MANUFACTURING
+Manufacturing,Furniture Manufacturing,BT_FURNITURE_MANUFACTURING
+Manufacturing,Beverage Manufacturing,BT_BEVERAGE_MANUFACTURING
+Manufacturing,Chemical Manufacturing,BT_CHEMICAL_MANUFACTURING
+Transportation & Logistics,Trucking Company,BT_TRUCKING_COMPANY
+Transportation & Logistics,Courier Service,BT_COURIER_SERVICE
+Transportation & Logistics,Moving Company,BT_MOVING_COMPANY
+Transportation & Logistics,Taxi Service,BT_TAXI_SERVICE
+Transportation & Logistics,Logistics Company,BT_LOGISTICS_COMPANY
+Transportation & Logistics,Warehouse Operator,BT_WAREHOUSE_OPERATOR
+Transportation & Logistics,Freight Forwarding Company,BT_FREIGHT_FORWARDING_COMPANY
+Education & Training,Private School,BT_PRIVATE_SCHOOL
+Education & Training,Daycare,BT_DAYCARE
+Education & Training,Tutoring Center,BT_TUTORING_CENTER
+Education & Training,Vocational School,BT_VOCATIONAL_SCHOOL
+Education & Training,Training Company,BT_TRAINING_COMPANY
+Education & Training,After-School Program,BT_AFTER_SCHOOL_PROGRAM
+Real Estate,Real Estate Brokerage,BT_REAL_ESTATE_BROKERAGE
+Real Estate,Property Management Company,BT_PROPERTY_MANAGEMENT_COMPANY
+Real Estate,Real Estate Developer,BT_REAL_ESTATE_DEVELOPER
+Real Estate,Appraisal Firm,BT_APPRAISAL_FIRM
+Real Estate,Real Estate Investment Firm,BT_REAL_ESTATE_INVESTMENT_FIRM
+Automotive,Auto Repair Shop,BT_AUTO_REPAIR_SHOP
+Automotive,Body Shop,BT_BODY_SHOP
+Automotive,Car Dealership,BT_CAR_DEALERSHIP
+Automotive,Auto Parts Store,BT_AUTO_PARTS_STORE
+Automotive,Car Wash,BT_CAR_WASH
+Automotive,Tire Shop,BT_TIRE_SHOP
+Automotive,Motorcycle Repair Shop,BT_MOTORCYCLE_REPAIR_SHOP
+Agriculture & Farming,Farm,BT_FARM
+Agriculture & Farming,Livestock Operation,BT_LIVESTOCK_OPERATION
+Agriculture & Farming,Aquaculture Operation,BT_AQUACULTURE_OPERATION
+Agriculture & Farming,Plant Nursery,BT_PLANT_NURSERY
+Agriculture & Farming,Agricultural Services Company,BT_AGRICULTURAL_SERVICES_COMPANY
+Agriculture & Farming,Coffee Plantation,BT_COFFEE_PLANTATION
+Finance & Insurance,Insurance Agency,BT_INSURANCE_AGENCY
+Finance & Insurance,Mortgage Broker,BT_MORTGAGE_BROKER
+Finance & Insurance,Financial Advisory Firm,BT_FINANCIAL_ADVISORY_FIRM
+Finance & Insurance,Accounting Firm,BT_ACCOUNTING_FIRM
+Finance & Insurance,Investment Firm,BT_INVESTMENT_FIRM
+Finance & Insurance,Credit Services Company,BT_CREDIT_SERVICES_COMPANY
+Energy & Utilities,Solar Installer,BT_SOLAR_INSTALLER
+Energy & Utilities,Energy Consulting Firm,BT_ENERGY_CONSULTING_FIRM
+Energy & Utilities,Utility Contractor,BT_UTILITY_CONTRACTOR
+Energy & Utilities,Battery Storage Installer,BT_BATTERY_STORAGE_INSTALLER
+Energy & Utilities,Renewable Energy Company,BT_RENEWABLE_ENERGY_COMPANY
+Wholesale Distribution,Wholesale Food Distributor,BT_WHOLESALE_FOOD_DISTRIBUTOR
+Wholesale Distribution,Wholesale Goods Distributor,BT_WHOLESALE_GOODS_DISTRIBUTOR
+Wholesale Distribution,Beverage Distributor,BT_BEVERAGE_DISTRIBUTOR
+Wholesale Distribution,Import / Export Business,BT_IMPORT_EXPORT_BUSINESS
+Wholesale Distribution,Warehouse Distributor,BT_WAREHOUSE_DISTRIBUTOR
+"Arts, Entertainment & Recreation",Gym / Fitness Studio,BT_GYM_FITNESS_STUDIO
+"Arts, Entertainment & Recreation",Dance Studio,BT_DANCE_STUDIO
+"Arts, Entertainment & Recreation",Music Venue,BT_MUSIC_VENUE
+"Arts, Entertainment & Recreation",Event Venue,BT_EVENT_VENUE
+"Arts, Entertainment & Recreation",Theater,BT_THEATER
+"Arts, Entertainment & Recreation",Art Gallery,BT_ART_GALLERY
+"Arts, Entertainment & Recreation",Sports Facility,BT_SPORTS_FACILITY
+Government Contractors,Construction Government Contractor,BT_CONSTRUCTION_GOVERNMENT_CONTRACTOR
+Government Contractors,IT Government Contractor,BT_IT_GOVERNMENT_CONTRACTOR
+Government Contractors,Professional Services Government Contractor,BT_PROFESSIONAL_SERVICES_GOVERNMENT_CONTRACTOR
+Government Contractors,Facilities Government Contractor,BT_FACILITIES_GOVERNMENT_CONTRACTOR
+Government Contractors,Security Contractor,BT_SECURITY_CONTRACTOR
+Nonprofit & Religious Organizations,Nonprofit Organization,BT_NONPROFIT_ORGANIZATION
+Nonprofit & Religious Organizations,Religious Organization,BT_RELIGIOUS_ORGANIZATION
+Nonprofit & Religious Organizations,Community Organization,BT_COMMUNITY_ORGANIZATION
+Nonprofit & Religious Organizations,Foundation,BT_FOUNDATION
+Nonprofit & Religious Organizations,Charity,BT_CHARITY
