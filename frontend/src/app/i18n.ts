@@ -8,6 +8,37 @@
 export type Lang = "en" | "es";
 
 export const ES: Record<string, string> = {
+  // ---- Relationship engine / potential requirements ----
+  "Mandatory Required Items": "Documentos Obligatorios",
+  "Potentially Required Items": "Documentos Posiblemente Requeridos",
+  "Recommended Items": "Documentos Recomendados",
+  "Potentially Required": "Posiblemente Requerido",
+  "Why this may be required": "Por qué podría ser requerido",
+  "Why is this required?": "¿Por qué se requiere esto?",
+  "Hide reasons": "Ocultar razones",
+  "Applies": "Aplica",
+  "Does Not Apply": "No Aplica",
+  "Not Sure": "No Estoy Seguro",
+  "Confirmed — applies": "Confirmado — aplica",
+  "Trigger": "Origen",
+  "Advisory": "Orientativo",
+  "Recommended Based on Similar Businesses": "Recomendado Según Negocios Similares",
+  "Kept as potentially required. Revisit before submission.": "Se mantiene como posiblemente requerido. Revísalo antes de enviar.",
+  "Undo — mark as not sure": "Deshacer — marcar como no estoy seguro",
+  "Based on": "Basado en",
+  "similar businesses processed before. Suggestions only — these never change what the rules require.":
+    "negocios similares procesados anteriormente. Solo sugerencias — nunca cambian lo que exigen las reglas.",
+  "Documents similar businesses often also needed": "Documentos que negocios similares también necesitaron",
+  "Documents that commonly fail validation": "Documentos que comúnmente fallan la validación",
+  "Operations": "Operaciones",
+  "Location": "Ubicación",
+  "Baseline": "Base",
+  "Agency": "Agencia",
+  "Island Municipality": "Municipio Isla",
+  "Coastal Municipality": "Municipio Costero",
+  "Tourism Municipality": "Municipio Turístico",
+  "Historic District Municipality": "Municipio con Distrito Histórico",
+  "Major Metro Municipality": "Municipio Metropolitano",
   // ---- Step 1 / header / nav ----
   "SmartPR Readiness Workflow": "Flujo de Preparación SmartPR",
   "Step": "Paso",

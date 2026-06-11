@@ -6,6 +6,7 @@ import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, 
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
+import { potentialItemsForFlags, type PotentialDef } from './potentialRequirements';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { 
@@ -812,6 +813,8 @@ export default function SmartPR() {
   const submissionIdRef = useRef<string>('');
   // Advisory historical recommendations (never mandatory; rules stay authoritative).
   const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
+  // User decisions on flag-derived "Potentially Required" items.
+  const [potentialDecisions, setPotentialDecisions] = useState<Record<string, 'applies' | 'not_applies' | 'not_sure'>>({});
 
   // Explainability: confidence + weighted "why required" reasons per document.
   // Additive only — does not change which requirements are produced.
@@ -2055,6 +2058,89 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const totalMandatory = requirements.filter(r => r.mandatory).length;
   const checklistProgress = totalMandatory > 0 ? Math.round((completedMandatory / totalMandatory) * 100) : 0;
 
+  // --- Potentially Required items (knowledge-graph / municipality flags) ---
+  const municipalityFlags: string[] = (() => {
+    const m = KB.municipalities.find(x => x.name.toLowerCase() === (profile.municipality || '').toLowerCase());
+    return m ? (m.flags as string[]) : [];
+  })();
+  const mandatoryNames = new Set(requirements.filter(r => r.mandatory).map(r => r.name.toLowerCase()));
+  // Show a potential item only if its document isn't already a mandatory rule output.
+  const potentialItems: PotentialDef[] = requirements.length
+    ? potentialItemsForFlags(municipalityFlags).filter(p => !mandatoryNames.has(p.document.toLowerCase()))
+    : [];
+
+  // Apply a user's decision; "Applies" promotes the item into the real
+  // requirements list (mandatory, uploadable, counts toward completion).
+  const decidePotential = (def: PotentialDef, decision: 'applies' | 'not_applies' | 'not_sure') => {
+    setPotentialDecisions(prev => ({ ...prev, [def.flag]: decision }));
+    const code = 'potential_' + def.flag;
+    setRequirements(prev => {
+      const exists = prev.some(r => r.code === code);
+      if (decision === 'applies' && !exists) {
+        return [...prev, {
+          code, name: def.document, mandatory: true, status: 'pending' as const,
+          agency: def.agency, reason: def.why, category: 'Potentially Required',
+          source_rule: 'flag:' + def.flag,
+        }];
+      }
+      if (decision !== 'applies' && exists) return prev.filter(r => r.code !== code);
+      return prev;
+    });
+  };
+
+  // Render one requirement row (shared by Mandatory + Recommended sections).
+  const renderReqRow = (req: Requirement, idx: number) => {
+    const doc = uploadedDocs.find(d => d.requirement_code === req.code);
+    const analysis = doc?.ai_analysis;
+    let icon = <div className="w-4 h-4 rounded-full border-2 border-[#0A2540]/30 mt-0.5 flex-shrink-0" />;
+    let extra = '';
+    if (analysis) {
+      const st = analysis.overall_status;
+      const conf = Math.round((analysis.confidence || 0) * 100);
+      if (st === 'Complete') {
+        icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
+        extra = ` ✓ ${L('Complete', language)} (${L('conf', language)} ${conf}%)`;
+      } else if (st === 'Needs Review' || st === 'Missing Information') {
+        icon = <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />;
+        extra = ` ⚠ ${L(st, language)}`;
+      } else if (st === 'Mismatch' || st === 'Expired') {
+        icon = <span className="text-red-600 mt-0.5 flex-shrink-0">✕</span>;
+        extra = ` ✕ ${L(st, language)}`;
+      } else {
+        icon = <span className="text-yellow-600 mt-0.5 flex-shrink-0">◐</span>;
+        extra = ` ◐ ${L(st, language)}`;
+      }
+    } else if (req.status === 'uploaded' || req.status === 'passed') {
+      icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
+    }
+    const promoted = req.code.startsWith('potential_');
+    return (
+      <div key={idx} className="border rounded-xl px-4 py-3 text-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 flex-1">
+            {icon}
+            <div className="min-w-0">
+              <div className="font-medium text-[#0A2540]">{trReqName(req)}{extra}</div>
+              <div className="text-xs text-[#0A2540]/70 mt-0.5">
+                <span className="font-semibold">{L(req.agency, language)}</span> • {promoted ? L('Confirmed — applies', language) : req.mandatory ? L('Mandatory', language) : L('Recommended', language)}
+              </div>
+              <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
+              {req.document_id && reasonsByDoc[req.document_id] && (
+                <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => triggerFileUpload(req.code)}
+            className="text-xs px-3 py-1.5 rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white flex items-center gap-1 flex-shrink-0"
+          >
+            <Upload className="w-3.5 h-3.5" /> {L('Upload', language)}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       {/* Upload result toast (LLM document analysis feedback) */}
@@ -2351,56 +2437,62 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     </button>
                   )}
 
-                  {requirements.map((req, idx) => {
-                    const doc = uploadedDocs.find(d => d.requirement_code === req.code);
-                    const analysis = doc?.ai_analysis;
-                    let icon = <div className="w-4 h-4 rounded-full border-2 border-[#0A2540]/30 mt-0.5 flex-shrink-0" />;
-                    let extra = '';
-                    if (analysis) {
-                      const st = analysis.overall_status;
-                      const conf = Math.round((analysis.confidence || 0) * 100);
-                      if (st === 'Complete') {
-                        icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
-                        extra = ` ✓ ${L('Complete', language)} (${L('conf', language)} ${conf}%)`;
-                      } else if (st === 'Needs Review' || st === 'Missing Information') {
-                        icon = <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />;
-                        extra = ` ⚠ ${L(st, language)}`;
-                      } else if (st === 'Mismatch' || st === 'Expired') {
-                        icon = <span className="text-red-600 mt-0.5 flex-shrink-0">✕</span>;
-                        extra = ` ✕ ${L(st, language)}`;
-                      } else {
-                        icon = <span className="text-yellow-600 mt-0.5 flex-shrink-0">◐</span>;
-                        extra = ` ◐ ${L(st, language)}`;
-                      }
-                    } else if (req.status === 'uploaded' || req.status === 'passed') {
-                      icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
-                    }
-                    return (
-                      <div key={idx} className="border rounded-xl px-4 py-3 text-sm">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3 flex-1">
-                            {icon}
-                            <div className="min-w-0">
-                              <div className="font-medium text-[#0A2540]">{trReqName(req)}{extra}</div>
-                              <div className="text-xs text-[#0A2540]/70 mt-0.5">
-                                <span className="font-semibold">{L(req.agency, language)}</span> • {req.mandatory ? L('Mandatory', language) : L('Recommended', language)}
+                  {/* 1. MANDATORY (deterministic rules + confirmed potentials) */}
+                  {requirements.filter(r => r.mandatory).length > 0 && (
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-[#0A2540]/50 pt-1">{L('Mandatory Required Items', language)}</div>
+                  )}
+                  {requirements.filter(r => r.mandatory).map((req, idx) => renderReqRow(req, idx))}
+
+                  {/* 2. POTENTIALLY REQUIRED (knowledge-graph / municipality flags) */}
+                  {potentialItems.length > 0 && (
+                    <>
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-amber-600 pt-3">{L('Potentially Required Items', language)}</div>
+                      {potentialItems.map((p) => {
+                        const decision = potentialDecisions[p.flag];
+                        if (decision === 'applies') return null; // promoted into Mandatory above
+                        const naMode = decision === 'not_applies';
+                        return (
+                          <div key={p.flag} className={`border rounded-xl px-4 py-3 text-sm ${naMode ? 'border-slate-200 bg-slate-50 opacity-70' : 'border-amber-200 bg-amber-50/40'}`}>
+                            <div className="flex items-start gap-3">
+                              <AlertTriangle className={`w-4 h-4 mt-0.5 flex-shrink-0 ${naMode ? 'text-slate-400' : 'text-amber-500'}`} />
+                              <div className="min-w-0 flex-1">
+                                <div className={`font-medium ${naMode ? 'text-[#0A2540]/50 line-through' : 'text-[#0A2540]'}`}>{p.document}</div>
+                                <div className="text-xs text-[#0A2540]/70 mt-0.5">
+                                  <span className="font-semibold">{p.agency}</span> • {L('Potentially Required', language)}
+                                </div>
+                                <div className="text-[11px] text-amber-700 mt-0.5">{L('Trigger', language)}: {L(p.flagLabel, language)}</div>
+                                {!naMode && (
+                                  <>
+                                    <div className="text-xs text-[#0A2540]/70 mt-1.5 leading-snug">
+                                      <span className="font-semibold">{L('Why this may be required', language)}:</span> {L(p.why, language)}
+                                    </div>
+                                    <div className="text-xs text-[#0A2540] mt-2 font-medium">{L(p.followUp, language)}</div>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      <button onClick={() => decidePotential(p, 'applies')} className="text-xs px-3 py-1 rounded-full bg-[#0D9488] text-white hover:bg-[#0b7d72]">{L('Applies', language)}</button>
+                                      <button onClick={() => decidePotential(p, 'not_applies')} className="text-xs px-3 py-1 rounded-full border border-slate-300 text-[#0A2540] hover:bg-slate-100">{L('Does Not Apply', language)}</button>
+                                      <button onClick={() => decidePotential(p, 'not_sure')} className={`text-xs px-3 py-1 rounded-full border ${decision === 'not_sure' ? 'border-amber-400 bg-amber-100 text-amber-800' : 'border-slate-300 text-[#0A2540] hover:bg-slate-100'}`}>{L('Not Sure', language)}</button>
+                                    </div>
+                                    {decision === 'not_sure' && (
+                                      <div className="text-[11px] text-amber-700 mt-1.5">{L('Kept as potentially required. Revisit before submission.', language)}</div>
+                                    )}
+                                  </>
+                                )}
+                                {naMode && (
+                                  <button onClick={() => decidePotential(p, 'not_sure')} className="text-[11px] text-[#0D9488] hover:underline mt-1">{L('Undo — mark as not sure', language)}</button>
+                                )}
                               </div>
-                              <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
-                              {req.document_id && reasonsByDoc[req.document_id] && (
-                                <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
-                              )}
                             </div>
                           </div>
-                          <button 
-                            onClick={() => triggerFileUpload(req.code)}
-                            className="text-xs px-3 py-1.5 rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white flex items-center gap-1 flex-shrink-0"
-                          >
-                            <Upload className="w-3.5 h-3.5" /> {L('Upload', language)}
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* 3. RECOMMENDED (rule-based non-mandatory) */}
+                  {requirements.filter(r => !r.mandatory).length > 0 && (
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-[#0A2540]/50 pt-3">{L('Recommended Items', language)}</div>
+                  )}
+                  {requirements.filter(r => !r.mandatory).map((req, idx) => renderReqRow(req, idx))}
                 </div>
 
                 {/* Advisory historical insights — suggestions only, never mandatory. */}
@@ -2408,7 +2500,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   (advisory.potentiallyOverlooked.length > 0 || advisory.commonValidationFailures.length > 0) && (
                   <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
                     <div className="font-semibold text-amber-800">
-                      {L('Historical insight', language)} · {L('Advisory', language)}
+                      {L('Recommended Based on Similar Businesses', language)} · {L('Advisory', language)}
                     </div>
                     <div className="text-xs text-amber-700/80 mt-0.5">
                       {L('Based on', language)} {advisory.similarCount} {L('similar businesses processed before. Suggestions only — these never change what the rules require.', language)}
