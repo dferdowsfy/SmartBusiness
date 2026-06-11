@@ -838,6 +838,18 @@ export default function SmartPR() {
   // Backend is optional for production frontend-only deploys.
   // Set NEXT_PUBLIC_BACKEND_URL=https://your-backend.example.com to enable real Grok LLM document analysis on uploads.
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+
+  // Fetch with a hard timeout so an unreachable/hanging backend can never
+  // freeze the UI (e.g. leave Step 1's "Next" button stuck in a loading state).
+  const fetchWithTimeout = async (input: RequestInfo, init: RequestInit = {}, timeoutMs = 8000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(input, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const [language, setLanguage] = useState<'en' | 'es'>('en'); // Bilingual toggle
 
   const [questionList, setQuestionList] = useState<{id: string; text: string}[]>([]);
@@ -1039,7 +1051,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
       if (BACKEND_URL) {
         // Use real backend when configured (full LLM document features)
-        const res = await fetch(`${BACKEND_URL}/api/v1/businesses`, {
+        const res = await fetchWithTimeout(`${BACKEND_URL}/api/v1/businesses`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(profile),
@@ -1048,7 +1060,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         bid = data.id;
         setBusinessId(bid);
 
-        await fetch(`${BACKEND_URL}/api/v1/businesses/${bid}/discovery`, {
+        await fetchWithTimeout(`${BACKEND_URL}/api/v1/businesses/${bid}/discovery`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ answers, completed: true }),
@@ -1083,7 +1095,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       // Prefer backend when available (for future real requirements endpoint)
       if (BACKEND_URL && businessId && !businessId.startsWith('local-')) {
         try {
-          await fetch(`${BACKEND_URL}/api/v1/businesses/${businessId}/requirements`);
+          await fetchWithTimeout(`${BACKEND_URL}/api/v1/businesses/${businessId}/requirements`);
         } catch {}
       }
       const computed = computeRequirements(profile, discoveryAnswers);
