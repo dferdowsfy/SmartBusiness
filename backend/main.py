@@ -9,7 +9,7 @@ Uses the configured AI (Grok via OpenRouter) for:
 
 .env should contain:
   OPENROUTER_API_KEY=sk-or-...
-  OPENROUTER_MODEL=x-ai/grok-4.3
+  OPENROUTER_MODEL=x-ai/grok-4.20
 """
 
 import os
@@ -26,7 +26,7 @@ from openai import OpenAI
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "x-ai/grok-4.3")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "x-ai/grok-4.20")
 OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 # OpenRouter client (OpenAI compatible)
@@ -44,11 +44,23 @@ app = FastAPI(
 )
 
 # CORS
-cors_origins = os.getenv("BACKEND_CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+# Defaults to allowing all origins so the only required variables are the
+# OpenRouter API key and model. Optionally restrict by setting
+# BACKEND_CORS_ORIGINS to a comma-separated list of allowed frontend URLs.
+_cors_env = os.getenv("BACKEND_CORS_ORIGINS", "").strip()
+if _cors_env:
+    cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    cors_origins = ["*"]
+    # Browsers forbid wildcard origins together with credentials, so disable
+    # credentials when allowing all origins (this app uses no cookies/auth).
+    allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in cors_origins],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -602,4 +614,6 @@ async def generate_package(business_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Railway (and most PaaS) inject the port to bind via $PORT.
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

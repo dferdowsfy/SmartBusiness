@@ -837,7 +837,8 @@ export default function SmartPR() {
 
   // Backend is optional for production frontend-only deploys.
   // Set NEXT_PUBLIC_BACKEND_URL=https://your-backend.example.com to enable real Grok LLM document analysis on uploads.
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+  // Strip any trailing slash so we never build "https://host//api/v1/...".
+  const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/+$/, '');
 
   // Fetch with a hard timeout so an unreachable/hanging backend can never
   // freeze the UI (e.g. leave Step 1's "Next" button stuck in a loading state).
