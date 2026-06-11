@@ -232,17 +232,16 @@ export const ES: Record<string, string> = {
 
   // ---- Toasts ----
   "Could not analyze with AI": "No se pudo analizar con IA",
-  "Add OPENROUTER_API_KEY in your environment to enable Grok analysis.":
-    "Agregue OPENROUTER_API_KEY en su entorno para habilitar el análisis con Grok.",
+  "Add OPENROUTER_API_KEY in your environment to enable AI analysis.":
+    "Agregue OPENROUTER_API_KEY en su entorno para habilitar el análisis con IA.",
   "AI analysis unavailable. Using basic classification.":
     "Análisis de IA no disponible. Usando clasificación básica.",
   "passed": "aprobado",
   "needs review": "necesita revisión",
-  "Grok verified": "Grok verificó",
+  "AI verified": "La IA verificó",
   "Readiness score updated.": "Puntuación de preparación actualizada.",
-  "Grok analyzed": "Grok analizó",
+  "AI analyzed": "La IA analizó",
   "but couldn't fully verify it.": "pero no pudo verificarlo por completo.",
-  "verified via Grok AI": "verificado con Grok AI",
   "verified": "verificado",
   "has issues": "tiene problemas",
   "processed": "procesado",
@@ -315,8 +314,8 @@ export const ES: Record<string, string> = {
     "La responsabilidad de la plataforma termina en:",
   "All final approvals are made exclusively by the Government of Puerto Rico and its agencies.":
     "Todas las aprobaciones finales las realiza exclusivamente el Gobierno de Puerto Rico y sus agencias.",
-  "Data is stored for this workspace session. All analysis uses the configured Grok AI model.":
-    "Los datos se guardan para esta sesión de espacio de trabajo. Todo el análisis usa el modelo Grok configurado.",
+  "Data is stored for this workspace session. All analysis uses the configured AI model.":
+    "Los datos se guardan para esta sesión de espacio de trabajo. Todo el análisis usa el modelo de IA configurado.",
   "Back to Checklist": "Volver a la Lista",
   "Start New Business": "Iniciar Nuevo Negocio",
 
@@ -376,7 +375,7 @@ export const ES: Record<string, string> = {
     "SmartPR determina la PREPARACIÓN para la solicitud ante agencias gubernamentales de Puerto Rico. NO aprueba, otorga ni emite ninguna licencia o permiso. Todas las aprobaciones las realiza exclusivamente el Gobierno de Puerto Rico y sus agencias. Este espacio de trabajo es solo para preparación y organización.",
   "PUERTO RICO BUSINESS LICENSING READINESS":
     "PREPARACIÓN PARA LICENCIAS COMERCIALES DE PUERTO RICO",
-  "Powered by Grok AI": "Desarrollado con Grok AI",
+  "Powered by AI": "Desarrollado con IA",
 };
 
 export function L(text: string | undefined | null, lang: Lang): string {
