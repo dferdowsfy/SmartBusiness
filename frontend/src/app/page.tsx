@@ -10,9 +10,11 @@ import { potentialItemsForFlags, type PotentialDef } from './potentialRequiremen
 import { buildExtraction, type ExtractionResult } from './documentFields';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
-import { 
-  CheckCircle, AlertTriangle, Info, Upload, FileText, 
-  ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink 
+import {
+  CheckCircle, AlertTriangle, Info, Upload, FileText,
+  ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
+  Receipt, Landmark, Lightbulb, MessageCircle, CalendarCheck, Phone,
+  ChevronDown, Waves, FolderOpen, ShieldCheck, ScrollText
 } from 'lucide-react';
 
 // SmartPR
@@ -2388,50 +2390,86 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   // Render one requirement row (shared by Mandatory + Recommended sections).
+  // Pick a contextual document icon based on the requirement name/agency.
+  const docIconFor = (name: string): React.ReactNode => {
+    const n = name.toLowerCase();
+    const cls = 'w-5 h-5';
+    if (/(incorpor|corporat|registr.* state|estado|articles|charter)/.test(n)) return <Building2 className={cls} />;
+    if (/(ein|irs|tax|hacienda|contribu|merchant|iva|sales)/.test(n)) return <Receipt className={cls} />;
+    if (/(permiso|permit|use|uso|zoning|ocup)/.test(n)) return <Landmark className={cls} />;
+    if (/(coast|environment|ambient|water|agua|dredge)/.test(n)) return <Waves className={cls} />;
+    if (/(insur|seguro|cfse|workers|comp)/.test(n)) return <ShieldCheck className={cls} />;
+    if (/(affidavit|declar|certificat|certif|compliance|cumplim)/.test(n)) return <ScrollText className={cls} />;
+    return <FileText className={cls} />;
+  };
+
   const renderReqRow = (req: Requirement, idx: number) => {
     const doc = uploadedDocs.find(d => d.requirement_code === req.code);
     const analysis = doc?.ai_analysis;
     const ext: ExtractionResult | undefined = analysis?.extraction;
-    let icon = <div className="w-4 h-4 rounded-full border-2 border-[#0A2540]/30 mt-0.5 flex-shrink-0" />;
+    // Determine completion state for the icon-tile treatment.
+    let state: 'pending' | 'done' | 'review' | 'fail' = 'pending';
     if (ext) {
-      if (ext.validation_result === 'PASS') icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
-      else if (ext.validation_result === 'NEEDS_REVIEW') icon = <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />;
-      else icon = <span className="text-red-600 mt-0.5 flex-shrink-0 font-bold">✕</span>;
+      if (ext.validation_result === 'PASS') state = 'done';
+      else if (ext.validation_result === 'NEEDS_REVIEW') state = 'review';
+      else state = 'fail';
     } else if (req.status === 'uploaded' || req.status === 'passed') {
-      icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
+      state = 'done';
     }
+    const tile =
+      state === 'done' ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200'
+      : state === 'review' ? 'bg-amber-50 text-amber-600 ring-1 ring-amber-200'
+      : state === 'fail' ? 'bg-red-50 text-red-600 ring-1 ring-red-200'
+      : 'bg-slate-100 text-[#0A2540]/50 ring-1 ring-slate-200';
+    const statusBadge =
+      state === 'done' ? <CheckCircle className="w-4 h-4 text-emerald-600" />
+      : state === 'review' ? <AlertTriangle className="w-4 h-4 text-amber-500" />
+      : state === 'fail' ? <span className="text-red-600 font-bold text-sm leading-none">✕</span>
+      : null;
     const promoted = req.code.startsWith('potential_');
     return (
-      <div key={idx} className="border border-slate-200 rounded-xl px-4 py-3 text-sm hover:border-teal-300 hover:shadow-sm transition-all bg-white">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 flex-1">
-            {icon}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-[#0A2540]">{trReqName(req)}</span>
-                <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold ${req.mandatory ? 'bg-teal-50 text-[#0D9488] border border-teal-200' : 'bg-slate-100 text-[#0A2540]/70'}`}>
-                  {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
-                </span>
-              </div>
-              <div className="text-xs text-[#0A2540]/70 mt-1">
-                <span className="font-medium">{L(req.agency, language)}</span>
-                {profile.municipality && <> · {L('Municipality', language)}: {profile.municipality}</>}
-              </div>
-              <details className="mt-1.5">
-                <summary className="text-[11px] text-[#0D9488] cursor-pointer hover:underline list-none">{L('Why is this required?', language)}</summary>
-                <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
-              </details>
-              {req.document_id && reasonsByDoc[req.document_id] && (
-                <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
-              )}
-              {ext && analysis && (
-                <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
-              )}
+      <div key={idx} className="group border border-slate-200 rounded-2xl p-4 hover:border-teal-300 hover:shadow-md transition-all bg-white">
+        <div className="flex items-start gap-4">
+          {/* Document icon tile with status overlay */}
+          <div className="relative flex-shrink-0">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${tile} transition-colors`}>
+              {docIconFor(trReqName(req))}
             </div>
+            {statusBadge && (
+              <div className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm">
+                {statusBadge}
+              </div>
+            )}
           </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-[#0A2540] text-[15px]">{trReqName(req)}</span>
+              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold ${req.mandatory ? 'bg-teal-50 text-[#0D9488] border border-teal-200' : 'bg-slate-100 text-[#0A2540]/70'}`}>
+                {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
+              </span>
+            </div>
+            <div className="text-xs text-[#0A2540]/65 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-medium">{L(req.agency, language)}</span>
+              {profile.municipality && <span className="inline-flex items-center gap-1 text-[#0A2540]/55"><Landmark className="w-3 h-3" /> {profile.municipality}</span>}
+            </div>
+            <details className="mt-2">
+              <summary className="text-[11px] text-[#0D9488] cursor-pointer hover:underline list-none inline-flex items-center gap-1">
+                <Info className="w-3 h-3" /> {L('Why is this required?', language)}
+              </summary>
+              <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
+            </details>
+            {req.document_id && reasonsByDoc[req.document_id] && (
+              <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
+            )}
+            {ext && analysis && (
+              <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
+            )}
+          </div>
+
           <button
             onClick={() => triggerFileUpload(req.code)}
-            className="text-xs px-3 py-1.5 rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white flex items-center gap-1 flex-shrink-0"
+            className={`text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 flex-shrink-0 font-medium transition-all ${state === 'done' ? 'border border-slate-200 text-[#0A2540]/70 hover:bg-slate-50' : 'bg-[#0A2540] text-white hover:bg-black shadow-sm'}`}
           >
             <Upload className="w-3.5 h-3.5" /> {L(doc ? 'Re-upload' : 'Upload', language)}
           </button>
@@ -2520,42 +2558,47 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-8 pb-28">
-        {/* Simplified Onboarding Stepper: Intake → Checklist → Deliverables */}
+        {/* Large workflow stepper card: Intake → Checklist → Deliverables */}
         {(() => {
           const stage = currentStep === 1 ? 1 : currentStep === 9 ? 3 : 2;
-          const stageLabel = stage === 1 ? L('Intake', language) : stage === 2 ? L('Checklist', language) : L('Deliverables', language);
           const stages = [
             { n: 1, label: L('Intake', language) },
             { n: 2, label: L('Checklist', language) },
             { n: 3, label: L('Deliverables', language) },
           ];
           return (
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-3">
+            <div className="mb-8 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-7">
+              <div className="flex items-start justify-between mb-6">
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-[#0D9488] font-semibold">{L('Business Readiness Workflow', language)}</div>
-                  <div className="text-sm text-[#0A2540]/70 mt-0.5">{L('Step', language)} {stage} {L('of', language)} 3 — <span className="font-medium text-[#0A2540]">{stageLabel}</span></div>
+                  <div className="text-lg font-semibold text-[#0A2540] tracking-tight">{L('Business Readiness Workflow', language)}</div>
+                  <div className="text-sm text-[#0A2540]/60 mt-0.5">{L('Step', language)} {stage} {L('of', language)} 3</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-semibold text-[#0A2540] tabular-nums">{progress}%</div>
-                  <div className="text-[10px] uppercase tracking-wider text-[#0A2540]/60">{L('Overall Progress', language)}</div>
+                  <div className="text-3xl font-semibold text-[#0D9488] tabular-nums leading-none">{progress}%</div>
+                  <div className="text-[10px] uppercase tracking-wider text-[#0A2540]/50 mt-1">{L('Complete', language)}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center">
                 {stages.map((s, i) => {
                   const done = stage > s.n;
                   const active = stage === s.n;
                   return (
                     <React.Fragment key={s.n}>
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-full border transition-all ${active ? 'bg-[#0D9488] border-[#0D9488] text-white shadow-sm' : done ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-white border-slate-200 text-[#0A2540]/60'}`}>
-                        {done ? (
-                          <CheckCircle className="w-4 h-4" />
-                        ) : (
-                          <span className={`w-5 h-5 rounded-full text-[11px] font-semibold flex items-center justify-center ${active ? 'bg-white text-[#0D9488]' : 'bg-slate-100 text-[#0A2540]/60'}`}>{s.n}</span>
-                        )}
-                        <span className="text-sm font-medium">{s.label}</span>
+                      <div className="flex flex-col items-center gap-2 flex-shrink-0">
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all ${
+                          active ? 'bg-[#0D9488] text-white ring-4 ring-[#0D9488]/15 shadow-sm'
+                          : done ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-100 text-[#0A2540]/50 ring-1 ring-slate-200'
+                        }`}>
+                          {done ? <CheckCircle className="w-6 h-6" /> : s.n}
+                        </div>
+                        <span className={`text-sm font-medium ${active ? 'text-[#0A2540]' : done ? 'text-emerald-700' : 'text-[#0A2540]/50'}`}>{s.label}</span>
                       </div>
-                      {i < stages.length - 1 && <div className={`flex-1 h-px ${stage > s.n ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
+                      {i < stages.length - 1 && (
+                        <div className="flex-1 h-1 mx-2 sm:mx-4 rounded-full bg-slate-100 overflow-hidden -mt-7">
+                          <div className={`h-full rounded-full transition-all duration-500 ${stage > s.n ? 'bg-emerald-500 w-full' : stage === s.n ? 'bg-[#0D9488] w-1/2' : 'w-0'}`} />
+                        </div>
+                      )}
                     </React.Fragment>
                   );
                 })}
@@ -2737,26 +2780,34 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         {/* STEP 3: Checklist (main experience) */}
         {currentStep >= 3 && currentStep < 9 && (
           <div>
-            {/* Header with title + info card */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
-              <div className="lg:col-span-8">
-                <h1 className="text-3xl font-semibold tracking-tight text-[#0A2540]">{L('Business Readiness Checklist', language)}</h1>
-                <div className="text-[#0D9488] font-medium mt-1">{profile.name || L('Your Business', language)} — {profile.municipality}</div>
-                <p className="text-[#0A2540]/70 mt-2 max-w-2xl">{L('Upload and validate required business documents before permit package generation.', language)}</p>
-                {readinessScore !== null && (
-                  <div className="mt-4 inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 text-sm">
-                    <span className="text-[#0A2540]/70">{L('Readiness Score', language)}:</span>
-                    <span className="font-semibold text-emerald-700 tabular-nums">{readinessScore}%</span>
-                  </div>
-                )}
+            {/* Business header card */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-7">
+              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex items-start gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0A2540] to-[#13385c] flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <FolderOpen className="w-7 h-7 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl font-semibold tracking-tight text-[#0A2540] leading-tight">{profile.name || L('Your Business', language)}{profile.municipality ? ` — ${profile.municipality}` : ''}</h1>
+                  <p className="text-[#0A2540]/65 mt-1.5 text-sm leading-relaxed">{L('Upload required business documents to generate permit readiness deliverables.', language)}</p>
+                  {readinessScore !== null && (
+                    <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 text-xs">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-[#0A2540]/70">{L('Readiness Score', language)}:</span>
+                      <span className="font-semibold text-emerald-700 tabular-nums">{readinessScore}%</span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="lg:col-span-4">
-                <div className="bg-teal-50/60 border border-teal-200 rounded-2xl p-5 h-full">
-                  <div className="flex items-center gap-2 text-[#0D9488] font-semibold text-sm">
-                    <Info className="w-4 h-4" /> {L('Why are these documents required?', language)}
+              <div className="lg:col-span-5">
+                <div className="bg-gradient-to-br from-teal-50 to-emerald-50/40 border border-teal-200 rounded-2xl p-6 h-full">
+                  <div className="flex items-center gap-2 text-[#0D9488] font-semibold">
+                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
+                      <Lightbulb className="w-4 h-4 text-[#0D9488]" />
+                    </div>
+                    {L('Why are these documents required?', language)}
                   </div>
-                  <p className="text-xs text-[#0A2540]/75 mt-2 leading-relaxed">
-                    {L('These documents allow SmartPR to validate business registration, tax compliance, and municipality-specific requirements before generating permit deliverables.', language)}
+                  <p className="text-xs text-[#0A2540]/75 mt-3 leading-relaxed">
+                    {L('SmartPR uses uploaded documents to validate licensing requirements and generate permit deliverables.', language)}
                   </p>
                 </div>
               </div>
@@ -2766,15 +2817,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               {/* LEFT 70%: Workflow content */}
               <div className="lg:col-span-7 space-y-6">
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <div className="font-semibold text-[#0A2540]">{L('Required Items', language)} <span className="text-[#0A2540]/60 font-normal">({completedMandatory} {L('of', language)} {totalMandatory} {L('completed', language)})</span></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#0D9488] transition-all" style={{ width: `${checklistProgress}%` }} />
+                <div className="mb-5">
+                  <div className="flex justify-between items-end mb-2">
+                    <div>
+                      <div className="text-lg font-semibold text-[#0A2540]">{L('Required Documents', language)}</div>
+                      <div className="text-sm text-[#0A2540]/55 mt-0.5">{completedMandatory} {L('of', language)} {totalMandatory} {L('completed', language)}</div>
                     </div>
-                    <div className="text-sm font-medium text-[#0D9488] tabular-nums">{checklistProgress}%</div>
+                    <div className="text-2xl font-semibold text-[#0D9488] tabular-nums leading-none">{checklistProgress}%</div>
+                  </div>
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-[#0D9488] to-emerald-500 transition-all duration-500" style={{ width: `${checklistProgress}%` }} />
                   </div>
                 </div>
 
@@ -2787,9 +2839,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   </div>
                 )}
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {requirements.length === 0 && currentStep === 3 && (
-                    <button onClick={loadRequirements} className="w-full py-3 border border-dashed rounded-xl text-[#0D9488] hover:bg-slate-50 flex items-center justify-center gap-2">
+                    <button onClick={loadRequirements} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[#0D9488] hover:bg-slate-50 hover:border-teal-300 flex items-center justify-center gap-2 font-medium transition-all">
                       {L('Compute Requirements from Rules Engine', language)} <ArrowRight className="w-4 h-4" />
                     </button>
                   )}
@@ -2822,27 +2874,33 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                           );
                         }
                         return (
-                          <div key={p.flag} className="border border-teal-200 rounded-xl px-4 py-3 text-sm bg-white hover:shadow-sm transition-shadow">
-                            <div className="flex items-start gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
-                                <AlertTriangle className="w-4 h-4 text-[#0D9488]" />
+                          <details key={p.flag} open className="group/cond border border-teal-200 rounded-2xl text-sm bg-white hover:shadow-sm transition-shadow overflow-hidden">
+                            <summary className="flex items-center gap-3 px-4 py-3 cursor-pointer list-none">
+                              <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center flex-shrink-0">
+                                {docIconFor(p.document)}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="font-semibold text-[#0A2540]">{p.document}</div>
                                 <div className="text-[11px] text-[#0A2540]/60 mt-0.5">{L('Triggered because', language)} {L(p.flagLabel, language)}.</div>
-                                <div className="text-xs text-[#0A2540]/70 mt-1.5 leading-snug">{L(p.why, language)}</div>
-                                <div className="text-sm text-[#0A2540] mt-3 font-medium">{L(p.followUp, language)}</div>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                  <button onClick={() => decidePotential(p, 'applies')} className="text-xs px-4 py-1.5 rounded-full bg-[#0D9488] text-white hover:bg-[#0b7d72] font-medium">{L('Applies', language)}</button>
-                                  <button onClick={() => decidePotential(p, 'not_applies')} className="text-xs px-4 py-1.5 rounded-full border border-slate-300 text-[#0A2540] hover:bg-slate-50 font-medium">{L('Does Not Apply', language)}</button>
-                                  <button onClick={() => decidePotential(p, 'not_sure')} className={`text-xs px-4 py-1.5 rounded-full border font-medium ${decision === 'not_sure' ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-300 text-[#0A2540] hover:bg-slate-50'}`}>{L('Not Sure', language)}</button>
-                                </div>
-                                {decision === 'not_sure' && (
-                                  <div className="text-[11px] text-amber-700 mt-1.5">{L('Kept as potentially required. Revisit before submission.', language)}</div>
-                                )}
                               </div>
+                              {decision === 'not_sure' && (
+                                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 flex-shrink-0">{L('Not Sure', language)}</span>
+                              )}
+                              <ChevronDown className="w-4 h-4 text-[#0A2540]/40 flex-shrink-0 transition-transform group-open/cond:rotate-180" />
+                            </summary>
+                            <div className="px-4 pb-4 pt-0 pl-16">
+                              <div className="text-xs text-[#0A2540]/70 leading-snug">{L(p.why, language)}</div>
+                              <div className="text-sm text-[#0A2540] mt-3 font-medium">{L(p.followUp, language)}</div>
+                              <div className="flex flex-wrap gap-2 mt-3">
+                                <button onClick={() => decidePotential(p, 'applies')} className="text-xs px-4 py-2 rounded-xl bg-[#0D9488] text-white hover:bg-[#0b7d72] font-medium shadow-sm">{L('Applies', language)}</button>
+                                <button onClick={() => decidePotential(p, 'not_applies')} className="text-xs px-4 py-2 rounded-xl border border-slate-300 text-[#0A2540] hover:bg-slate-50 font-medium">{L('Does Not Apply', language)}</button>
+                                <button onClick={() => decidePotential(p, 'not_sure')} className={`text-xs px-4 py-2 rounded-xl border font-medium ${decision === 'not_sure' ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-300 text-[#0A2540] hover:bg-slate-50'}`}>{L('Not Sure', language)}</button>
+                              </div>
+                              {decision === 'not_sure' && (
+                                <div className="text-[11px] text-amber-700 mt-2">{L('Kept as potentially required. Revisit before submission.', language)}</div>
+                              )}
                             </div>
-                          </div>
+                          </details>
                         );
                       })}
                     </>
@@ -2976,13 +3034,19 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </div>
 
               {/* RIGHT 30%: Contextual sidebar */}
-              <div className="lg:col-span-3 space-y-4">
+              <div className="lg:col-span-3 space-y-5 lg:sticky lg:top-6 self-start">
                 {/* Recommendations */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                  <div className="font-semibold text-[#0A2540]">{L('Recommendations', language)}</div>
-                  <div className="text-xs text-[#0A2540]/60 mt-0.5">{L('Based on similar businesses like yours.', language)}</div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#0A2540]/50 mt-4 mb-2">{L('Frequently Requested Documents', language)}</div>
-                  <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
+                      <Lightbulb className="w-4 h-4 text-[#0D9488]" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-[#0A2540]">{L('Recommendations', language)}</div>
+                      <div className="text-[11px] text-[#0A2540]/55">{L('Based on similar businesses.', language)}</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mt-4">
                     {(advisory && advisory.enabled && advisory.potentiallyOverlooked.length > 0
                       ? advisory.potentiallyOverlooked.slice(0, 4).map(d => ({ name: d.document, pct: d.pct }))
                       : [
@@ -2991,42 +3055,63 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                           { name: L('Environmental Site Plan', language), pct: 30 },
                         ]
                     ).map((r, i) => (
-                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg hover:bg-slate-50">
-                        <span className="text-[10px] font-bold text-white bg-[#0D9488] rounded px-1.5 py-0.5 mt-0.5 flex-shrink-0 tabular-nums">{r.pct}%</span>
-                        <div className="min-w-0">
-                          <div className="text-xs font-medium text-[#0A2540] leading-snug">{r.name}</div>
-                          <div className="text-[10px] text-[#0A2540]/55">{L('Requested in', language)} {r.pct}% {L('of similar businesses', language)}.</div>
+                      <div key={i} className="flex items-start gap-3 p-2.5 rounded-xl border border-slate-100 hover:border-teal-200 hover:bg-teal-50/30 transition-all">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-[#0A2540] leading-snug">{r.name}</div>
+                          <div className="text-[10px] text-[#0A2540]/55 mt-0.5">{r.pct}% {L('of similar businesses required this.', language)}</div>
                         </div>
+                        <span className="text-[10px] font-bold text-[#0D9488] bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5 flex-shrink-0 tabular-nums">{r.pct}%</span>
                       </div>
                     ))}
                   </div>
-                  <div className="text-[10px] text-[#0A2540]/55 mt-3 pt-3 border-t border-slate-100 italic">
+                  <div className="text-[10px] text-[#0A2540]/50 mt-3 pt-3 border-t border-slate-100 italic">
                     {L('Recommendations never alter legal requirements.', language)}
                   </div>
                 </div>
 
                 {/* Common Validation Issues */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                  <div className="font-semibold text-[#0A2540] flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> {L('Common Validation Issues', language)}</div>
-                  <div className="text-xs text-[#0A2540]/60 mt-0.5">{L('Watch for these before submitting.', language)}</div>
-                  <div className="flex flex-wrap gap-1.5 mt-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-[#0A2540]">{L('Common Validation Issues', language)}</div>
+                      <div className="text-[11px] text-[#0A2540]/55">{L('Watch for these before submitting.', language)}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 mt-4">
                     {[
                       L('Expired Merchant Registration', language),
-                      L('EIN Letter Missing Pages', language),
-                      L('Mismatched Business Name', language),
-                      L('Unsigned Incorporation Certificate', language),
-                      L('Missing Municipality Information', language),
+                      L('Missing EIN Pages', language),
+                      L('Name Mismatch', language),
+                      L('Missing Signature', language),
+                      L('Wrong Municipality', language),
                     ].map((tag, i) => (
-                      <span key={i} className="text-[11px] bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-2 py-0.5">{tag}</span>
+                      <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-2.5 py-1 font-medium">
+                        <AlertTriangle className="w-3 h-3" /> {tag}
+                      </span>
                     ))}
                   </div>
                 </div>
 
-                {/* Help / Support */}
+                {/* Need Help */}
                 <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                  <div className="font-semibold text-[#0A2540] flex items-center gap-2"><Info className="w-4 h-4 text-[#0D9488]" /> {L('Help & Support', language)}</div>
-                  <p className="text-xs text-[#0A2540]/70 mt-2 leading-relaxed">{L('Not sure if a document applies? Mark items as Not Sure and revisit later. SmartPR keeps your progress saved.', language)}</p>
-                  <a href="/history" className="mt-3 text-xs text-[#0D9488] hover:underline inline-flex items-center gap-1">{L('View history & past submissions', language)} <ArrowRight className="w-3 h-3" /></a>
+                  <div className="font-semibold text-[#0A2540]">{L('Need Help?', language)}</div>
+                  <p className="text-xs text-[#0A2540]/60 mt-1">{L('Get guidance from SmartPR or your municipality.', language)}</p>
+                  <div className="mt-3 space-y-2">
+                    {[
+                      { icon: <MessageCircle className="w-4 h-4" />, label: L('Chat with SmartPR Support', language) },
+                      { icon: <CalendarCheck className="w-4 h-4" />, label: L('Schedule a Licensing Review', language) },
+                      { icon: <Phone className="w-4 h-4" />, label: L('Contact Municipality', language) },
+                    ].map((a, i) => (
+                      <button key={i} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-[#0A2540] hover:border-teal-300 hover:bg-teal-50/40 transition-all text-left">
+                        <span className="text-[#0D9488]">{a.icon}</span>
+                        <span className="font-medium">{a.label}</span>
+                        <ArrowRight className="w-3.5 h-3.5 ml-auto text-[#0A2540]/30" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
