@@ -28,6 +28,7 @@ export interface SubmissionEvent {
   municipality?: string | null;
   industry?: string | null;
   business_type?: string | null;
+  business_structure?: string | null;
   location_type?: string | null;
   answers: CapturedAnswer[];
   requirements: CapturedRequirement[];

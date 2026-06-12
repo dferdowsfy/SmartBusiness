@@ -8,6 +8,9 @@
 export type Lang = "en" | "es";
 
 export const ES: Record<string, string> = {
+  // ---- Navigation ----
+  "History": "Historial",
+  "Knowledge Graph": "Grafo de Conocimiento",
   // ---- Extraction-first document validation ----
   "Classified as": "Clasificado como",
   "Validation Result": "Resultado de Validación",
