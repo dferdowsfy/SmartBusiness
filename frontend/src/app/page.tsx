@@ -9,6 +9,7 @@ import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
 import { potentialItemsForFlags, type PotentialDef } from './potentialRequirements';
 import { buildExtraction, type ExtractionResult } from './documentFields';
+import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import {
@@ -1409,6 +1410,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
   };
 
+  // Sign out: clear the browser session (cookies) AND the server session, then
+  // hard-redirect to the login/sign-up screen. Doing the client signOut first
+  // guarantees the local session is gone regardless of the server round-trip.
+  const handleSignOut = async () => {
+    try {
+      if (isAuthConfigured()) {
+        await createSupabaseBrowser().auth.signOut();
+      }
+    } catch {
+      /* ignore — still redirect through the server route below */
+    }
+    // The server route also clears httpOnly cookies, then 302s to /auth/login.
+    window.location.href = '/auth/signout';
+  };
+
   // Load / recompute requirements (powered by the design-accurate compute function)
   const loadRequirements = async () => {
     setIsLoading(true);
@@ -2714,7 +2730,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="uemail">{me?.email || L('Not signed in', language)}</div>
               </div>
               {me === null && <a className="uitem" href="/auth/login"><ExternalLink className="i" /> {L('Sign in', language)}</a>}
-              {me && <a className="uitem" href="/auth/signout"><ExternalLink className="i" /> {L('Sign out', language)}</a>}
+              {me && <button type="button" className="uitem" onClick={handleSignOut}><ExternalLink className="i" /> {L('Sign out', language)}</button>}
             </div>
           </div>
         </div>
