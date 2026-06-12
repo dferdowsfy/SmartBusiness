@@ -62,7 +62,23 @@ function LoginInner() {
         else setNeedsConfirm(email);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) { setErr(error.message); return; }
+        if (error) {
+          // Translate the most common Supabase errors into something actionable.
+          const m = error.message || "";
+          if (/email\s*not\s*confirmed/i.test(m)) {
+            setErr(
+              `This account was created but the email is still unconfirmed in Supabase. ` +
+              `Fix: in Supabase → Authentication → Users, find ${email}, then either ` +
+              `"Confirm" the user or delete it and sign up again. To skip confirmation entirely, ` +
+              `turn off "Confirm email" in Authentication → Providers → Email.`
+            );
+          } else if (/invalid\s*login\s*credentials/i.test(m)) {
+            setErr("Email or password is incorrect.");
+          } else {
+            setErr(m);
+          }
+          return;
+        }
         router.push(nextPath);
       }
     } catch (e) {
