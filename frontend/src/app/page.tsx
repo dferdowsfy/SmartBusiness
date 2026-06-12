@@ -776,6 +776,25 @@ function ReqReasons({ enr, language }: { enr: EnrichedRequirement; language: any
   );
 }
 
+// Compose the reasoning from structured parts so it localizes correctly
+// (the stored ext.reasoning is English-only for analytics consistency).
+function localizedReasoning(ext: ExtractionResult, docType: string, language: any): string {
+  const found = ext.fields_found.map(f => L(f.label, language));
+  const missing = ext.fields_missing.map(f => L(f.label, language));
+  const parts: string[] = [];
+  parts.push(`${L('Classified as', language)} "${docType}" ${L('with', language)} ${ext.classification_confidence}% ${L('confidence', language)}.`);
+  if (found.length) parts.push(`${L('Found', language)} ${found.length} ${L('fields', language)}: ${found.join(', ')}.`);
+  if (missing.length) parts.push(`${L('Missing required', language)}: ${missing.join(', ')}.`);
+  if (ext.expiration_status === 'Valid') parts.push(L('Expiration is valid.', language));
+  else if (ext.expiration_status === 'Expired') parts.push(L('Expiration has passed.', language));
+  parts.push(
+    ext.validation_result === 'PASS' ? L('All required fields are present and valid.', language)
+    : ext.validation_result === 'FAIL' ? L('Required fields are missing — this document cannot be validated yet.', language)
+    : L('Present but needs review before it can be accepted.', language)
+  );
+  return parts.join(' ');
+}
+
 // Extraction-first results panel for an uploaded document. Replaces generic
 // "needs review / missing information" messages with concrete Fields Found /
 // Fields Missing / Validation Result / Confidence / Reasoning.
@@ -821,7 +840,7 @@ function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; do
 
       <div>
         <span className="font-semibold text-[#0A2540]">{L('Reasoning', language)}:</span>{' '}
-        <span className="text-[#0A2540]/80">{ext.reasoning}</span>
+        <span className="text-[#0A2540]/80">{localizedReasoning(ext, docType, language)}</span>
       </div>
     </div>
   );
