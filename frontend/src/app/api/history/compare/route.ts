@@ -2,7 +2,8 @@
 // the document differences (which documents are unique to each scenario).
 // Read-only; returns enabled:false when no DATABASE_URL is configured.
 
-import { query, isEnabled } from "../../../graph/db";
+import { query, isEnabled, getPool } from "../../../graph/db";
+import { getCurrentUser } from "../../../../lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,23 @@ export async function GET(req: Request) {
   const a = url.searchParams.get("a");
   const b = url.searchParams.get("b");
   if (!a || !b) return Response.json({ enabled: true, error: "need_a_and_b" }, { status: 400 });
+
+  // Ownership: only allow comparing submissions the signed-in user owns
+  // (or anonymous ones).
+  const user = await getCurrentUser();
+  const pool = getPool();
+  if (pool) {
+    try {
+      const { rows } = await pool.query<{ id: string; user_id: string | null }>(
+        `SELECT id, user_id FROM submissions WHERE id = ANY($1::uuid[])`, [[a, b]]
+      );
+      for (const r of rows) {
+        if (r.user_id && r.user_id !== user?.id) {
+          return Response.json({ error: "forbidden" }, { status: 403 });
+        }
+      }
+    } catch { /* fall through */ }
+  }
 
   try {
     const rows = await query<CompRow>(

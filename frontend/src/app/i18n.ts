@@ -11,6 +11,19 @@ export const ES: Record<string, string> = {
   // ---- Navigation ----
   "History": "Historial",
   "Knowledge Graph": "Grafo de Conocimiento",
+  "Dashboard": "Panel",
+  "My Businesses": "Mis Negocios",
+  "Sign in": "Iniciar sesión",
+  "Sign out": "Cerrar sesión",
+  // ---- Save & resume ----
+  "Save Progress": "Guardar progreso",
+  "Saved to your account — resume from History any time.": "Guardado en tu cuenta — puedes continuar desde Historial cuando quieras.",
+  "Saving…": "Guardando…",
+  "Saved": "Guardado",
+  "Retry": "Reintentar",
+  "Save": "Guardar",
+  "Save this submission": "Guardar este envío",
+  "Enter your email and we will save this assessment to your account when you sign in.": "Ingresa tu correo y guardaremos esta evaluación en tu cuenta cuando inicies sesión.",
   // ---- Extraction-first document validation ----
   "Classified as": "Clasificado como",
   "Validation Result": "Resultado de Validación",

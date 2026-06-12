@@ -3,7 +3,8 @@
 // and an intelligence-insights panel for similar businesses.
 // Read-only; returns enabled:false when no DATABASE_URL is configured.
 
-import { query, isEnabled } from "../../../graph/db";
+import { query, isEnabled, getPool } from "../../../graph/db";
+import { getCurrentUser } from "../../../../lib/supabase/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,10 +14,27 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!isEnabled()) return Response.json({ enabled: false });
   if (!id) return Response.json({ enabled: true, error: "missing_id" }, { status: 400 });
 
+  // Ownership check: an authenticated user can only read their own submissions.
+  // Anonymous submissions (user_id IS NULL) remain readable to anyone with the
+  // submission id, mirroring the previous behavior.
+  const user = await getCurrentUser();
+  const pool = getPool();
+  if (pool) {
+    try {
+      const { rows } = await pool.query<{ user_id: string | null }>(
+        `SELECT user_id FROM submissions WHERE id = $1`, [id]
+      );
+      const owner = rows[0]?.user_id;
+      if (owner && owner !== user?.id) {
+        return Response.json({ error: "forbidden" }, { status: 403 });
+      }
+    } catch { /* fall through */ }
+  }
+
   try {
     const [summaryRows, questions, requirements, documents, timeline, progression] = await Promise.all([
       query(`SELECT id, created_at, municipality, industry, business_type, business_structure,
-                     location_type, readiness_score, readiness_status, document_count
+                     location_type, business_name, business_id, readiness_score, readiness_status, document_count
               FROM v_submission_history WHERE id = $1`, [id]),
       query(`SELECT question_id, question_text, answer FROM question_responses WHERE submission_id = $1 ORDER BY id`, [id]),
       query(`SELECT document_id, document_name, agency, reason, source_rule, mandatory
