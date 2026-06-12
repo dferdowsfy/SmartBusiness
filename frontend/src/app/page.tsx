@@ -14,8 +14,7 @@ import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, MessageCircle, CalendarCheck, Phone,
-  ChevronDown, Waves, FolderOpen, ShieldCheck, ScrollText
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText
 } from 'lucide-react';
 
 // SmartPR
@@ -2388,927 +2387,907 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     return <FileText className={cls} />;
   };
 
-  const renderReqRow = (req: Requirement, idx: number) => {
+
+  // =========================================================================
+  // VALIDADOR UI LAYER
+  // Everything below is presentation only — business logic, API contracts,
+  // rules-engine calls, document analysis, capture, and deliverable
+  // generation above are unchanged.
+  // =========================================================================
+
+  // Requirements list filter (All / To do / Done / Recommended).
+  const [reqFilter, setReqFilter] = useState<'all' | 'todo' | 'done' | 'recommended'>('all');
+  // App-bar user menu open state.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Live rules-engine output while the user is still in intake, so the
+  // intelligence panel and progress stats update as they answer.
+  const liveReqs = React.useMemo(() => {
+    try {
+      return runRulesEngineForProfile(profile as any, discoveryAnswers).requirements;
+    } catch {
+      return [] as ReturnType<typeof runRulesEngineForProfile>['requirements'];
+    }
+  }, [profile, discoveryAnswers]);
+
+  const liveAgencies = React.useMemo(
+    () => Array.from(new Set(liveReqs.map(r => r.agency).filter(Boolean))),
+    [liveReqs]
+  );
+  const obligationCount = (re: RegExp) =>
+    liveReqs.filter(r => re.test(r.category || '') || re.test(r.document_name)).length;
+  const liveLicenses = obligationCount(/licen/i);
+  const livePermits = obligationCount(/permi/i);
+  const liveCerts = obligationCount(/certif/i);
+  const liveRegs = obligationCount(/regist/i);
+
+  // Intake completion: 5 core profile fields + the dynamic question flow.
+  const intakeFieldsDone = [profile.name, profile.municipality, profile.industry, profile.business_type, profile.location_type].filter(Boolean).length;
+  const intakeTotal = 5 + questionList.length;
+  const intakeDone = intakeFieldsDone + Math.min(currentQuestionIndex, questionList.length);
+  const intakePct = Math.round((intakeDone / Math.max(1, intakeTotal)) * 100);
+
+  const missingCount = requirements.filter(r => r.mandatory && r.status === 'pending').length;
+  const reviewCount = requirements.filter(r => r.mandatory && r.status === 'warning').length;
+  const doneCount = completedMandatory;
+  const recommendedCount = requirements.filter(r => !r.mandatory).length;
+
+  // Current view derives from the preserved step state machine so snapshots
+  // and ?resume= links keep working: 1 = intake, 3–8 = requirements, 9 = deliverables.
+  const view: 'intake' | 'requirements' | 'deliverables' =
+    currentStep === 1 ? 'intake' : currentStep === 9 ? 'deliverables' : 'requirements';
+  const goTo = (v: 'intake' | 'requirements' | 'deliverables') =>
+    setCurrentStep(v === 'intake' ? 1 : v === 'deliverables' ? 9 : 3);
+
+  const initials = me?.name
+    ? me.name.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase()
+    : me?.email ? me.email.slice(0, 2).toUpperCase() : '·';
+
+  const ringScore = readinessScore !== null ? readinessScore : checklistProgress;
+  const readinessEyebrow =
+    ringScore >= 90 ? L('Ready For Submission', language)
+    : ringScore >= 70 ? L('Nearly Ready', language)
+    : ringScore >= 40 ? L('In Progress', language)
+    : L('Getting Started', language);
+
+  // One Validador-styled requirement row. Upload flow, reasons, and the
+  // extraction panel are the same components/handlers as before.
+  const renderReqRow = (req: Requirement) => {
     const doc = uploadedDocs.find(d => d.requirement_code === req.code);
     const analysis = doc?.ai_analysis;
     const ext: ExtractionResult | undefined = analysis?.extraction;
-    // Determine completion state for the icon-tile treatment.
-    let state: 'pending' | 'done' | 'review' | 'fail' = 'pending';
+    let state: 'pending' | 'done' | 'review' = 'pending';
     if (ext) {
-      if (ext.validation_result === 'PASS') state = 'done';
-      else if (ext.validation_result === 'NEEDS_REVIEW') state = 'review';
-      else state = 'fail';
+      state = ext.validation_result === 'PASS' ? 'done' : 'review';
     } else if (req.status === 'uploaded' || req.status === 'passed') {
       state = 'done';
+    } else if (req.status === 'warning') {
+      state = 'review';
     }
-    const tile =
-      state === 'done' ? 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200'
-      : state === 'review' ? 'bg-amber-50 text-amber-600 ring-1 ring-amber-200'
-      : state === 'fail' ? 'bg-red-50 text-red-600 ring-1 ring-red-200'
-      : 'bg-slate-100 text-[#0A2540]/50 ring-1 ring-slate-200';
-    const statusBadge =
-      state === 'done' ? <CheckCircle className="w-4 h-4 text-emerald-600" />
-      : state === 'review' ? <AlertTriangle className="w-4 h-4 text-amber-500" />
-      : state === 'fail' ? <span className="text-red-600 font-bold text-sm leading-none">✕</span>
-      : null;
+    const checkCls = state === 'done' ? 'done' : state === 'review' ? 'progress' : 'missing';
     const promoted = req.code.startsWith('potential_');
     return (
-      <div key={idx} className="group border border-slate-200 rounded-2xl p-4 hover:border-teal-300 hover:shadow-md transition-all bg-white">
-        <div className="flex items-start gap-4">
-          {/* Document icon tile with status overlay */}
-          <div className="relative flex-shrink-0">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${tile} transition-colors`}>
-              {docIconFor(trReqName(req))}
-            </div>
-            {statusBadge && (
-              <div className="absolute -bottom-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm">
-                {statusBadge}
-              </div>
-            )}
+      <div key={req.code} className="req-row">
+        <div className={`req-check ${checkCls}`}>
+          {state === 'done' ? <CheckCircle className="i" style={{ width: 14, height: 14 }} />
+            : state === 'review' ? <AlertTriangle className="i" style={{ width: 13, height: 13 }} />
+            : <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'block' }} />}
+        </div>
+        <div className="req-main">
+          <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {docIconFor(trReqName(req))}
+            {trReqName(req)}
           </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-semibold text-[#0A2540] text-[15px]">{trReqName(req)}</span>
-              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold ${req.mandatory ? 'bg-teal-50 text-[#0D9488] border border-teal-200' : 'bg-slate-100 text-[#0A2540]/70'}`}>
-                {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
-              </span>
-            </div>
-            <div className="text-xs text-[#0A2540]/65 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className="font-medium">{L(req.agency, language)}</span>
-              {profile.municipality && <span className="inline-flex items-center gap-1 text-[#0A2540]/55"><Landmark className="w-3 h-3" /> {profile.municipality}</span>}
-            </div>
-            <details className="mt-2">
-              <summary className="text-[11px] text-[#0D9488] cursor-pointer hover:underline list-none inline-flex items-center gap-1">
-                <Info className="w-3 h-3" /> {L('Why is this required?', language)}
-              </summary>
-              <div className="text-xs text-[#0A2540]/60 mt-1 leading-snug">{trReqReason(req)}</div>
-            </details>
+          <details>
+            <summary className="why" style={{ color: 'var(--brand-2)', fontWeight: 500 }}>
+              <Info className="i" style={{ width: 12, height: 12, display: 'inline', verticalAlign: '-1px' }} /> {L('Why is this required?', language)}
+            </summary>
+            <div className="why">{trReqReason(req)}</div>
             {req.document_id && reasonsByDoc[req.document_id] && (
               <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
             )}
-            {ext && analysis && (
-              <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
-            )}
-          </div>
-
-          <button
-            onClick={() => triggerFileUpload(req.code)}
-            className={`text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 flex-shrink-0 font-medium transition-all ${state === 'done' ? 'border border-slate-200 text-[#0A2540]/70 hover:bg-slate-50' : 'bg-[#0A2540] text-white hover:bg-black shadow-sm'}`}
-          >
-            <Upload className="w-3.5 h-3.5" /> {L(doc ? 'Re-upload' : 'Upload', language)}
-          </button>
+          </details>
+          {ext && analysis && (
+            <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
+          )}
         </div>
+        <div className="req-tags">
+          {req.agency && <span className="tag agency">{L(req.agency, language)}</span>}
+          <span className={`tag ${req.mandatory ? 'due' : ''}`}>
+            {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
+          </span>
+        </div>
+        <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUpload(req.code)}>
+          <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload' : 'Upload', language)}
+        </button>
       </div>
     );
   };
 
+  const reqGroups: { key: string; label: string; pip: string; items: Requirement[] }[] = [
+    { key: 'missing', label: L('Missing — handle these next', language), pip: 'amber', items: requirements.filter(r => r.mandatory && r.status === 'pending') },
+    { key: 'review', label: L('Needs Review', language), pip: 'blue', items: requirements.filter(r => r.mandatory && r.status === 'warning') },
+    { key: 'done', label: L('Completed — looking good', language), pip: 'green', items: requirements.filter(r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')) },
+    { key: 'recommended', label: L('Recommended Items', language), pip: 'blue', items: requirements.filter(r => !r.mandatory) },
+  ];
+  const groupVisible = (key: string) =>
+    reqFilter === 'all' ? true
+    : reqFilter === 'todo' ? key === 'missing' || key === 'review'
+    : reqFilter === 'done' ? key === 'done'
+    : key === 'recommended';
+
+  const currentQuestion = questionList.length > 0 && currentQuestionIndex < questionList.length
+    ? questionList[currentQuestionIndex]
+    : null;
+
+  const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
+  const deliverablesReady = totalMandatory > 0 && completedMandatory === totalMandatory;
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div style={{ minHeight: '100vh' }}>
       {/* Upload result toast (LLM document analysis feedback) */}
       {uploadNotice && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm">
-          <div
-            className={`rounded-xl shadow-lg border p-4 flex items-start gap-3 bg-white ${
-              uploadNotice.kind === 'success'
-                ? 'border-emerald-300'
-                : uploadNotice.kind === 'warning'
-                ? 'border-amber-300'
-                : 'border-red-300'
-            }`}
-            role="status"
-          >
-            <div
-              className={`mt-0.5 w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                uploadNotice.kind === 'success'
-                  ? 'bg-emerald-500'
-                  : uploadNotice.kind === 'warning'
-                  ? 'bg-amber-500'
-                  : 'bg-red-500'
-              }`}
-            />
-            <div className="min-w-0">
-              <div className="font-semibold text-sm text-[#0A2540]">{uploadNotice.title}</div>
-              {uploadNotice.detail && (
-                <div className="text-xs text-[#0A2540]/70 mt-0.5">{uploadNotice.detail}</div>
-              )}
-            </div>
-            <button
-              onClick={() => setUploadNotice(null)}
-              className="ml-auto text-[#0A2540]/40 hover:text-[#0A2540] text-sm leading-none"
-              aria-label="Dismiss"
-            >
-              ✕
-            </button>
+        <div className="submit-toast show" role="status" style={{ maxWidth: 480 }}>
+          <div className="check" style={{ background: uploadNotice.kind === 'success' ? 'var(--accent)' : uploadNotice.kind === 'warning' ? 'var(--warn)' : 'var(--danger)' }}>
+            {uploadNotice.kind === 'success'
+              ? <CheckCircle style={{ width: 12, height: 12, color: 'white' }} />
+              : <AlertTriangle style={{ width: 12, height: 12, color: 'white' }} />}
           </div>
+          <span>
+            <b>{uploadNotice.title}</b>
+            {uploadNotice.detail && <span style={{ opacity: 0.75, display: 'block', fontSize: 12 }}>{uploadNotice.detail}</span>}
+          </span>
+          <button onClick={() => setUploadNotice(null)} aria-label="Dismiss"
+            style={{ background: 'transparent', border: 0, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', marginLeft: 6 }}>✕</button>
         </div>
       )}
 
-      {/* Header */}
-      <header className="border-b bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#0A2540] rounded-lg flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-white" />
+      {/* ====================== APP BAR ====================== */}
+      <header className="appbar">
+        <div className="appbar-inner">
+          <div className="appbar-left">
+            <div className="brand">
+              <div className="brand-mark">{(ACTIVE_JURISDICTION.meta.productName || 'V').slice(0, 1)}</div>
+              <div className="brand-name">{ACTIVE_JURISDICTION.meta.productName}</div>
             </div>
-            <div>
-              <div className="font-semibold text-xl tracking-tight text-[#0A2540]">{ACTIVE_JURISDICTION.meta.productName}</div>
-              <div className="text-[10px] text-[#0A2540]/60 -mt-1">{L(ACTIVE_JURISDICTION.meta.tagline, language)}</div>
+            <div className="vdiv" />
+            <div className="project-pill">
+              <span className="dot" />
+              <span className="name">{profile.name || L('Your Business', language)}</span>
+              {profile.municipality && <><span className="sep">·</span><span>{profile.municipality}</span></>}
             </div>
           </div>
-          
-          <div className="flex items-center gap-4 text-sm">
-            <a href="/dashboard" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium">{L('Dashboard', language)}</a>
-            <a href="/businesses" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium hidden sm:inline">{L('My Businesses', language)}</a>
-            <a href="/history" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium">{L('History', language)}</a>
-            {me === null && <a href="/auth/login" className="bg-[#0A2540] text-white rounded-lg px-3 py-1.5 text-xs font-medium">{L('Sign in', language)}</a>}
-            {me && <a href="/auth/signout" className="text-xs text-[#0A2540]/60 hover:text-[#0A2540]">{L('Sign out', language)}</a>}
-            {/* Language Toggle - kept as professional feature */}
-            <div className="flex items-center gap-1 text-xs">
-              <button
-                onClick={() => setLanguage('en')}
-                className={`px-2 py-1 rounded ${language === 'en' ? 'bg-[#0A2540] text-white' : 'bg-[#0A2540]/10 text-[#0A2540] hover:bg-[#0A2540]/20'}`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => setLanguage('es')}
-                className={`px-2 py-1 rounded ${language === 'es' ? 'bg-[#0A2540] text-white' : 'bg-[#0A2540]/10 text-[#0A2540] hover:bg-[#0A2540]/20'}`}
-              >
-                ES
-              </button>
+
+          <nav className="nav-tabs" aria-label="Sections">
+            <button className={`nav-tab ${view === 'intake' ? 'active' : ''}`} onClick={() => goTo('intake')}>
+              <FileText className="tab-icon" /> {L('Intake', language)}
+            </button>
+            <button className={`nav-tab ${view === 'requirements' ? 'active' : ''}`} disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
+              <ScrollText className="tab-icon" /> {L('Requirements', language)}
+            </button>
+            <button className={`nav-tab ${view === 'deliverables' ? 'active' : ''}`} disabled={requirements.length === 0} onClick={() => goTo('deliverables')}>
+              <Archive className="tab-icon" /> {L('Deliverables', language)}
+            </button>
+            <a className="nav-tab" href="/history">
+              <RefreshCw className="tab-icon" /> {L('History', language)}
+            </a>
+          </nav>
+
+          <div className="appbar-actions">
+            {saveState === 'saved' && <span className="saved-pill">{L('Saved', language)}</span>}
+            <div className="lang-toggle">
+              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
+              <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
+            </div>
+            <button className="avatar" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }} title="Account">{initials}</button>
+            <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={e => e.stopPropagation()}>
+              <div className="uhead">
+                <div className="uname">{me?.name || (me ? me.email : L('Guest', language))}</div>
+                <div className="uemail">{me?.email || L('Not signed in', language)}</div>
+              </div>
+              <a className="uitem" href="/dashboard"><Building2 className="i" /> {L('Dashboard', language)}</a>
+              <a className="uitem" href="/businesses"><Landmark className="i" /> {L('My Businesses', language)}</a>
+              <a className="uitem" href="/history"><RefreshCw className="i" /> {L('History', language)}</a>
+              {me === null && <a className="uitem" href="/auth/login"><ExternalLink className="i" /> {L('Sign in', language)}</a>}
+              {me && <a className="uitem" href="/auth/signout"><ExternalLink className="i" /> {L('Sign out', language)}</a>}
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8 pb-28">
-        {/* Large workflow stepper card: Intake → Checklist → Deliverables */}
-        {(() => {
-          const stage = currentStep === 1 ? 1 : currentStep === 9 ? 3 : 2;
-          const stages = [
-            { n: 1, label: L('Intake', language) },
-            { n: 2, label: L('Checklist', language) },
-            { n: 3, label: L('Deliverables', language) },
-          ];
-          return (
-            <div className="mb-8 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 sm:p-7">
-              <div className="flex items-start justify-between mb-6">
-                <div>
-                  <div className="text-lg font-semibold text-[#0A2540] tracking-tight">{L('Business Readiness Workflow', language)}</div>
-                  <div className="text-sm text-[#0A2540]/60 mt-0.5">{L('Step', language)} {stage} {L('of', language)} 3</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-3xl font-semibold text-[#0D9488] tabular-nums leading-none">{progress}%</div>
-                  <div className="text-[10px] uppercase tracking-wider text-[#0A2540]/50 mt-1">{L('Complete', language)}</div>
+      {/* ====================== INTAKE ====================== */}
+      {view === 'intake' && (
+        <main className="shell">
+          <div className="vgrid">
+            <section>
+              <div className="qcard">
+                <div className="qcard-body">
+                  <div className="pretitle">
+                    <span className="chip">
+                      {currentQuestion
+                        ? `${L('Question', language)} ${currentQuestionIndex + 1} ${L('of', language)} ${questionList.length}`
+                        : L('Business profile', language)}
+                    </span>
+                    <span>{L('Discovery', language)} · {profile.business_type || L('Business basics', language)}</span>
+                  </div>
+                  <h1 className="qtitle">{t('title')}</h1>
+                  <p className="qhelper">{t('subtitle')}</p>
+
+                  <div className="vform">
+                    <div className="vfield full">
+                      <label>{t('businessName')}</label>
+                      <input
+                        placeholder="Your Business Name"
+                        value={profile.name}
+                        onChange={e => setProfile({ ...profile, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="vfield">
+                      <label>{t('municipality')}</label>
+                      <select value={profile.municipality} onChange={e => setProfile({ ...profile, municipality: e.target.value })}>
+                        <option value="">{t('selectMunicipality')}</option>
+                        {MUNICIPALITIES.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div className="vfield">
+                      <label>{t('industry')}</label>
+                      <select
+                        value={profile.industry}
+                        onChange={e => setProfile({ ...profile, industry: e.target.value, business_type: '' })}
+                      >
+                        <option value="">{t('selectIndustry')}</option>
+                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                      </select>
+                    </div>
+                    <div className="vfield">
+                      <label>{t('businessType')}</label>
+                      <select
+                        key={profile.industry || 'none'}
+                        value={profile.business_type}
+                        onChange={e => {
+                          const newBt = e.target.value;
+                          const allowed = LOCATION_TYPES_BY_BUSINESS_TYPE[newBt] || LOCATION_TYPES;
+                          const newLoc = allowed.includes(profile.location_type || '') ? profile.location_type : '';
+                          setProfile({ ...profile, business_type: newBt, location_type: newLoc });
+                        }}
+                      >
+                        <option value="">{t('selectBusinessType')}</option>
+                        {(BUSINESS_TYPES[profile.industry] || [profile.industry || 'Other']).map(bt => (
+                          <option key={bt} value={bt}>{bt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="vfield">
+                      <label>{t('locationType')}</label>
+                      <select value={profile.location_type} onChange={e => setProfile({ ...profile, location_type: e.target.value })}>
+                        <option value="">{t('selectLocationType')}</option>
+                        {(LOCATION_TYPES_BY_BUSINESS_TYPE[profile.business_type] || LOCATION_TYPES).map(lt => (
+                          <option key={lt} value={lt}>{lt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="vfield">
+                      <label>{t('businessStructure')}</label>
+                      <select value={profile.business_structure} onChange={e => setProfile({ ...profile, business_structure: e.target.value })}>
+                        <option value="llc">LLC</option>
+                        <option value="corporation">Corporation</option>
+                        <option value="sole_proprietorship">Sole Proprietorship</option>
+                        <option value="partnership">Partnership</option>
+                        <option value="professional_corporation">Professional Corporation</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                    <div className="vfield">
+                      <label>{t('numEmployees')}</label>
+                      <div className="range-row">
+                        <input
+                          type="range" min="0" max="100" step="1"
+                          value={profile.number_of_employees ?? 0}
+                          onChange={e => setProfile({ ...profile, number_of_employees: parseInt(e.target.value) || 0 })}
+                        />
+                        <div className="range-val">{profile.number_of_employees ?? 0}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dynamic question flow — one at a time, Validador answer cards */}
+                  {currentQuestion && (
+                    <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+                      <div className="pretitle">
+                        <span className="chip">{L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {questionList.length}</span>
+                      </div>
+                      <h2 className="qtitle" style={{ fontSize: 24 }}>{L(currentQuestion.text, language)}</h2>
+                      <div className="answers">
+                        <button className="answer answer-reveal" onClick={() => handleQuestionAnswer(true)}>
+                          <div className="answer-emoji">✅</div>
+                          <div>
+                            <div className="answer-title">{t('yes')}</div>
+                            <div className="answer-sub">{L('This applies to my business', language)}</div>
+                          </div>
+                        </button>
+                        <button className="answer answer-reveal" style={{ animationDelay: '30ms' }} onClick={() => handleQuestionAnswer(false)}>
+                          <div className="answer-emoji">🚫</div>
+                          <div>
+                            <div className="answer-title">{t('no')}</div>
+                            <div className="answer-sub">{L('This does not apply', language)}</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {questionList.length > 0 && currentQuestionIndex >= questionList.length && (
+                    <div className="iq-chip" style={{ marginTop: 20 }}>
+                      <div className="swatch" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>✓</div>
+                      {L('All relevant questions answered for this business type.', language)}
+                    </div>
+                  )}
+
+                  <div className="qfooter">
+                    <div className="qfooter-left">
+                      <span>{intakeDone}/{intakeTotal} {L('completed', language)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {currentQuestion && currentQuestionIndex > 0 && (
+                        <button className="btn btn-secondary" onClick={() => setCurrentQuestionIndex(i => Math.max(0, i - 1))}>
+                          {L('Back', language)}
+                        </button>
+                      )}
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleStartDiscovery}
+                        disabled={!profile.name || !profile.industry || (questionList.length > 0 && currentQuestionIndex < questionList.length) || isLoading}
+                      >
+                        {L('See my requirements', language)}
+                        {isLoading ? <RefreshCw className="i" style={{ width: 14, height: 14, animation: 'vspin .7s linear infinite' }} /> : <ArrowRight className="i" style={{ width: 14, height: 14 }} />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center">
-                {stages.map((s, i) => {
-                  const done = stage > s.n;
-                  const active = stage === s.n;
-                  return (
-                    <React.Fragment key={s.n}>
-                      <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                        <div className={`w-11 h-11 rounded-full flex items-center justify-center text-base font-semibold transition-all ${
-                          active ? 'bg-[#0D9488] text-white ring-4 ring-[#0D9488]/15 shadow-sm'
-                          : done ? 'bg-emerald-500 text-white'
-                          : 'bg-slate-100 text-[#0A2540]/50 ring-1 ring-slate-200'
-                        }`}>
-                          {done ? <CheckCircle className="w-6 h-6" /> : s.n}
-                        </div>
-                        <span className={`text-sm font-medium ${active ? 'text-[#0A2540]' : done ? 'text-emerald-700' : 'text-[#0A2540]/50'}`}>{s.label}</span>
+
+              {/* Sub-progress row */}
+              <div className="progress-row">
+                <div className="pstat">
+                  <div className="pstat-label">{L('Questions completed', language)}</div>
+                  <div className="pstat-value">{intakePct}%</div>
+                  <div className="barline"><span style={{ width: `${intakePct}%` }} /></div>
+                </div>
+                <div className="pstat">
+                  <div className="pstat-label">{L('Agencies identified', language)}</div>
+                  <div className="pstat-value">{liveAgencies.length}</div>
+                </div>
+                <div className="pstat">
+                  <div className="pstat-label">{L('Requirements discovered', language)}</div>
+                  <div className="pstat-value">{liveReqs.length}</div>
+                </div>
+                <div className="pstat">
+                  <div className="pstat-label">{L('Licenses detected', language)}</div>
+                  <div className="pstat-value">{liveLicenses}</div>
+                </div>
+              </div>
+
+              <div className="helpbar">
+                <div className="help-ic"><Lightbulb className="i-lg i" /></div>
+                <div className="help-text">
+                  <b>{L("You don't need to know everything yet.", language)}</b>
+                  <small>{L('Anything missing is flagged later — you will always know what is next.', language)}</small>
+                </div>
+                {requirements.length > 0 && (
+                  <button className="btn btn-secondary help-cta" onClick={() => void saveProgress()}>
+                    {saveState === 'saving' ? L('Saving…', language) : L('Save Progress', language)}
+                  </button>
+                )}
+              </div>
+            </section>
+
+            {/* Right: Regulatory intelligence panel */}
+            <aside>
+              <div className="iqpanel">
+                <div className="iq-head">
+                  <div className="iq-head-top">
+                    <span className="iq-pulse" />
+                    <span className="iq-live">{L('Reviewing live', language)}</span>
+                  </div>
+                  <div className="iq-title">{L('Regulatory intelligence', language)}</div>
+                  <div className="iq-sub">{L('Updating as you answer — like a senior compliance reviewer over your shoulder.', language)}</div>
+                </div>
+
+                <div className="iq-section">
+                  <div className="iq-section-title">{L('Business profile', language)}</div>
+                  <div className="iq-kv"><span className="k">{t('businessType')}</span><span className="v">{profile.business_type || '—'}</span></div>
+                  <div className="iq-kv"><span className="k">{t('industry')}</span><span className="v">{profile.industry || '—'}</span></div>
+                  <div className="iq-kv"><span className="k">{t('municipality')}</span><span className="v">{profile.municipality || '—'}</span></div>
+                  <div className="iq-kv"><span className="k">{t('locationType')}</span><span className="v">{profile.location_type || '—'}</span></div>
+                  <div className="iq-kv"><span className="k">{t('numEmployees')}</span><span className="v">{profile.number_of_employees ?? '—'}</span></div>
+                </div>
+
+                <div className="iq-section">
+                  <div className="iq-section-title">{L('Launch readiness', language)}</div>
+                  <div className="ring-wrap">
+                    <div className="ring" style={{ ['--p' as string]: intakePct }}><span>{intakePct}%</span></div>
+                    <div className="ring-meta">
+                      <div className="label">{L('Estimated', language)}</div>
+                      <div className="val">
+                        {intakePct < 35 ? L('Early discovery', language) : intakePct < 70 ? L('Mid discovery', language) : intakePct < 100 ? L('Late discovery', language) : L('Discovery complete', language)}
                       </div>
-                      {i < stages.length - 1 && (
-                        <div className="flex-1 h-1 mx-2 sm:mx-4 rounded-full bg-slate-100 overflow-hidden -mt-7">
-                          <div className={`h-full rounded-full transition-all duration-500 ${stage > s.n ? 'bg-emerald-500 w-full' : stage === s.n ? 'bg-[#0D9488] w-1/2' : 'w-0'}`} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="iq-section">
+                  <div className="iq-section-title">{L('Agencies involved', language)} · {liveAgencies.length}</div>
+                  <div className="iq-list">
+                    {liveAgencies.slice(0, 7).map(a => (
+                      <div key={a} className="iq-chip">
+                        <div className="swatch">{a.replace(/[^A-Za-z ]/g, '').split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()}</div>
+                        {a}
+                      </div>
+                    ))}
+                    {liveAgencies.length === 0 && <div className="iq-sub">{L('Select a municipality and business type to begin.', language)}</div>}
+                  </div>
+                </div>
+
+                <div className="iq-section">
+                  <div className="iq-section-title">{L('Potential obligations', language)}</div>
+                  <div className="iq-kv"><span className="k">{L('Licenses', language)}</span><span className="v">{liveLicenses} {L('detected', language)}</span></div>
+                  <div className="iq-kv"><span className="k">{L('Permits', language)}</span><span className="v">{livePermits} {L('detected', language)}</span></div>
+                  <div className="iq-kv"><span className="k">{L('Certifications', language)}</span><span className="v">{liveCerts} {L('detected', language)}</span></div>
+                  <div className="iq-kv"><span className="k">{L('Registrations', language)}</span><span className="v">{liveRegs} {L('detected', language)}</span></div>
+                </div>
+
+                <div className="iq-section">
+                  <div className="iq-section-title">{L('Live recommendations', language)}</div>
+                  {municipalNotices.map((n, i) => (
+                    <div key={`n-${i}`} className="reco">
+                      <div className="reco-ic zone"><Landmark className="i" /></div>
+                      <div className="reco-text"><b>{profile.municipality}</b><small>{L(n, language)}</small></div>
+                    </div>
+                  ))}
+                  {potentialItems.slice(0, 3).map(p => (
+                    <div key={p.flag} className="reco">
+                      <div className="reco-ic health"><Lightbulb className="i" /></div>
+                      <div className="reco-text"><b>{p.document}</b><small>{L(p.why, language)}</small></div>
+                    </div>
+                  ))}
+                  {municipalNotices.length === 0 && potentialItems.length === 0 && (
+                    <div className="iq-sub">{L('Recommendations appear as your profile takes shape.', language)}</div>
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </main>
+      )}
+
+      {/* ====================== REQUIREMENTS ====================== */}
+      {view === 'requirements' && (
+        <main className="shell">
+          <button className="section-back" onClick={() => goTo('intake')}>
+            ← {L('Back to intake', language)}
+          </button>
+
+          {/* Compact readiness banner */}
+          <div className="req-banner">
+            <div className="mini-ring" style={{ ['--p' as string]: ringScore }}>
+              <div className="num">{ringScore}%</div>
+            </div>
+            <div className="headline">
+              <div className="eyebrow">{readinessEyebrow}</div>
+              <h1>{profile.name || L('Your Business', language)}{profile.municipality ? ` — ${profile.municipality}` : ''}</h1>
+              <p>{completedMandatory} {L('of', language)} {totalMandatory} {L('required documents validated', language)}.</p>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{L('Required', language)}</div>
+              <div className="val">{totalMandatory}</div>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{L('Completed', language)}</div>
+              <div className="val">{doneCount}</div>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{L('Missing', language)}</div>
+              <div className="val amber">{missingCount}</div>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{L('Recommended', language)}</div>
+              <div className="val">{recommendedCount}</div>
+            </div>
+          </div>
+
+          {/* Municipal notices */}
+          {municipalNotices.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              {municipalNotices.map((n, i) => (
+                <div key={i} className="reco">
+                  <div className="reco-ic zone"><Landmark className="i" /></div>
+                  <div className="reco-text"><b>{L('Municipal Notices', language)} — {profile.municipality}</b><small>{L(n, language)}</small></div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Requirements section */}
+          <div className="req-section">
+            <div className="req-head">
+              <div className="left">
+                <h2>{L('Your requirements', language)}</h2>
+                <p>{L('Every license, permit, inspection, and document discovered for your business — grouped by what to do next.', language)}</p>
+              </div>
+              <div className="filter">
+                <button className={reqFilter === 'all' ? 'active' : ''} onClick={() => setReqFilter('all')}>
+                  {L('All', language)} · {requirements.length}
+                </button>
+                <button className={reqFilter === 'todo' ? 'active' : ''} onClick={() => setReqFilter('todo')}>
+                  {L('To do', language)} · {missingCount + reviewCount}
+                </button>
+                <button className={reqFilter === 'done' ? 'active' : ''} onClick={() => setReqFilter('done')}>
+                  {L('Done', language)} · {doneCount}
+                </button>
+                <button className={reqFilter === 'recommended' ? 'active' : ''} onClick={() => setReqFilter('recommended')}>
+                  {L('Recommended', language)} · {recommendedCount}
+                </button>
+              </div>
+            </div>
+
+            {requirements.length === 0 && (
+              <div style={{ padding: 24 }}>
+                <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={loadRequirements}>
+                  {L('Compute Requirements from Rules Engine', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
+                </button>
+              </div>
+            )}
+
+            {reqGroups.map(g => {
+              if (!groupVisible(g.key) || g.items.length === 0) return null;
+              return (
+                <div key={g.key} className="req-group">
+                  <div className="req-group-title">
+                    <span className={`pip ${g.pip}`} />{g.label}<span className="count">{g.items.length}</span>
+                  </div>
+                  {g.items.map(req => renderReqRow(req))}
+                </div>
+              );
+            })}
+
+            {/* Potentially required — decision cards */}
+            {potentialItems.length > 0 && reqFilter !== 'done' && reqFilter !== 'recommended' && (
+              <div className="req-group">
+                <div className="req-group-title">
+                  <span className="pip amber" />{L('Additional Requirements Based on Your Answers', language)}<span className="count">{potentialItems.length}</span>
+                </div>
+                {potentialItems.map(p => {
+                  const decision = potentialDecisions[p.flag];
+                  if (decision === 'applies') return null; /* promoted into Missing above */
+                  if (decision === 'not_applies') {
+                    return (
+                      <div key={p.flag} className="req-row" style={{ opacity: 0.65 }}>
+                        <div className="req-check done"><CheckCircle className="i" style={{ width: 14, height: 14 }} /></div>
+                        <div className="req-main">
+                          <div className="name">{p.document}</div>
+                          <div className="why">{L('Does Not Apply', language)}</div>
                         </div>
-                      )}
-                    </React.Fragment>
+                        <div className="req-tags"><span className="tag">{L('Does Not Apply', language)}</span></div>
+                        <button className="req-action" onClick={() => decidePotential(p, 'not_sure')}>{L('Undo', language)}</button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={p.flag} className="req-row">
+                      <div className="req-check missing">
+                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'block' }} />
+                      </div>
+                      <div className="req-main">
+                        <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{docIconFor(p.document)}{p.document}</div>
+                        <div className="why">{L('Triggered because', language)} {L(p.flagLabel, language)}. {L(p.why, language)}</div>
+                        <div className="why" style={{ color: 'var(--ink)', fontWeight: 550 }}>{L(p.followUp, language)}</div>
+                        <div className="decide-row">
+                          <button className="btn applies" onClick={() => decidePotential(p, 'applies')}>{L('Applies', language)}</button>
+                          <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_applies')}>{L('Does Not Apply', language)}</button>
+                          <button className="btn btn-secondary" style={decision === 'not_sure' ? { borderColor: 'var(--warn)', color: 'var(--warn)' } : undefined} onClick={() => decidePotential(p, 'not_sure')}>{L('Not Sure', language)}</button>
+                        </div>
+                        {decision === 'not_sure' && (
+                          <div className="why" style={{ color: 'var(--warn)' }}>{L('Kept as potentially required. Revisit before submission.', language)}</div>
+                        )}
+                      </div>
+                      <div className="req-tags"><span className="tag due">{L('Potentially Required', language)}</span></div>
+                      <span />
+                    </div>
                   );
                 })}
               </div>
+            )}
+          </div>
+
+          {/* Recommendation panel — advisory historical insights (never mandatory) */}
+          {advisory && advisory.enabled && advisory.similarCount > 0 &&
+            (advisory.potentiallyOverlooked.length > 0 || advisory.commonValidationFailures.length > 0) && (
+            <div className="req-section" style={{ marginTop: 16 }}>
+              <div className="req-head">
+                <div className="left">
+                  <h2 style={{ fontSize: 20 }}>{L('Recommendations', language)}</h2>
+                  <p>{L('Based on', language)} {advisory.similarCount} {L('similar businesses processed before. Suggestions only — these never change what the rules require.', language)}</p>
+                </div>
+              </div>
+              <div style={{ padding: '16px 20px' }}>
+                {advisory.potentiallyOverlooked.map(d => (
+                  <div key={d.document} className="reco">
+                    <div className="reco-ic health"><Lightbulb className="i" /></div>
+                    <div className="reco-text">
+                      <b>{d.document}</b>
+                      <small>{d.pct}% {L('of similar businesses required this.', language)} · {d.agency}</small>
+                    </div>
+                  </div>
+                ))}
+                {advisory.commonValidationFailures.length > 0 && (
+                  <div className="reco">
+                    <div className="reco-ic fire"><AlertTriangle className="i" /></div>
+                    <div className="reco-text">
+                      <b>{L('Documents that commonly fail validation', language)}</b>
+                      <small>{advisory.commonValidationFailures.map(f => f.document_type).join(' · ')}</small>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          );
-        })()}
+          )}
 
-        {/* STEP 1: Business Discovery - Full spec redo */}
-        {currentStep === 1 && (
-          <div className="max-w-2xl">
-            <h1 className="text-3xl font-semibold tracking-tight text-[#0A2540] mb-2">{t('title')}</h1>
-            <p className="text-[#0A2540]/80 mb-8">{t('subtitle')}</p>
-
-            <div className="bg-white border rounded-2xl p-8 space-y-6">
-              {/* Field 1: Business Name */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('businessName')}</label>
-                <input 
-                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  placeholder="Your Business Name" 
-                  value={profile.name} 
-                  onChange={e => setProfile({ ...profile, name: e.target.value })} 
-                  required
-                />
+          {/* Findings (validation results) */}
+          {findings.length > 0 && (
+            <div className="req-section" style={{ marginTop: 16 }}>
+              <div className="req-head">
+                <div className="left"><h2 style={{ fontSize: 20 }}>{L('Findings', language)}</h2></div>
               </div>
-
-              {/* Field 2: Municipality */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('municipality')}</label>
-                <select 
-                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  value={profile.municipality} 
-                  onChange={e => setProfile({ ...profile, municipality: e.target.value })}
-                >
-                  <option value="">{t('selectMunicipality')}</option>
-                  {MUNICIPALITIES.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-
-              {/* Field 3: Industry */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('industry')}</label>
-                <select 
-                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  value={profile.industry} 
-                  onChange={e => {
-                    const newIndustry = e.target.value;
-                    setProfile({ 
-                      ...profile, 
-                      industry: newIndustry,
-                      business_type: '' 
-                    });
-                  }}
-                >
-                  <option value="">{t('selectIndustry')}</option>
-                  {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-
-              {/* Field 4: Business Type (Dynamic) */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('businessType')}</label>
-                <select 
-                  key={profile.industry || 'none'}
-                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  value={profile.business_type} 
-                  onChange={e => {
-                    const newBt = e.target.value;
-                    const allowed = LOCATION_TYPES_BY_BUSINESS_TYPE[newBt] || LOCATION_TYPES;
-                    const newLoc = allowed.includes(profile.location_type || '') ? profile.location_type : '';
-                    setProfile({ ...profile, business_type: newBt, location_type: newLoc });
-                  }}
-                >
-                  <option value="">{t('selectBusinessType')}</option>
-                  {(BUSINESS_TYPES[profile.industry] || [profile.industry || 'Other']).map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Field 5: Business Location Type (dynamic based on Business Type) */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('locationType')}</label>
-                <select 
-                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  value={profile.location_type} 
-                  onChange={e => setProfile({ ...profile, location_type: e.target.value })}
-                >
-                  <option value="">{t('selectLocationType')}</option>
-                  {(LOCATION_TYPES_BY_BUSINESS_TYPE[profile.business_type] || LOCATION_TYPES).map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Business Structure */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('businessStructure')}</label>
-                <select 
-                  className="w-full border rounded-lg px-4 py-2.5 text-[#0A2540]" 
-                  value={profile.business_structure} 
-                  onChange={e => setProfile({ ...profile, business_structure: e.target.value })}
-                >
-                  <option value="llc">LLC</option>
-                  <option value="corporation">Corporation</option>
-                  <option value="sole_proprietorship">Sole Proprietorship</option>
-                  <option value="partnership">Partnership</option>
-                  <option value="professional_corporation">Professional Corporation</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              {/* Number of Employees - Slider (no arrows) */}
-              <div>
-                <label className="block text-sm font-medium mb-1.5 text-[#0A2540]">{t('numEmployees')}</label>
-                <div className="flex items-center gap-3">
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="100" 
-                    step="1"
-                    className="flex-1 accent-[#0A2540]" 
-                    value={profile.number_of_employees ?? 0} 
-                    onChange={e => setProfile({ ...profile, number_of_employees: parseInt(e.target.value) || 0 })} 
-                  />
-                  <div className="w-12 text-center font-medium text-[#0A2540] border rounded px-2 py-1 bg-white">
-                    {profile.number_of_employees ?? 0}
+              <div style={{ padding: '16px 20px' }}>
+                {findings.map((f, i) => (
+                  <div key={i} className="reco">
+                    <div className={`reco-ic ${f.severity === 'critical' ? 'fire' : f.severity === 'warning' ? 'tax' : 'zone'}`}>
+                      <AlertTriangle className="i" />
+                    </div>
+                    <div className="reco-text">
+                      <b>{L(f.title, language)}</b>
+                      <small>{L(f.description, language)} → {L(f.recommended_action, language)}</small>
+                    </div>
                   </div>
-                </div>
-                <div className="text-[10px] text-[#0A2540]/60 mt-1">Drag the slider (0–100+). For larger teams you can edit the number directly if needed.</div>
+                ))}
               </div>
+            </div>
+          )}
 
-              {/* Dynamic Questions - Large cards, one at a time, auto-advance on answer */}
-              {questionList.length > 0 && currentQuestionIndex < questionList.length && (
-                <div className="border-2 border-[#0A2540] rounded-2xl p-8 bg-white">
-                  <div className="text-2xl font-semibold mb-8 text-[#0A2540]">
-                    {L(questionList[currentQuestionIndex].text, language)}
-                  </div>
-                  <div className="grid grid-cols-1 gap-4">
-                    <button
-                      onClick={() => handleQuestionAnswer(true)}
-                      className="min-h-[64px] text-xl font-semibold border-2 border-[#0A2540] rounded-2xl hover:bg-[#0A2540] hover:text-white transition-all active:scale-[0.985] text-[#0A2540]"
-                    >
-                      {t('yes').toUpperCase()}
-                    </button>
-                    <button
-                      onClick={() => handleQuestionAnswer(false)}
-                      className="min-h-[64px] text-xl font-semibold border-2 border-[#0A2540] rounded-2xl hover:bg-[#0A2540] hover:text-white transition-all active:scale-[0.985] text-[#0A2540]"
-                    >
-                      {t('no').toUpperCase()}
-                    </button>
-                  </div>
-                  <div className="text-center mt-4 text-sm text-[#0A2540]/60">
-                    {L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {questionList.length}
-                  </div>
-                </div>
+          {/* Save & Resume — anonymous email-capture or signed-in save */}
+          {requirements.length > 0 && (
+            <SaveProgressPanel
+              me={me}
+              saveState={saveState}
+              setSaveState={setSaveState}
+              claimEmail={claimEmail}
+              setClaimEmail={setClaimEmail}
+              onSave={() => saveProgress()}
+              language={language}
+            />
+          )}
+
+          <div className="helpbar">
+            <div className="help-ic"><Info className="i-lg i" /></div>
+            <div className="help-text">
+              <b>{L('Focus on the missing items first.', language)}</b>
+              <small>{L('They move your readiness score the most and unblock everything downstream.', language)}</small>
+            </div>
+            <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
+              {requirements.length > 0 && currentStep < 7 && (
+                <button className="btn btn-secondary" onClick={runValidation} disabled={isLoading}>
+                  {L('Run Validation Engine', language)}
+                  {isLoading && <RefreshCw className="i" style={{ width: 13, height: 13, animation: 'vspin .7s linear infinite' }} />}
+                </button>
               )}
-
-              {questionList.length > 0 && currentQuestionIndex >= questionList.length && (
-                <div className="text-center text-sm text-[#0A2540]/70 py-2">
-                  {L('All relevant questions answered for this business type.', language)}
-                </div>
-              )}
-
-              <button 
-                onClick={handleStartDiscovery} 
-                disabled={!profile.name || !profile.industry || (questionList.length > 0 && currentQuestionIndex < questionList.length) || isLoading}
-                className="mt-4 w-full bg-[#0A2540] hover:bg-black text-white rounded-full py-3 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {t('next')} {isLoading && <RefreshCw className="w-4 h-4 animate-spin" />}
+              <button className="btn btn-primary" onClick={() => goTo('deliverables')}>
+                {L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
               </button>
             </div>
-
-
           </div>
-        )}
+        </main>
+      )}
 
-        {/* STEP 3: Checklist (main experience) */}
-        {currentStep >= 3 && currentStep < 9 && (
-          <div>
-            {/* Business header card */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-7">
-              <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#0A2540] to-[#13385c] flex items-center justify-center flex-shrink-0 shadow-sm">
-                  <FolderOpen className="w-7 h-7 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-2xl font-semibold tracking-tight text-[#0A2540] leading-tight">{profile.name || L('Your Business', language)}{profile.municipality ? ` — ${profile.municipality}` : ''}</h1>
-                  <p className="text-[#0A2540]/65 mt-1.5 text-sm leading-relaxed">{L('Upload required business documents to generate permit readiness deliverables.', language)}</p>
-                  {readinessScore !== null && (
-                    <div className="mt-3 inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-1 text-xs">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                      <span className="text-[#0A2540]/70">{L('Readiness Score', language)}:</span>
-                      <span className="font-semibold text-emerald-700 tabular-nums">{readinessScore}%</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="lg:col-span-5">
-                <div className="bg-gradient-to-br from-teal-50 to-emerald-50/40 border border-teal-200 rounded-2xl p-6 h-full">
-                  <div className="flex items-center gap-2 text-[#0D9488] font-semibold">
-                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm flex-shrink-0">
-                      <Lightbulb className="w-4 h-4 text-[#0D9488]" />
-                    </div>
-                    {L('Why are these documents required?', language)}
-                  </div>
-                  <p className="text-xs text-[#0A2540]/75 mt-3 leading-relaxed">
-                    {L('SmartPR uses uploaded documents to validate licensing requirements and generate permit deliverables.', language)}
-                  </p>
-                </div>
-              </div>
+      {/* ====================== DELIVERABLES ====================== */}
+      {view === 'deliverables' && (
+        <main className="shell">
+          <button className="section-back" onClick={() => goTo('requirements')}>
+            ← {L('Back to Checklist', language)}
+          </button>
+
+          <div className="section-head">
+            <div>
+              <h2>{L('SUBMISSION DELIVERABLES', language)}</h2>
+              <p>{L('All validated materials are ready. This platform prepares you for submission — it does not file with government.', language)}</p>
             </div>
+            <span className={`pkg-status-pill ${deliverablesReady && (readinessScore || 0) >= 70 ? 'ready' : 'missing'}`} style={{ marginLeft: 0 }}>
+              {deliverablesReady && (readinessScore || 0) >= 70 ? L('READY FOR SUBMISSION', language) : L('IN PROGRESS — REVIEW REQUIRED', language)}
+            </span>
+          </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-              {/* LEFT 70%: Workflow content */}
-              <div className="lg:col-span-7 space-y-6">
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                <div className="mb-5">
-                  <div className="flex justify-between items-end mb-2">
-                    <div>
-                      <div className="text-lg font-semibold text-[#0A2540]">{L('Required Documents', language)}</div>
-                      <div className="text-sm text-[#0A2540]/55 mt-0.5">{completedMandatory} {L('of', language)} {totalMandatory} {L('completed', language)}</div>
-                    </div>
-                    <div className="text-2xl font-semibold text-[#0D9488] tabular-nums leading-none">{checklistProgress}%</div>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-[#0D9488] to-emerald-500 transition-all duration-500" style={{ width: `${checklistProgress}%` }} />
-                  </div>
-                </div>
-
-                {municipalNotices.length > 0 && (
-                  <div className="mb-4 p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs text-sky-900 space-y-1">
-                    <div className="font-semibold">{L('Municipal Notices', language)} — {profile.municipality}</div>
-                    {municipalNotices.map((n, i) => (
-                      <div key={i}>• {L(n, language)}</div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="space-y-3">
-                  {requirements.length === 0 && currentStep === 3 && (
-                    <button onClick={loadRequirements} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-[#0D9488] hover:bg-slate-50 hover:border-teal-300 flex items-center justify-center gap-2 font-medium transition-all">
-                      {L('Compute Requirements from Rules Engine', language)} <ArrowRight className="w-4 h-4" />
-                    </button>
-                  )}
-
-                  {/* 1. MANDATORY (deterministic rules + confirmed potentials) */}
-                  {requirements.filter(r => r.mandatory).map((req, idx) => renderReqRow(req, idx))}
-
-                  {/* 2. POTENTIALLY REQUIRED — compact decision cards */}
-                  {potentialItems.length > 0 && (
-                    <>
-                      <div className="pt-5 pb-2">
-                        <div className="font-semibold text-[#0A2540]">{L('Additional Requirements Based on Your Answers', language)}</div>
-                        <div className="text-xs text-[#0A2540]/60 mt-0.5">{L('Tell us if these apply to your business so we can finalize your checklist.', language)}</div>
-                      </div>
-                      {potentialItems.map((p) => {
-                        const decision = potentialDecisions[p.flag];
-                        if (decision === 'applies') return null; // promoted into Mandatory above
-                        const naMode = decision === 'not_applies';
-                        const answered = naMode;
-                        if (answered) {
-                          return (
-                            <div key={p.flag} className="border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <CheckCircle className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                <span className="text-[#0A2540]/60 truncate">{p.document}</span>
-                                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold bg-slate-200 text-[#0A2540]/70 flex-shrink-0">{L('Does Not Apply', language)}</span>
-                              </div>
-                              <button onClick={() => decidePotential(p, 'not_sure')} className="text-[11px] text-[#0D9488] hover:underline flex-shrink-0">{L('Undo', language)}</button>
-                            </div>
-                          );
-                        }
-                        return (
-                          <details key={p.flag} open className="group/cond border border-teal-200 rounded-2xl text-sm bg-white hover:shadow-sm transition-shadow overflow-hidden">
-                            <summary className="flex items-center gap-3 px-4 py-3 cursor-pointer list-none">
-                              <div className="w-9 h-9 rounded-xl bg-teal-50 flex items-center justify-center flex-shrink-0">
-                                {docIconFor(p.document)}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-semibold text-[#0A2540]">{p.document}</div>
-                                <div className="text-[11px] text-[#0A2540]/60 mt-0.5">{L('Triggered because', language)} {L(p.flagLabel, language)}.</div>
-                              </div>
-                              {decision === 'not_sure' && (
-                                <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 flex-shrink-0">{L('Not Sure', language)}</span>
-                              )}
-                              <ChevronDown className="w-4 h-4 text-[#0A2540]/40 flex-shrink-0 transition-transform group-open/cond:rotate-180" />
-                            </summary>
-                            <div className="px-4 pb-4 pt-0 pl-16">
-                              <div className="text-xs text-[#0A2540]/70 leading-snug">{L(p.why, language)}</div>
-                              <div className="text-sm text-[#0A2540] mt-3 font-medium">{L(p.followUp, language)}</div>
-                              <div className="flex flex-wrap gap-2 mt-3">
-                                <button onClick={() => decidePotential(p, 'applies')} className="text-xs px-4 py-2 rounded-xl bg-[#0D9488] text-white hover:bg-[#0b7d72] font-medium shadow-sm">{L('Applies', language)}</button>
-                                <button onClick={() => decidePotential(p, 'not_applies')} className="text-xs px-4 py-2 rounded-xl border border-slate-300 text-[#0A2540] hover:bg-slate-50 font-medium">{L('Does Not Apply', language)}</button>
-                                <button onClick={() => decidePotential(p, 'not_sure')} className={`text-xs px-4 py-2 rounded-xl border font-medium ${decision === 'not_sure' ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-slate-300 text-[#0A2540] hover:bg-slate-50'}`}>{L('Not Sure', language)}</button>
-                              </div>
-                              {decision === 'not_sure' && (
-                                <div className="text-[11px] text-amber-700 mt-2">{L('Kept as potentially required. Revisit before submission.', language)}</div>
-                              )}
-                            </div>
-                          </details>
-                        );
-                      })}
-                    </>
-                  )}
-
-                  {/* 3. RECOMMENDED (rule-based non-mandatory) */}
-                  {requirements.filter(r => !r.mandatory).length > 0 && (
-                    <div className="pt-5 pb-2">
-                      <div className="font-semibold text-[#0A2540]">{L('Recommended Items', language)}</div>
-                      <div className="text-xs text-[#0A2540]/60 mt-0.5">{L('Optional documents that strengthen your submission.', language)}</div>
-                    </div>
-                  )}
-                  {requirements.filter(r => !r.mandatory).map((req, idx) => renderReqRow(req, idx))}
-                </div>
-
-                {/* Advisory historical insights — suggestions only, never mandatory. */}
-                {advisory && advisory.enabled && advisory.similarCount > 0 &&
-                  (advisory.potentiallyOverlooked.length > 0 || advisory.commonValidationFailures.length > 0) && (
-                  <div className="mt-5 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm">
-                    <div className="font-semibold text-amber-800">
-                      {L('Recommended Based on Similar Businesses', language)} · {L('Advisory', language)}
-                    </div>
-                    <div className="text-xs text-amber-700/80 mt-0.5">
-                      {L('Based on', language)} {advisory.similarCount} {L('similar businesses processed before. Suggestions only — these never change what the rules require.', language)}
-                    </div>
-                    {advisory.potentiallyOverlooked.length > 0 && (
-                      <div className="mt-3">
-                        <div className="text-xs font-semibold text-amber-800 mb-1">{L('Documents similar businesses often also needed', language)}</div>
-                        <div className="flex flex-col gap-1">
-                          {advisory.potentiallyOverlooked.map(d => (
-                            <div key={d.document} className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-white bg-amber-500 rounded px-1.5 py-0.5">{d.pct}%</span>
-                              <span className="text-xs text-[#0A2540]">{d.document}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {advisory.commonValidationFailures.length > 0 && (
-                      <div className="mt-3">
-                        <div className="text-xs font-semibold text-amber-800 mb-1">{L('Documents that commonly fail validation', language)}</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {advisory.commonValidationFailures.map(f => (
-                            <span key={f.document_type} className="text-[11px] text-amber-800 bg-amber-100 border border-amber-200 rounded-full px-2 py-0.5">{f.document_type}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {requirements.length > 0 && currentStep < 7 && (
-                  <button onClick={runValidation} disabled={isLoading} className="mt-6 w-full bg-[#0D9488] text-white rounded-full py-3 font-medium flex items-center justify-center gap-2">
-                    {L('Run Validation Engine', language)} {isLoading && <RefreshCw className="animate-spin w-4 h-4" />}
-                  </button>
-                )}
-
-                {/* Save & Resume — works for both anonymous (email-capture) and signed-in users */}
-                {requirements.length > 0 && (
-                  <SaveProgressPanel
-                    me={me}
-                    saveState={saveState}
-                    setSaveState={setSaveState}
-                    claimEmail={claimEmail}
-                    setClaimEmail={setClaimEmail}
-                    onSave={() => saveProgress()}
-                    language={language}
-                  />
-                )}
-
-                {/* Prominent call-to-action when everything is validated */}
-                {completedMandatory === totalMandatory && readinessScore !== null && currentStep < 9 && (
-                  <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-sm">
-                    <div className="font-medium text-emerald-800">{L('All required documents validated.', language)}</div>
-                    <button
-                      onClick={() => setCurrentStep(9)}
-                      className="mt-2 w-full bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg py-2 text-sm font-medium"
-                    >
-                      {L('View SUBMISSION DELIVERABLES', language)} →
-                    </button>
-                  </div>
-                )}
-                </div>
-
-                {/* Findings (moved into left column as a card) */}
-                {findings.length > 0 && (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                    <div className="font-semibold mb-3 flex items-center gap-2 text-[#0A2540]"><AlertTriangle className="w-4 h-4 text-amber-500" /> {L('Findings', language)}</div>
-                    <div className="space-y-3 text-sm">
-                      {findings.map((f, i) => (
-                        <div key={i} className={`p-3 rounded-lg border-l-4 ${f.severity === 'critical' ? 'border-red-600 bg-red-50' : f.severity === 'warning' ? 'border-amber-600 bg-amber-50' : 'border-blue-600 bg-blue-50'}`}>
-                          <div className="font-medium">{L(f.title, language)}</div>
-                          <div className="text-[#0A2540]/80 mt-0.5">{L(f.description, language)}</div>
-                          <div className="mt-1 text-xs text-[#0A2540]/60">→ {L(f.recommended_action, language)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Deliverables Preview */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-                  <div className="font-semibold text-[#0A2540] text-lg">{L('Deliverables That Will Be Generated', language)}</div>
-                  <p className="text-xs text-[#0A2540]/60 mt-1">{L('Once all required items are validated, SmartPR generates these for your submission.', language)}</p>
-                  {(() => {
-                    const ready = completedMandatory === totalMandatory && totalMandatory > 0;
-                    const deliverables = [
-                      { name: L('Business Readiness Report', language), dep: L('Requires validated documents', language) },
-                      { name: L('Permit Requirement Matrix', language), dep: L('Waiting for Required Documents', language) },
-                      { name: L('Municipality Submission Package', language), dep: L('Waiting for Required Documents', language) },
-                      { name: L('Agency Routing Checklist', language), dep: L('Waiting for Required Documents', language) },
-                      { name: L('Permit Readiness Score', language), dep: L('Computed after validation', language) },
-                    ];
-                    return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                        {deliverables.map((d, i) => (
-                          <div key={i} className="border border-slate-200 rounded-xl p-4 hover:border-teal-300 transition-colors">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="font-medium text-sm text-[#0A2540] leading-snug">{d.name}</div>
-                              <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${ready ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-[#0A2540]/60'}`}>
-                                {ready ? L('Ready', language) : L('Waiting', language)}
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-[#0A2540]/60 mt-2">{ready ? L('Will be generated on continue.', language) : d.dep}</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* RIGHT 30%: Contextual sidebar */}
-              <div className="lg:col-span-3 space-y-5 lg:sticky lg:top-6 self-start">
-                {/* Recommendations */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center flex-shrink-0">
-                      <Lightbulb className="w-4 h-4 text-[#0D9488]" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-[#0A2540]">{L('Recommendations', language)}</div>
-                      <div className="text-[11px] text-[#0A2540]/55">{L('Based on similar businesses.', language)}</div>
-                    </div>
-                  </div>
-                  <div className="space-y-2 mt-4">
-                    {(advisory && advisory.enabled && advisory.potentiallyOverlooked.length > 0
-                      ? advisory.potentiallyOverlooked.slice(0, 4).map(d => ({ name: d.document, pct: d.pct }))
-                      : [
-                          { name: L('Workers Compensation Insurance (CFSE)', language), pct: 50 },
-                          { name: L('Business Registration Affidavit', language), pct: 42 },
-                          { name: L('Environmental Site Plan', language), pct: 30 },
-                        ]
-                    ).map((r, i) => (
-                      <div key={i} className="flex items-start gap-3 p-2.5 rounded-xl border border-slate-100 hover:border-teal-200 hover:bg-teal-50/30 transition-all">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-xs font-semibold text-[#0A2540] leading-snug">{r.name}</div>
-                          <div className="text-[10px] text-[#0A2540]/55 mt-0.5">{r.pct}% {L('of similar businesses required this.', language)}</div>
-                        </div>
-                        <span className="text-[10px] font-bold text-[#0D9488] bg-teal-50 border border-teal-200 rounded-full px-2 py-0.5 flex-shrink-0 tabular-nums">{r.pct}%</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="text-[10px] text-[#0A2540]/50 mt-3 pt-3 border-t border-slate-100 italic">
-                    {L('Recommendations never alter legal requirements.', language)}
-                  </div>
-                </div>
-
-                {/* Common Validation Issues */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center flex-shrink-0">
-                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-[#0A2540]">{L('Common Validation Issues', language)}</div>
-                      <div className="text-[11px] text-[#0A2540]/55">{L('Watch for these before submitting.', language)}</div>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-4">
-                    {[
-                      L('Expired Merchant Registration', language),
-                      L('Missing EIN Pages', language),
-                      L('Name Mismatch', language),
-                      L('Missing Signature', language),
-                      L('Wrong Municipality', language),
-                    ].map((tag, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-amber-50 text-amber-800 border border-amber-200 rounded-full px-2.5 py-1 font-medium">
-                        <AlertTriangle className="w-3 h-3" /> {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Need Help */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-                  <div className="font-semibold text-[#0A2540]">{L('Need Help?', language)}</div>
-                  <p className="text-xs text-[#0A2540]/60 mt-1">{L('Get guidance from SmartPR or your municipality.', language)}</p>
-                  <div className="mt-3 space-y-2">
-                    {[
-                      { icon: <MessageCircle className="w-4 h-4" />, label: L('Chat with SmartPR Support', language) },
-                      { icon: <CalendarCheck className="w-4 h-4" />, label: L('Schedule a Licensing Review', language) },
-                      { icon: <Phone className="w-4 h-4" />, label: L('Contact Municipality', language) },
-                    ].map((a, i) => (
-                      <button key={i} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-slate-200 text-sm text-[#0A2540] hover:border-teal-300 hover:bg-teal-50/40 transition-all text-left">
-                        <span className="text-[#0D9488]">{a.icon}</span>
-                        <span className="font-medium">{a.label}</span>
-                        <ArrowRight className="w-3.5 h-3.5 ml-auto text-[#0A2540]/30" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+          {/* Business summary banner */}
+          <div className="req-banner" style={{ marginBottom: 20 }}>
+            <div className="mini-ring" style={{ ['--p' as string]: readinessScore ?? 0 }}>
+              <div className="num">{readinessScore ?? '—'}{readinessScore !== null ? '%' : ''}</div>
             </div>
+            <div className="headline">
+              <div className="eyebrow">{L('Readiness Score', language)}</div>
+              <h1>{profile.name || '—'}</h1>
+              <p>{completedMandatory} {L('of', language)} {totalMandatory} {L('Required Documents Validated', language)}{findings.filter(f => f.severity === 'critical').length === 0 ? ` · ${L('No Critical Issues Found', language)}` : ''}</p>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{t('municipality')}</div>
+              <div className="val" style={{ fontSize: 15 }}>{profile.municipality || '—'}</div>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{t('businessType')}</div>
+              <div className="val" style={{ fontSize: 15 }}>{profile.business_type || '—'}</div>
+            </div>
+            <div className="banner-stat">
+              <div className="lab">{L('Documents', language)}</div>
+              <div className="val">{uploadedDocs.length}</div>
+            </div>
+          </div>
 
-            {/* Sticky bottom navigation */}
-            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-lg z-30">
-              <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-                <button onClick={() => setCurrentStep(1)} className="px-5 py-2 border border-slate-300 rounded-full text-sm text-[#0A2540] hover:bg-slate-50">
-                  ← {L('Back', language)}
+          <div className="packages">
+            {/* 1. PDF Readiness Report */}
+            <div className="pkg indigo">
+              <div className="pkg-head">
+                <div className="pkg-ic"><FileText className="i-lg i" /></div>
+                <div>
+                  <div className="pkg-title">{L('Readiness Report (PDF)', language)}</div>
+                  <div className="pkg-sub">{L('Human-readable summary for your records, attorney, or consultant.', language)}</div>
+                </div>
+                <span className="pkg-status-pill ready">{L('Ready', language)}</span>
+              </div>
+              <div className="pkg-list">
+                <div className="pkg-item ok"><span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>{L('Business profile & readiness score', language)}</div>
+                <div className="pkg-item ok"><span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>{L('Required, uploaded & missing documents', language)}</div>
+                <div className="pkg-item ok"><span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>{L('Findings & recommended next steps', language)}</div>
+              </div>
+              <div className="pkg-foot">
+                <span className="pkg-sub">{language === 'es' ? 'Español' : 'English'} · PDF</span>
+                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={downloadReadinessReport} disabled={isLoading}>
+                  <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download PDF Report', language)}
                 </button>
-                <div className="text-xs text-[#0A2540]/60 hidden sm:block">
-                  {completedMandatory}/{totalMandatory} {L('required complete', language)} · {checklistProgress}%
+              </div>
+            </div>
+
+            {/* 2. Submission Package ZIP */}
+            <div className="pkg green">
+              <div className="pkg-head">
+                <div className="pkg-ic"><Archive className="i-lg i" /></div>
+                <div>
+                  <div className="pkg-title">{L('Submission Package (ZIP)', language)}</div>
+                  <div className="pkg-sub">{L('Report + validated documents, renamed and sorted in submission order.', language)}</div>
                 </div>
-                <button
-                  onClick={() => {
-                    if (completedMandatory === totalMandatory && readinessScore !== null) setCurrentStep(9);
-                    else { void saveProgress(); if (currentStep < 8) setCurrentStep((currentStep + 1) as Step); }
-                  }}
-                  className="px-6 py-2 bg-[#0D9488] hover:bg-[#0b7d72] text-white rounded-full text-sm font-medium flex items-center gap-2 shadow-sm"
-                >
-                  {L('Save & Continue', language)} <ArrowRight className="w-4 h-4" />
+                <span className={`pkg-status-pill ${zipReadyDocs.length > 0 ? 'ready' : 'missing'}`}>
+                  {zipReadyDocs.length > 0 ? L('Ready', language) : L('Waiting', language)}
+                </span>
+              </div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12.5, color: 'var(--muted)' }}>
+                  <span>{L('Package readiness', language)}</span>
+                  <b style={{ color: 'var(--ink)', fontWeight: 650 }}>{checklistProgress}%</b>
+                </div>
+                <div className="pkg-bar"><span style={{ width: `${checklistProgress}%` }} /></div>
+              </div>
+              <div className="pkg-list">
+                {zipReadyDocs.slice(0, 4).map((d, i) => (
+                  <div key={i} className="pkg-item ok">
+                    <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
+                    {d.ai_analysis?.document_type || d.name}
+                  </div>
+                ))}
+                {requirements.filter(r => r.mandatory && r.status === 'pending').slice(0, Math.max(0, 4 - zipReadyDocs.length) + 2).map(r => (
+                  <div key={r.code} className="pkg-item missing">
+                    <span className="ic"><AlertTriangle className="i" style={{ width: 13, height: 13 }} /></span>
+                    {trReqName(r)}
+                    <span className="miss-label">{L('Missing', language)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="pkg-foot">
+                <span className="pkg-sub">{zipReadyDocs.length} {L('documents', language)}</span>
+                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={downloadSubmissionPackage} disabled={isLoading || zipReadyDocs.length === 0}>
+                  <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download ZIP Package', language)}
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Workspace */}
+            <div className="pkg purple">
+              <div className="pkg-head">
+                <div className="pkg-ic"><Building2 className="i-lg i" /></div>
+                <div>
+                  <div className="pkg-title">{L('Workspace', language)}</div>
+                  <div className="pkg-sub">{L('Permanent, shareable link to your readiness workspace.', language)}</div>
+                </div>
+                <span className="pkg-status-pill draft">{L('Shareable', language)}</span>
+              </div>
+              <div className="pkg-list">
+                <div className="pkg-item ok"><span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>{L('Profile & questionnaire responses', language)}</div>
+                <div className="pkg-item ok"><span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>{L('Requirements & validation results', language)}</div>
+                <div className="pkg-item ok"><span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>{L('Renders anywhere without a login', language)}</div>
+              </div>
+              <div className="pkg-foot">
+                <span className="pkg-sub" style={{ fontFamily: 'monospace', fontSize: 11 }}>{activeWorkspaceId ? `/workspace/${activeWorkspaceId}` : '/workspace/…'}</span>
+                <button className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={openSmartPRWorkspace}>
+                  {L('Open Workspace', language)} <ExternalLink className="i" style={{ width: 14, height: 14 }} />
                 </button>
               </div>
             </div>
           </div>
-        )}
 
-        {/* FINAL STEP: SUBMISSION DELIVERABLES (shown when currentStep === 9) */}
-        {currentStep === 9 && (
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <div className="inline-block px-4 py-1 rounded-full bg-[#0A2540] text-white text-sm tracking-[2px] mb-3">{L('FINAL STEP', language)}</div>
-              <h1 className="text-4xl font-semibold tracking-tight text-[#0A2540]">{L('SUBMISSION DELIVERABLES', language)}</h1>
-              <p className="text-[#0A2540]/70 mt-2">{L('All validated materials are ready. This platform prepares you for submission — it does not file with government.', language)}</p>
+          {/* Official disclaimer */}
+          <div className="disclaimer">
+            <b>{L('IMPORTANT DISCLAIMER — READ CAREFULLY', language)}</b>
+            <ul>
+              <li>{L('Do NOT submit this package or any SmartPR output to government agencies as an official filing.', language)}</li>
+              <li>{L('Do NOT claim that SmartPR approves, grants, or issues any license or permit.', language)}</li>
+              <li>{L('Do NOT file permits or applications using these materials as the sole source.', language)}</li>
+              <li>{L('SmartPR is a', language)} <strong>{L('readiness and compliance preparation platform', language)}</strong>, {L('not a government filing system.', language)}</li>
+              <li>{L('All final approvals are made exclusively by the Government of Puerto Rico and its agencies.', language)}</li>
+            </ul>
+          </div>
+
+          <div className="helpbar">
+            <div className="help-ic"><RefreshCw className="i-lg i" /></div>
+            <div className="help-text">
+              <b>{L('Need to make changes?', language)}</b>
+              <small>{L('Go back to the checklist to upload more documents, or start a new assessment.', language)}</small>
             </div>
-
-            {/* Business + Status Summary */}
-            <div className="bg-white border-2 border-[#0A2540] rounded-2xl p-8 mb-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-                <div><span className="text-[#0A2540]/60">{L('Business Name', language)}</span><div className="font-medium text-[#0A2540] text-lg">{profile.name || '—'}</div></div>
-                <div><span className="text-[#0A2540]/60">{L('Municipality', language)}</span><div className="font-medium text-[#0A2540] text-lg">{profile.municipality || '—'}</div></div>
-                <div><span className="text-[#0A2540]/60">{L('Business Type', language)}</span><div className="font-medium text-[#0A2540] text-lg">{profile.business_type || '—'}</div></div>
-                <div><span className="text-[#0A2540]/60">{L('Readiness Score', language)}</span><div className="font-semibold text-3xl text-[#0A2540] tabular-nums">{readinessScore ?? '—'}<span className="text-xl">%</span></div></div>
-              </div>
-
-              <div className="mt-6 pt-6 border-t">
-                {(() => {
-                  const completed = requirements.filter(r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')).length;
-                  const total = requirements.filter(r => r.mandatory).length;
-                  const isReady = completed === total && (readinessScore || 0) >= 70;
-                  return (
-                    <div>
-                      <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-medium ${isReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                        {isReady ? L('READY FOR SUBMISSION', language) : L('IN PROGRESS — REVIEW REQUIRED', language)}
-                      </div>
-                      <div className="mt-3 text-[#0A2540]">
-                        {completed} {L('of', language)} {total} {L('Required Documents Validated', language)}
-                        {findings.filter(f => f.severity === 'critical').length === 0 && ` • ${L('No Critical Issues Found', language)}`}
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Three Deliverables */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-              {/* 1. PDF Report */}
-              <div className="bg-white border rounded-2xl p-6 flex flex-col">
-                <div className="flex-1">
-                  <div className="w-9 h-9 rounded-lg bg-[#0A2540]/10 flex items-center justify-center mb-4">
-                    <FileText className="w-5 h-5 text-[#0A2540]" />
-                  </div>
-                  <div className="font-semibold text-[#0A2540] text-lg mb-1">{L('1. DOWNLOAD READINESS REPORT', language)}</div>
-                  <div className="text-sm text-[#0A2540]/70 mb-4">
-                    {L('Professional PDF with Business Profile, Readiness Score, Validation Summary, Required/Uploaded/Missing Documents, Findings, Warnings, and Recommended Next Steps.', language)}
-                  </div>
-                  <div className="text-[11px] text-[#0A2540]/50">{L('Human-readable summary for your records, attorney, or consultant.', language)}</div>
-                </div>
-                <button
-                  onClick={downloadReadinessReport}
-                  disabled={isLoading}
-                  className="mt-6 w-full bg-[#0A2540] hover:bg-black text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <Download className="w-4 h-4" /> {L('Download PDF Report', language)}
-                </button>
-              </div>
-
-              {/* 2. ZIP Package */}
-              <div className="bg-white border rounded-2xl p-6 flex flex-col">
-                <div className="flex-1">
-                  <div className="w-9 h-9 rounded-lg bg-[#0A2540]/10 flex items-center justify-center mb-4">
-                    <Archive className="w-5 h-5 text-[#0A2540]" />
-                  </div>
-                  <div className="font-semibold text-[#0A2540] text-lg mb-1">{L('2. DOWNLOAD SUBMISSION PACKAGE ZIP', language)}</div>
-                  <div className="text-sm text-[#0A2540]/70 mb-4">
-                    {L('Complete ZIP containing the Readiness Report PDF + all your validated uploaded documents, automatically renamed and sorted in submission order:', language)}
-                  </div>
-                  <div className="text-[11px] font-mono text-[#0A2540]/60 leading-tight mb-2">
-                    01_Entity_Formation.pdf<br />
-                    02_EIN_Letter.pdf<br />
-                    03_Merchant_Registration.pdf<br />
-                    04_Permiso_Unico.pdf<br />
-                    ...
-                  </div>
-                  <div className="text-[11px] text-[#0A2540]/50">{L('Ready to share with accountants, attorneys, municipalities, or permit expediters.', language)}</div>
-                </div>
-                <button
-                  onClick={downloadSubmissionPackage}
-                  disabled={isLoading || uploadedDocs.filter(d => d.fileBlob).length === 0}
-                  className="mt-6 w-full bg-[#0A2540] hover:bg-black text-white rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  <Download className="w-4 h-4" /> {L('Download ZIP Package', language)}
-                </button>
-              </div>
-
-              {/* 3. Workspace */}
-              <div className="bg-white border rounded-2xl p-6 flex flex-col">
-                <div className="flex-1">
-                  <div className="w-9 h-9 rounded-lg bg-[#0A2540]/10 flex items-center justify-center mb-4">
-                    <Building2 className="w-5 h-5 text-[#0A2540]" />
-                  </div>
-                  <div className="font-semibold text-[#0A2540] text-lg mb-1">{L('3. OPEN SMARTPR WORKSPACE', language)}</div>
-                  <div className="text-sm text-[#0A2540]/70 mb-4">
-                    {L('Permanent link to your readiness workspace. Stores profile, questionnaire responses, required & uploaded documents, validation results, reports, and activity history.', language)}
-                  </div>
-                  <div className="text-xs text-[#0A2540]/60">{L('Future uploads and re-validation supported.', language)}</div>
-                </div>
-                <button
-                  onClick={openSmartPRWorkspace}
-                  className="mt-6 w-full border-2 border-[#0A2540] hover:bg-[#0A2540] hover:text-white text-[#0A2540] rounded-xl py-3 text-sm font-medium flex items-center justify-center gap-2"
-                >
-                  {L('Open Workspace', language)} <ExternalLink className="w-4 h-4" />
-                </button>
-                {activeWorkspaceId && (
-                  <div className="mt-2 text-[10px] text-center text-[#0A2540]/50 font-mono">/workspace/{activeWorkspaceId}</div>
-                )}
-              </div>
-            </div>
-
-            {/* Official Disclaimers */}
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-sm text-red-900">
-              <div className="font-semibold mb-2">{L('IMPORTANT DISCLAIMER — READ CAREFULLY', language)}</div>
-              <ul className="list-disc pl-5 space-y-1 text-xs">
-                <li>{L('Do NOT submit this package or any SmartPR output to government agencies as an official filing.', language)}</li>
-                <li>{L('Do NOT claim that SmartPR approves, grants, or issues any license or permit.', language)}</li>
-                <li>{L('Do NOT file permits or applications using these materials as the sole source.', language)}</li>
-                <li>{L('SmartPR is a', language)} <strong>{L('readiness and compliance preparation platform', language)}</strong>, {L('not a government filing system.', language)}</li>
-                <li>{L("The platform's responsibility ends at:", language)} <strong>Prepare • Validate • Organize • Package</strong>.</li>
-                <li>{L('All final approvals are made exclusively by the Government of Puerto Rico and its agencies.', language)}</li>
-              </ul>
-              <div className="mt-3 text-[10px] opacity-75">{L('Data is stored for this workspace session. All analysis uses the configured AI model.', language)}</div>
-            </div>
-
-            <div className="mt-6 flex gap-3 text-sm">
-              <button onClick={() => setCurrentStep(3)} className="px-4 py-2 border rounded-full">← {L('Back to Checklist', language)}</button>
-              <button onClick={() => setCurrentStep(1)} className="px-4 py-2 border rounded-full">{L('Start New Business', language)}</button>
+            <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-secondary" onClick={() => goTo('requirements')}>← {L('Back to Checklist', language)}</button>
+              <button className="btn btn-secondary" onClick={() => goTo('intake')}>{L('Start New Business', language)}</button>
             </div>
           </div>
-        )}
+        </main>
+      )}
 
-        {/* Hidden file input: powers the real "Upload" buttons to open local machine files and send to LLM ID workflow */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept=".pdf,.txt,.doc,.docx,.png,.jpg,.jpeg,.md"
-          onChange={onFileInputChange}
-        />
-      </div>
+      {/* Hidden file input: powers the Upload buttons (LLM document workflow) */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        style={{ display: 'none' }}
+        accept=".pdf,.txt,.doc,.docx,.png,.jpg,.jpeg,.md"
+        onChange={onFileInputChange}
+      />
 
-      <footer className="border-t bg-white py-4 mt-12">
-      </footer>
+      {/* Close the user menu when clicking anywhere else */}
+      {menuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={() => setMenuOpen(false)} />}
 
       {/* Workspace Modal */}
       {showWorkspaceModal && activeWorkspaceId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-8">
-            <div className="flex items-start justify-between mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', padding: 16 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-xl)', boxShadow: 'var(--shadow-lg)', maxWidth: 520, width: '100%', padding: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <div className="text-sm uppercase tracking-widest text-[#0A2540]/60">SmartPR</div>
-                <div className="text-2xl font-semibold text-[#0A2540]">{L('Workspace', language)}</div>
+                <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--muted)' }}>{ACTIVE_JURISDICTION.meta.productName}</div>
+                <div style={{ fontSize: 22, fontWeight: 600 }}>{L('Workspace', language)}</div>
               </div>
-              <button onClick={() => setShowWorkspaceModal(false)} className="text-[#0A2540]/40 hover:text-[#0A2540]">✕</button>
+              <button onClick={() => setShowWorkspaceModal(false)} style={{ background: 'transparent', border: 0, color: 'var(--muted)', cursor: 'pointer', fontSize: 15 }}>✕</button>
             </div>
-
-            <div className="font-mono text-sm bg-slate-100 px-3 py-2 rounded mb-4 break-all">
+            <div style={{ fontFamily: 'monospace', fontSize: 13, background: 'var(--bg-tint)', padding: '8px 12px', borderRadius: 8, marginBottom: 16, wordBreak: 'break-all' }}>
               {typeof window !== 'undefined' ? window.location.origin : ''}/workspace/{activeWorkspaceId}
             </div>
-
-            <div className="text-sm text-[#0A2540]/80 mb-4">
+            <div style={{ fontSize: 13.5, color: 'var(--ink-2)', marginBottom: 16 }}>
               {L('Your readiness workspace opened in a new tab. This is a shareable, self-contained link showing your AI-approved deliverables, requirements checklist, and findings. The link has also been copied to your clipboard.', language)}
             </div>
-
-            <div className="text-xs text-[#0A2540]/60 mb-6">
-              {L('Share it with your attorney, accountant, or permit expediter — it renders anywhere without a login.', language)}
-            </div>
-
-            <div className="flex gap-3">
+            <div style={{ display: 'flex', gap: 10 }}>
               <button
+                className="btn btn-secondary"
+                style={{ flex: 1, justifyContent: 'center' }}
                 onClick={() => {
                   const url = `/workspace/${activeWorkspaceId}#d=${encodePayload(buildWorkspacePayload())}`;
                   if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
                 }}
-                className="flex-1 border border-[#0A2540] text-[#0A2540] rounded-xl py-2.5 text-sm hover:bg-[#0A2540] hover:text-white"
               >
                 {L('Open Workspace Again', language)}
               </button>
-              <button
-                onClick={() => setShowWorkspaceModal(false)}
-                className="flex-1 bg-[#0A2540] text-white rounded-xl py-2.5 text-sm"
-              >
+              <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowWorkspaceModal(false)}>
                 {L('Close', language)}
               </button>
             </div>
@@ -3320,30 +3299,30 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       {debugMode && (() => {
         const dbg = runRulesEngineForProfile(profile as any, discoveryAnswers).debug;
         return (
-          <div className="fixed bottom-0 right-0 z-50 w-full sm:w-[440px] max-h-[60vh] overflow-auto bg-[#0A2540] text-white text-[11px] font-mono shadow-2xl border-l border-t border-white/20">
-            <div className="px-3 py-2 font-bold border-b border-white/20 flex justify-between">
-              <span>SmartPR Rules Engine — Debug</span>
-              <span className="opacity-60">?debug=1</span>
+          <div style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 400, width: 440, maxWidth: '100%', maxHeight: '60vh', overflow: 'auto', background: 'var(--navy)', color: 'white', fontSize: 11, fontFamily: 'monospace', boxShadow: 'var(--shadow-lg)', borderLeft: '1px solid rgba(255,255,255,0.2)', borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+            <div style={{ padding: '8px 12px', fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', justifyContent: 'space-between' }}>
+              <span>{ACTIVE_JURISDICTION.meta.productName} Rules Engine — Debug</span>
+              <span style={{ opacity: 0.6 }}>?debug=1</span>
             </div>
-            <div className="p-3 space-y-2">
-              <div><span className="opacity-60">Municipality Selected:</span> {dbg.municipalitySelected || '—'}</div>
-              <div><span className="opacity-60">Municipality Flags:</span> {dbg.municipalityFlags.join(', ') || '—'}</div>
-              <div><span className="opacity-60">Business Type:</span> {dbg.businessType || '—'} {dbg.businessTypeId ? `(${dbg.businessTypeId})` : ''}</div>
+            <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div><span style={{ opacity: 0.6 }}>Municipality Selected:</span> {dbg.municipalitySelected || '—'}</div>
+              <div><span style={{ opacity: 0.6 }}>Municipality Flags:</span> {dbg.municipalityFlags.join(', ') || '—'}</div>
+              <div><span style={{ opacity: 0.6 }}>Business Type:</span> {dbg.businessType || '—'} {dbg.businessTypeId ? `(${dbg.businessTypeId})` : ''}</div>
               <div>
-                <div className="opacity-60">Questions Triggered ({dbg.questionsTriggered.length}):</div>
+                <div style={{ opacity: 0.6 }}>Questions Triggered ({dbg.questionsTriggered.length}):</div>
                 {dbg.questionsTriggered.map((q, i) => (
-                  <div key={i} className="pl-2">• {q.question_id} = {String(q.answer)}</div>
+                  <div key={i} style={{ paddingLeft: 8 }}>• {q.question_id} = {String(q.answer)}</div>
                 ))}
               </div>
               <div>
-                <div className="opacity-60">Rules Matched ({dbg.rulesMatched.length}):</div>
+                <div style={{ opacity: 0.6 }}>Rules Matched ({dbg.rulesMatched.length}):</div>
                 {dbg.rulesMatched.map((r, i) => (
-                  <div key={i} className="pl-2">• {r.rule_id} [{r.rule_type}] → {r.document_id} — {r.reason}</div>
+                  <div key={i} style={{ paddingLeft: 8 }}>• {r.rule_id} [{r.rule_type}] → {r.document_id} — {r.reason}</div>
                 ))}
               </div>
               <div>
-                <div className="opacity-60">Documents Generated ({dbg.documentsGenerated.length}):</div>
-                <div className="pl-2">{dbg.documentsGenerated.join(', ') || '—'}</div>
+                <div style={{ opacity: 0.6 }}>Documents Generated ({dbg.documentsGenerated.length}):</div>
+                <div style={{ paddingLeft: 8 }}>{dbg.documentsGenerated.join(', ') || '—'}</div>
               </div>
             </div>
           </div>

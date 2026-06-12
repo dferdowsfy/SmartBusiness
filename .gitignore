@@ -40,3 +40,6 @@ deliverables/
 *.zip
 *.pdf
 
+
+# The deliverables API route is source code, not generated output
+!frontend/src/app/api/deliverables/
