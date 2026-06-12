@@ -2,54 +2,84 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Building2, Landmark, RefreshCw, ExternalLink } from "lucide-react";
+import { ACTIVE_JURISDICTION } from "../jurisdictions";
+import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 
 interface MeUser { id: string; email: string | null; name: string | null; avatar: string | null }
 
-// Primary navigation shared across the compliance workspace. Shows the
-// signed-in user (or a Sign-in CTA) on the right.
+// Sign out: navigate to the server route immediately (clears httpOnly cookies
+// and 302s to /auth/login). The browser-side signOut is best-effort and is NOT
+// awaited, so a hanging network call can never block the redirect.
+function signOutNow() {
+  try {
+    if (isAuthConfigured()) void createSupabaseBrowser().auth.signOut().catch(() => {});
+  } catch {
+    /* server route below is the source of truth */
+  }
+  window.location.assign("/auth/signout");
+}
+
+// Primary navigation shared across the compliance workspace. Uses the same
+// Validador app bar as the main experience so the UI is consistent everywhere.
 export function TopNav({ active }: { active: "dashboard" | "businesses" | "history" | "graph" | "admin" }) {
-  // Knowledge Graph is an internal/admin surface — intentionally not linked
-  // from user-facing navigation. Reach it directly at /admin/knowledge-base.
-  const items: { key: string; label: string; href: string }[] = [
-    { key: "dashboard", label: "Dashboard", href: "/dashboard" },
-    { key: "businesses", label: "My Businesses", href: "/businesses" },
-    { key: "history", label: "History", href: "/history" },
+  const tabs = [
+    { key: "dashboard", label: "Dashboard", href: "/dashboard", Icon: Building2 },
+    { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
+    { key: "history", label: "History", href: "/history", Icon: RefreshCw },
   ];
   const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
+  const [menuOpen, setMenuOpen] = useState(false);
+  const product = ACTIVE_JURISDICTION.meta.productName;
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setUser(d.user || null)).catch(() => setUser(null));
   }, []);
 
+  useEffect(() => {
+    const close = () => setMenuOpen(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, []);
+
+  const initials = (user?.name || user?.email || "?").slice(0, 1).toUpperCase();
+
   return (
-    <div className="border-b border-slate-200 bg-white">
-      <div className="max-w-6xl mx-auto px-5 h-14 flex items-center gap-1">
-        <Link href="/" className="font-bold text-[#0A2540] mr-4">SmartPR</Link>
-        {items.map((it) => (
-          <Link key={it.key} href={it.href}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-              active === it.key ? "bg-[#0A2540] text-white" : "text-[#0A2540]/70 hover:bg-slate-100"
-            }`}
-          >{it.label}</Link>
-        ))}
-        <div className="flex-1" />
-        {user === undefined ? null : user ? (
-          <div className="flex items-center gap-2 text-sm">
-            {user.avatar ? (
-              <img src={user.avatar} alt="" className="w-7 h-7 rounded-full" />
-            ) : (
-              <div className="w-7 h-7 rounded-full bg-[#0A2540] text-white flex items-center justify-center text-xs font-bold">
-                {(user.name || user.email || "?").slice(0, 1).toUpperCase()}
+    <header className="appbar">
+      <div className="appbar-inner">
+        <div className="appbar-left">
+          <Link href="/" className="brand">
+            <div className="brand-mark">{(product || "V").slice(0, 1)}</div>
+            <div className="brand-name">{product}</div>
+          </Link>
+        </div>
+
+        <nav className="nav-tabs" aria-label="Sections">
+          {tabs.map(({ key, label, href, Icon }) => (
+            <Link key={key} href={href} className={`nav-tab ${active === key ? "active" : ""}`}>
+              <Icon className="tab-icon" /> {label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="appbar-actions">
+          {user === undefined ? null : user ? (
+            <>
+              <button className="avatar" onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }} title="Account">{initials}</button>
+              <div className={`user-menu ${menuOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
+                <div className="uhead">
+                  <div className="uname">{user.name || user.email}</div>
+                  <div className="uemail">{user.email}</div>
+                </div>
+                <button type="button" className="uitem" onClick={signOutNow}><ExternalLink className="i" /> Sign out</button>
               </div>
-            )}
-            <span className="hidden sm:block text-[#0A2540]/70 max-w-[140px] truncate">{user.name || user.email}</span>
-            <a href="/auth/signout" className="text-xs text-[#0A2540]/60 hover:text-[#0A2540]">Sign out</a>
-          </div>
-        ) : (
-          <Link href="/auth/login" className="bg-[#0A2540] text-white rounded-lg px-3 py-1.5 text-sm font-medium">Sign in</Link>
-        )}
+            </>
+          ) : (
+            <Link href="/auth/login" className="nav-tab">Sign in</Link>
+          )}
+        </div>
       </div>
-    </div>
+    </header>
   );
 }
 
