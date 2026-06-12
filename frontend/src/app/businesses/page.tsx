@@ -18,6 +18,7 @@ export default function BusinessesPage() {
   const [bizzes, setBizzes] = useState<Biz[] | null>(null);
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const load = () => fetch("/api/businesses").then((r) => r.json()).then((d) => setBizzes(d.businesses || []));
   useEffect(() => { load(); }, []);
@@ -25,12 +26,23 @@ export default function BusinessesPage() {
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    setCreating(true);
-    await fetch("/api/businesses", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim() }),
-    });
-    setCreating(false); setName(""); load();
+    setCreating(true); setErr(null);
+    try {
+      const res = await fetch("/api/businesses", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setErr(body.error || `Couldn't create (${res.status}). Please try again.`);
+        return;
+      }
+      setName(""); await load();
+    } catch (e) {
+      setErr((e as Error).message || "Network error");
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -40,14 +52,16 @@ export default function BusinessesPage() {
         <h1 className="text-2xl font-bold text-[#0A2540] mb-1">My Businesses</h1>
         <p className="text-sm text-[#0A2540]/60 mb-6">Group your compliance work — each business holds its own submissions, documents, and readiness history.</p>
 
-        <form onSubmit={create} className="flex gap-2 mb-6">
+        <form onSubmit={create} className="flex gap-2 mb-2">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="New business name…"
-            className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+            className="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm text-[#0A2540] placeholder:text-[#0A2540]/40 bg-white" />
           <button type="submit" disabled={creating || !name.trim()}
             className="bg-[#0A2540] text-white rounded-lg px-5 py-2 text-sm font-medium disabled:opacity-50">
             {creating ? "Adding…" : "Add business"}
           </button>
         </form>
+        {err && <div className="mb-6 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</div>}
+        {!err && <div className="mb-6" />}
 
         {bizzes === null ? (
           <div className="text-center text-[#0A2540]/50 py-12">Loading…</div>

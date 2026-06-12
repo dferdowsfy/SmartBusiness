@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { getPool, isEnabled } from "../../graph/db";
+import { ensureSchema } from "../../graph/store";
 import { getCurrentUser } from "../../../lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -19,6 +20,7 @@ export async function GET() {
   if (!isEnabled()) return Response.json({ businesses: [] });
   const pool = getPool();
   if (!pool) return Response.json({ businesses: [] });
+  await ensureSchema();
   try {
     // Each business is enriched with the latest readiness score across its
     // submissions, plus a count of submissions, so the listing reads at a glance.
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return Response.json({ error: "bad_json" }, { status: 400 }); }
   const name = (body.name || "").trim();
   if (!name) return Response.json({ error: "name_required" }, { status: 400 });
+  await ensureSchema();
 
   try {
     const id = randomUUID();
