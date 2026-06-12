@@ -46,26 +46,44 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const user = await requireUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
-  if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
+  if (!user) return Response.json({ error: "Not signed in. Please sign in and try again." }, { status: 401 });
+  if (!isEnabled()) {
+    return Response.json({ error: "DATABASE_URL is not configured on the server." }, { status: 503 });
+  }
   const pool = getPool();
-  if (!pool) return Response.json({ error: "no_database" }, { status: 503 });
+  if (!pool) return Response.json({ error: "Could not connect to the database." }, { status: 503 });
 
   let body: { name?: string; notes?: string };
-  try { body = await request.json(); } catch { return Response.json({ error: "bad_json" }, { status: 400 }); }
+  try { body = await request.json(); } catch { return Response.json({ error: "Invalid request body." }, { status: 400 }); }
   const name = (body.name || "").trim();
-  if (!name) return Response.json({ error: "name_required" }, { status: 400 });
-  await ensureSchema();
+  if (!name) return Response.json({ error: "Business name is required." }, { status: 400 });
+
+  // Bootstrap schema (idempotent). Surface any failure so the UI can show it.
+  try {
+    await ensureSchema();
+  } catch (err) {
+    console.error("[businesses] schema bootstrap failed:", (err as Error).message);
+    return Response.json({ error: "Database schema setup failed: " + (err as Error).message }, { status: 500 });
+  }
 
   try {
     const id = randomUUID();
+    // Also persist the user mirror so dashboards always have a row, even if
+    // the user hits this endpoint before triggering any other capture.
+    await pool.query(
+      `INSERT INTO users (id, email, name, last_login) VALUES ($1,$2,$3, now())
+       ON CONFLICT (id) DO UPDATE SET email = COALESCE(EXCLUDED.email, users.email), last_login = now()`,
+      [user.id, user.email ?? null, (user.user_metadata?.full_name as string) || null]
+    ).catch((e) => console.error("[businesses] user upsert (non-fatal):", (e as Error).message));
+
     await pool.query(
       `INSERT INTO businesses (id, user_id, name, notes) VALUES ($1,$2,$3,$4)`,
       [id, user.id, name, body.notes ?? null]
     );
     return Response.json({ id, name, notes: body.notes ?? null });
   } catch (err) {
-    console.error("[businesses] create failed:", (err as Error).message);
-    return Response.json({ error: "create_failed" }, { status: 500 });
+    const msg = (err as Error).message || "Unknown database error";
+    console.error("[businesses] create failed:", msg);
+    return Response.json({ error: "Could not save business: " + msg }, { status: 500 });
   }
 }

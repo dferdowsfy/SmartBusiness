@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { createSupabaseBrowser, isAuthConfigured } from "../../../lib/supabase/client";
 import { authRedirectUrl } from "../../../lib/siteUrl";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 function LoginInner() {
   const sp = useSearchParams();
@@ -41,14 +41,23 @@ function LoginInner() {
   // Used for any email confirmation that Supabase may send during sign-up.
   // Set from a single source of truth so it's never localhost in production.
   const emailRedirectTo = authRedirectUrl(nextPath);
+  const resetRedirectTo = authRedirectUrl("/auth/reset");
 
   const swapMode = (m: Mode) => { setMode(m); setErr(null); setInfo(null); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
+    // forgot mode doesn't need a password
+    if (mode !== "forgot" && (!email || !password)) return;
+    if (mode === "forgot" && !email) return;
     setBusy(true); setErr(null); setInfo(null);
     try {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: resetRedirectTo });
+        if (error) { setErr(error.message); return; }
+        setInfo(`Password reset link sent to ${email}. Check your inbox.`);
+        return;
+      }
       if (mode === "signup") {
         const { data, error } = await supabase.auth.signUp({
           email, password, options: { emailRedirectTo },
@@ -147,25 +156,29 @@ function LoginInner() {
   return (
     <div className="max-w-md mx-auto mt-12 bg-white border border-slate-200 rounded-2xl p-7">
       <h1 className="text-2xl font-bold text-[#0A2540]">
-        {mode === "signin" ? "Sign in to SmartPR" : "Create your SmartPR account"}
+        {mode === "signin" ? "Sign in to SmartPR"
+          : mode === "signup" ? "Create your SmartPR account"
+          : "Reset your password"}
       </h1>
       <p className="text-sm text-[#0A2540]/60 mt-1 mb-5">
-        {mode === "signin"
-          ? "Welcome back. Pick up exactly where you left off."
-          : "Save your compliance work and resume any time."}
+        {mode === "signin" ? "Welcome back. Pick up exactly where you left off."
+          : mode === "signup" ? "Save your compliance work and resume any time."
+          : "Enter the email on your account and we'll send a reset link."}
       </p>
 
-      {/* Mode toggle */}
-      <div className="flex bg-slate-100 rounded-lg p-1 mb-5 text-sm">
-        <button type="button" onClick={() => swapMode("signin")}
-          className={`flex-1 py-1.5 rounded-md font-medium ${mode === "signin" ? "bg-white text-[#0A2540] shadow-sm" : "text-[#0A2540]/60"}`}>
-          Sign in
-        </button>
-        <button type="button" onClick={() => swapMode("signup")}
-          className={`flex-1 py-1.5 rounded-md font-medium ${mode === "signup" ? "bg-white text-[#0A2540] shadow-sm" : "text-[#0A2540]/60"}`}>
-          Create account
-        </button>
-      </div>
+      {/* Mode toggle — hidden during forgot-password flow */}
+      {mode !== "forgot" && (
+        <div className="flex bg-slate-100 rounded-lg p-1 mb-5 text-sm">
+          <button type="button" onClick={() => swapMode("signin")}
+            className={`flex-1 py-1.5 rounded-md font-medium ${mode === "signin" ? "bg-white text-[#0A2540] shadow-sm" : "text-[#0A2540]/60"}`}>
+            Sign in
+          </button>
+          <button type="button" onClick={() => swapMode("signup")}
+            className={`flex-1 py-1.5 rounded-md font-medium ${mode === "signup" ? "bg-white text-[#0A2540] shadow-sm" : "text-[#0A2540]/60"}`}>
+            Create account
+          </button>
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-3">
         <div>
@@ -174,34 +187,51 @@ function LoginInner() {
             onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com"
             className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-[#0A2540] placeholder:text-[#0A2540]/40 bg-white" />
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-[#0A2540]/70 mb-1">Password</label>
-          <input type="password" required minLength={6}
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
-            value={password} onChange={(e) => setPassword(e.target.value)}
-            placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
-            className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-[#0A2540] placeholder:text-[#0A2540]/40 bg-white" />
-        </div>
-        <button type="submit" disabled={busy || !email || password.length < 6}
+        {mode !== "forgot" && (
+          <div>
+            <div className="flex items-baseline justify-between mb-1">
+              <label className="block text-xs font-semibold text-[#0A2540]/70">Password</label>
+              {mode === "signin" && (
+                <button type="button" onClick={() => swapMode("forgot")}
+                  className="text-xs text-[#0D9488] font-medium hover:underline">
+                  Forgot password?
+                </button>
+              )}
+            </div>
+            <input type="password" required minLength={6}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+              className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-[#0A2540] placeholder:text-[#0A2540]/40 bg-white" />
+          </div>
+        )}
+        <button type="submit"
+          disabled={busy || !email || (mode !== "forgot" && password.length < 6)}
           className="w-full bg-[#0A2540] text-white rounded-lg py-2.5 font-medium disabled:opacity-50">
-          {busy ? (mode === "signup" ? "Creating account…" : "Signing in…")
-                : (mode === "signup" ? "Create account" : "Sign in")}
+          {busy ? (mode === "signup" ? "Creating account…" : mode === "forgot" ? "Sending…" : "Signing in…")
+                : (mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in")}
         </button>
       </form>
 
       {err && <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</div>}
       {info && <div className="mt-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{info}</div>}
 
+      {mode === "forgot" && (
+        <button onClick={() => swapMode("signin")} className="text-xs text-[#0A2540]/60 hover:text-[#0A2540] mt-4 block mx-auto">
+          ← Back to sign in
+        </button>
+      )}
+
       <div className="mt-5 text-center text-xs text-[#0A2540]/60">
         {mode === "signin" ? (
           <>Don&apos;t have an account?{" "}
             <button onClick={() => swapMode("signup")} className="font-medium text-[#0A2540] hover:underline">Create one</button>
           </>
-        ) : (
+        ) : mode === "signup" ? (
           <>Already have an account?{" "}
             <button onClick={() => swapMode("signin")} className="font-medium text-[#0A2540] hover:underline">Sign in</button>
           </>
-        )}
+        ) : null}
       </div>
 
       <button onClick={() => router.push("/")} className="text-xs text-[#0A2540]/60 hover:text-[#0A2540] mt-5 block mx-auto">

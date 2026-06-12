@@ -450,6 +450,57 @@ function getQuestionsForBusinessType(businessType: string): { id: string; text: 
   ];
 }
 
+// ---------------------------------------------------------------------------
+// Conditional question filtering
+//
+// The KB list returned by getQuestionsForBusinessType() is the full catalogue
+// for that business type. Several of those questions only make sense once you
+// know the operating location_type — e.g. there's no point asking
+// "Will customers visit the location?" or "Will inventory be stored?" when
+// the user has already declared the business as Online Only.
+//
+// The filter is conservative: it skips questions whose answer is implied by
+// the location choice. Anything ambiguous (e.g. employees_hired) is kept.
+// ---------------------------------------------------------------------------
+const PHYSICAL_PRESENCE_QUESTIONS = new Set<string>([
+  "customers_visit",
+  "customers_consume_on_site",
+  "patients_visit",
+  "clients_visit",
+  "physical_office",
+  "outdoor_seating",
+  "live_entertainment",
+  "food_prepared_on_site",
+  "products_manufactured_on_site",
+  "food_truck_or_mobile",
+  "employees_work_on_site",
+  "inventory_stored",
+  "products_stored",
+]);
+
+const HOME_BASED_NOT_APPLICABLE = new Set<string>([
+  "food_truck_or_mobile",
+  "outdoor_seating",
+  "live_entertainment",
+  "patients_visit",
+]);
+
+interface DiscoveryQuestion { id: string; text: string }
+
+export function filterQuestionsByContext(
+  questions: DiscoveryQuestion[],
+  locationType: string | undefined
+): DiscoveryQuestion[] {
+  const loc = (locationType || "").trim();
+  if (loc === "Online Only") {
+    return questions.filter((q) => !PHYSICAL_PRESENCE_QUESTIONS.has(q.id));
+  }
+  if (loc === "Home-Based Business") {
+    return questions.filter((q) => !HOME_BASED_NOT_APPLICABLE.has(q.id));
+  }
+  return questions;
+}
+
 const LOCATION_TYPES_BY_BUSINESS_TYPE: Record<string, string[]> = {
   "Restaurant": ["Restaurant Location", "Retail Storefront", "Mixed Use Property", "Tourism Facility", "Commercial Office"],
   "Fast Food Restaurant": ["Restaurant Location", "Retail Storefront", "Mixed Use Property"],
@@ -1165,17 +1216,22 @@ export default function SmartPR() {
     return q;
   };
 
-  // Dynamic question flow based on Business Type (per the prompt)
+  // Dynamic question flow based on Business Type AND Location Type. We filter
+  // out questions whose answer is implied by the location (e.g. nothing about
+  // customers visiting "the location" when there is no physical location).
   useEffect(() => {
     if (profile.business_type) {
-      const list = getQuestionsForBusinessType(profile.business_type);
+      const list = filterQuestionsByContext(
+        getQuestionsForBusinessType(profile.business_type),
+        profile.location_type
+      );
       setQuestionList(list);
       setCurrentQuestionIndex(0);
     } else {
       setQuestionList([]);
       setCurrentQuestionIndex(0);
     }
-  }, [profile.business_type]);
+  }, [profile.business_type, profile.location_type]);
 
   const handleQuestionAnswer = (yes: boolean) => {
     const q = questionList[currentQuestionIndex];
