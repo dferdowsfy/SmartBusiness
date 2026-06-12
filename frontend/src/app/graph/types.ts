@@ -30,6 +30,9 @@ export interface SubmissionEvent {
   business_type?: string | null;
   business_structure?: string | null;
   location_type?: string | null;
+  business_name?: string | null;
+  business_id?: string | null;
+  claim_email?: string | null;
   answers: CapturedAnswer[];
   requirements: CapturedRequirement[];
 }

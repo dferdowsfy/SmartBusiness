@@ -1,30 +1,52 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
-// Primary navigation shared across the compliance workspace.
-export function TopNav({ active }: { active: "dashboard" | "history" | "graph" | "admin" }) {
+interface MeUser { id: string; email: string | null; name: string | null; avatar: string | null }
+
+// Primary navigation shared across the compliance workspace. Shows the
+// signed-in user (or a Sign-in CTA) on the right.
+export function TopNav({ active }: { active: "dashboard" | "businesses" | "history" | "graph" | "admin" }) {
   const items: { key: string; label: string; href: string }[] = [
-    { key: "dashboard", label: "Dashboard", href: "/" },
+    { key: "dashboard", label: "Dashboard", href: "/dashboard" },
+    { key: "businesses", label: "My Businesses", href: "/businesses" },
     { key: "history", label: "History", href: "/history" },
     { key: "graph", label: "Knowledge Graph", href: "/admin/knowledge-base" },
-    { key: "admin", label: "Admin", href: "/admin/knowledge-base" },
   ];
+  const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
+
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setUser(d.user || null)).catch(() => setUser(null));
+  }, []);
+
   return (
     <div className="border-b border-slate-200 bg-white">
       <div className="max-w-6xl mx-auto px-5 h-14 flex items-center gap-1">
-        <div className="font-bold text-[#0A2540] mr-4">SmartPR</div>
+        <Link href="/" className="font-bold text-[#0A2540] mr-4">SmartPR</Link>
         {items.map((it) => (
-          <Link
-            key={it.key}
-            href={it.href}
+          <Link key={it.key} href={it.href}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
               active === it.key ? "bg-[#0A2540] text-white" : "text-[#0A2540]/70 hover:bg-slate-100"
             }`}
-          >
-            {it.label}
-          </Link>
+          >{it.label}</Link>
         ))}
+        <div className="flex-1" />
+        {user === undefined ? null : user ? (
+          <div className="flex items-center gap-2 text-sm">
+            {user.avatar ? (
+              <img src={user.avatar} alt="" className="w-7 h-7 rounded-full" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-[#0A2540] text-white flex items-center justify-center text-xs font-bold">
+                {(user.name || user.email || "?").slice(0, 1).toUpperCase()}
+              </div>
+            )}
+            <span className="hidden sm:block text-[#0A2540]/70 max-w-[140px] truncate">{user.name || user.email}</span>
+            <a href="/auth/signout" className="text-xs text-[#0A2540]/60 hover:text-[#0A2540]">Sign out</a>
+          </div>
+        ) : (
+          <Link href="/auth/login" className="bg-[#0A2540] text-white rounded-lg px-3 py-1.5 text-sm font-medium">Sign in</Link>
+        )}
       </div>
     </div>
   );

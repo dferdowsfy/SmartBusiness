@@ -846,6 +846,61 @@ function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; do
   );
 }
 
+// Save Progress + Email Capture panel. Signed-in users save directly; anonymous
+// users provide an email so they can claim this submission on later sign-in.
+function SaveProgressPanel({ me, saveState, setSaveState, claimEmail, setClaimEmail, onSave, language }: {
+  me: { id: string; email: string | null; name: string | null } | null | undefined;
+  saveState: 'idle' | 'saving' | 'saved' | 'error';
+  setSaveState: (s: 'idle' | 'saving' | 'saved' | 'error') => void;
+  claimEmail: string; setClaimEmail: (v: string) => void;
+  onSave: () => void; language: any;
+}) {
+  // While we haven't loaded /api/me yet, render nothing to avoid a flash.
+  if (me === undefined) return null;
+
+  if (me) {
+    return (
+      <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-[#0A2540]">{L('Save Progress', language)}</div>
+          <div className="text-xs text-[#0A2540]/60">{L('Saved to your account — resume from History any time.', language)}</div>
+        </div>
+        <button onClick={onSave} disabled={saveState === 'saving'}
+          className="bg-[#0A2540] text-white rounded-full px-5 py-2 text-sm font-medium disabled:opacity-50">
+          {saveState === 'saving' ? L('Saving…', language)
+           : saveState === 'saved' ? `✓ ${L('Saved', language)}`
+           : saveState === 'error' ? L('Retry', language)
+           : L('Save Progress', language)}
+        </button>
+      </div>
+    );
+  }
+
+  // Anonymous: capture email so they can claim this submission later.
+  return (
+    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+      <div className="text-sm font-semibold text-amber-900">{L('Save this submission', language)}</div>
+      <div className="text-xs text-amber-800/80 mt-0.5 mb-3">
+        {L('Enter your email and we will save this assessment to your account when you sign in.', language)}
+      </div>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input type="email" value={claimEmail} onChange={(e) => { setClaimEmail(e.target.value); setSaveState('idle'); }}
+          placeholder="you@business.com"
+          className="flex-1 border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white" />
+        <button onClick={onSave} disabled={!claimEmail || saveState === 'saving'}
+          className="bg-amber-600 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+          {saveState === 'saving' ? L('Saving…', language)
+           : saveState === 'saved' ? `✓ ${L('Saved', language)}`
+           : L('Save', language)}
+        </button>
+        <a href={`/auth/login?next=${encodeURIComponent('/dashboard')}`} className="bg-[#0A2540] text-white rounded-lg px-4 py-2 text-sm font-medium text-center">
+          {L('Sign in', language)}
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function SmartPR() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [profile, setProfile] = useState<BusinessProfile>({
@@ -882,6 +937,14 @@ export default function SmartPR() {
   const [businessId, setBusinessId] = useState<string | null>(null);
   // Correlation id tying every capture event for this scenario together.
   const submissionIdRef = useRef<string>('');
+  // The business this assessment belongs to (when signed in + /?business=<id>).
+  const businessIdRef = useRef<string | null>(null);
+  // For anonymous users: email used to claim this submission on later sign-in.
+  const [claimEmail, setClaimEmail] = useState<string>('');
+  // Signed-in user (null when anonymous, undefined while loading).
+  const [me, setMe] = useState<{ id: string; email: string | null; name: string | null } | null | undefined>(undefined);
+  // Save Progress state for user feedback.
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // Advisory historical recommendations (never mandatory; rules stay authoritative).
   const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
   // User decisions on flag-derived "Potentially Required" items.
@@ -901,30 +964,58 @@ export default function SmartPR() {
   }, [profile, discoveryAnswers]);
 
   // Fetch advisory historical insights once requirements exist (best-effort).
+  // Load the signed-in user (if any) + capture ?business=<id> so this
+  // assessment gets linked to a business on save.
+  useEffect(() => {
+    fetch('/api/me').then(r => r.json()).then(d => setMe(d.user || null)).catch(() => setMe(null));
+    const params = new URLSearchParams(window.location.search);
+    const bizId = params.get('business');
+    if (bizId) businessIdRef.current = bizId;
+  }, []);
+
   // Resume a prior submission from History (?resume=<submissionId>): restore
   // the core profile and jump back to the requirements step.
   useEffect(() => {
     const resumeId = new URLSearchParams(window.location.search).get('resume');
     if (!resumeId) return;
-    fetch(`/api/history/${resumeId}`)
-      .then(r => r.json())
-      .then(d => {
-        const su = d?.summary;
-        if (!su) return;
-        const restored = {
-          municipality: su.municipality || '',
-          industry: su.industry || '',
-          business_type: su.business_type || '',
-          business_structure: su.business_structure || '',
-          location_type: su.location_type || '',
-        };
-        setProfile(prev => ({ ...prev, ...restored }));
-        const computed = computeRequirements({ ...(profile as any), ...restored }, {});
-        setRequirements(computed);
-        submissionIdRef.current = resumeId;
-        setCurrentStep(3);
-      })
-      .catch(() => {});
+    submissionIdRef.current = resumeId;
+
+    // Prefer a full workflow snapshot when signed in (exact mid-flow state).
+    (async () => {
+      try {
+        const snapRes = await fetch(`/api/snapshots/${resumeId}`);
+        if (snapRes.ok) {
+          const snap = await snapRes.json();
+          const st = snap.state || {};
+          if (st.profile) setProfile(p => ({ ...p, ...st.profile }));
+          if (st.discoveryAnswers) setDiscoveryAnswers(st.discoveryAnswers);
+          if (Array.isArray(st.requirements) && st.requirements.length) setRequirements(st.requirements);
+          if (st.potentialDecisions) setPotentialDecisions(st.potentialDecisions);
+          if (typeof st.readinessScore === 'number') setReadinessScore(st.readinessScore);
+          if (typeof st.currentStep === 'number') setCurrentStep(st.currentStep);
+          if (snap.business_id) businessIdRef.current = snap.business_id;
+          return;
+        }
+      } catch { /* fall through */ }
+
+      // Fallback: summary-based resume (anonymous + history-row resume).
+      const d = await fetch(`/api/history/${resumeId}`).then(r => r.json()).catch(() => null);
+      const su = d?.summary;
+      if (!su) return;
+      const restored = {
+        name: su.business_name || '',
+        municipality: su.municipality || '',
+        industry: su.industry || '',
+        business_type: su.business_type || '',
+        business_structure: su.business_structure || '',
+        location_type: su.location_type || '',
+      };
+      setProfile(prev => ({ ...prev, ...restored }));
+      const computed = computeRequirements({ ...(profile as any), ...restored }, {});
+      setRequirements(computed);
+      if (su.business_id) businessIdRef.current = su.business_id;
+      setCurrentStep(3);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1229,11 +1320,40 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         business_type: p.business_type || null,
         business_structure: p.business_structure || null,
         location_type: p.location_type || null,
+        business_name: p.name || null,
+        business_id: businessIdRef.current || null,
+        claim_email: claimEmail || null,
         answers: capturedAnswers,
         requirements: capturedReqs,
       });
     } catch {
       /* observational only */
+    }
+  };
+
+  // Re-emit the current submission to capture (with claim_email if anonymous),
+  // and store a workflow snapshot if signed in so resume restores exact state.
+  const saveProgress = async () => {
+    setSaveState('saving');
+    try {
+      captureScenario(profile, discoveryAnswers, requirements);
+      if (me) {
+        await fetch(`/api/snapshots/${submissionIdRef.current}`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            business_id: businessIdRef.current,
+            state: {
+              profile, discoveryAnswers,
+              requirements, potentialDecisions,
+              currentStep, readinessScore,
+            },
+          }),
+        });
+      }
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 3500);
+    } catch {
+      setSaveState('error');
     }
   };
 
@@ -2032,16 +2152,31 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   // --- 1. Download standalone professional PDF Report ---
+  // Upload a generated deliverable to the user's library (no-op if anonymous).
+  const archiveDeliverable = async (kind: 'report' | 'submission', filename: string, blob: Blob) => {
+    if (!me) return;
+    try {
+      const fd = new FormData();
+      fd.append('kind', kind);
+      fd.append('file', new File([blob], filename, { type: blob.type || 'application/octet-stream' }));
+      if (submissionIdRef.current) fd.append('submission_id', submissionIdRef.current);
+      if (businessIdRef.current) fd.append('business_id', businessIdRef.current);
+      await fetch('/api/deliverables', { method: 'POST', body: fd });
+    } catch { /* observational */ }
+  };
+
   const downloadReadinessReport = async () => {
     try {
       setIsLoading(true);
       const pdfBlob = await generateReadinessReportPDF();
+      const filename = `SmartPR-Readiness-Report-${(profile.name || 'Business').replace(/\s+/g, '-')}.pdf`;
       const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `SmartPR-Readiness-Report-${(profile.name || 'Business').replace(/\s+/g, '-')}.pdf`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+      void archiveDeliverable('report', filename, pdfBlob);
     } finally {
       setIsLoading(false);
     }
@@ -2075,12 +2210,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       }
 
       const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const filename = `SmartPR-Submission-Package-${(profile.name || 'Business').replace(/\s+/g, '-')}.zip`;
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `SmartPR-Submission-Package-${(profile.name || 'Business').replace(/\s+/g, '-')}.zip`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
+      void archiveDeliverable('submission', filename, zipBlob);
     } finally {
       setIsLoading(false);
     }
@@ -2293,8 +2430,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           </div>
           
           <div className="flex items-center gap-4 text-sm">
+            <a href="/dashboard" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium">{L('Dashboard', language)}</a>
+            <a href="/businesses" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium hidden sm:inline">{L('My Businesses', language)}</a>
             <a href="/history" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium">{L('History', language)}</a>
-            <a href="/admin/knowledge-base" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium hidden sm:inline">{L('Knowledge Graph', language)}</a>
+            {me === null && <a href="/auth/login" className="bg-[#0A2540] text-white rounded-lg px-3 py-1.5 text-xs font-medium">{L('Sign in', language)}</a>}
+            {me && <a href="/auth/signout" className="text-xs text-[#0A2540]/60 hover:text-[#0A2540]">{L('Sign out', language)}</a>}
             {/* Language Toggle - kept as professional feature */}
             <div className="flex items-center gap-1 text-xs">
               <button
@@ -2634,6 +2774,19 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <button onClick={runValidation} disabled={isLoading} className="mt-6 w-full bg-[#0D9488] text-white rounded-full py-3 font-medium flex items-center justify-center gap-2">
                     {L('Run Validation Engine', language)} {isLoading && <RefreshCw className="animate-spin w-4 h-4" />}
                   </button>
+                )}
+
+                {/* Save & Resume — works for both anonymous (email-capture) and signed-in users */}
+                {requirements.length > 0 && (
+                  <SaveProgressPanel
+                    me={me}
+                    saveState={saveState}
+                    setSaveState={setSaveState}
+                    claimEmail={claimEmail}
+                    setClaimEmail={setClaimEmail}
+                    onSave={() => saveProgress()}
+                    language={language}
+                  />
                 )}
 
                 {/* Prominent call-to-action when everything is validated */}
