@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS idx_submissions_bt ON submissions (business_type);
 CREATE INDEX IF NOT EXISTS idx_submissions_created ON submissions (created_at);
+ALTER TABLE submissions ADD COLUMN IF NOT EXISTS business_structure TEXT;
 CREATE TABLE IF NOT EXISTS question_responses (
   id BIGSERIAL PRIMARY KEY, submission_id UUID REFERENCES submissions(id) ON DELETE CASCADE,
   question_id TEXT NOT NULL, question_text TEXT, answer TEXT,
@@ -57,6 +58,48 @@ CREATE TABLE IF NOT EXISTS scenario_patterns (
   first_seen TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (municipality, business_type, question_hash, requirements_hash));
 CREATE INDEX IF NOT EXISTS idx_scenario_count ON scenario_patterns (occurrence_count DESC);
+
+CREATE OR REPLACE VIEW v_submission_history AS
+  SELECT s.id, s.created_at, s.municipality, s.industry, s.business_type,
+         s.business_structure, s.location_type,
+         rs.score AS readiness_score, rs.status AS readiness_status,
+         (SELECT COUNT(*) FROM requirements_generated rg WHERE rg.submission_id = s.id) AS document_count
+  FROM submissions s
+  LEFT JOIN LATERAL (
+    SELECT score, status FROM readiness_scores r WHERE r.submission_id = s.id
+    ORDER BY created_at DESC LIMIT 1
+  ) rs ON true
+  ORDER BY s.created_at DESC;
+
+CREATE OR REPLACE VIEW v_submission_timeline AS
+  SELECT submission_id, 'Submission Created' AS event, 'created' AS kind, created_at FROM submissions
+  UNION ALL
+  SELECT submission_id, 'Document Uploaded: ' || document_type, 'document', created_at FROM document_validations
+  UNION ALL
+  SELECT submission_id, 'Readiness Updated: ' || score || '%', 'readiness', created_at FROM readiness_scores;
+
+CREATE OR REPLACE VIEW v_readiness_progression AS
+  SELECT submission_id, score, status, created_at,
+         ROW_NUMBER() OVER (PARTITION BY submission_id ORDER BY created_at) AS seq
+  FROM readiness_scores;
+
+CREATE OR REPLACE VIEW v_document_history AS
+  SELECT dv.submission_id, dv.document_type, dv.validation_result, dv.pass_fail,
+         dv.confidence, dv.expiration_status, dv.extracted_fields, dv.fields_found,
+         dv.fields_missing, dv.created_at, s.business_type
+  FROM document_validations dv JOIN submissions s ON s.id = dv.submission_id;
+
+CREATE OR REPLACE VIEW v_submission_comparison AS
+  SELECT s.id, s.municipality, s.industry, s.business_type, s.business_structure, s.location_type,
+         rs.score AS readiness_score,
+         (SELECT COUNT(*) FROM requirements_generated rg WHERE rg.submission_id = s.id) AS document_count,
+         (SELECT array_agg(rg.document_name ORDER BY rg.document_name)
+            FROM requirements_generated rg WHERE rg.submission_id = s.id) AS documents
+  FROM submissions s
+  LEFT JOIN LATERAL (
+    SELECT score FROM readiness_scores r WHERE r.submission_id = s.id
+    ORDER BY created_at DESC LIMIT 1
+  ) rs ON true;
 `;
 
 let schemaReady: Promise<void> | null = null;
@@ -77,13 +120,13 @@ function hash(value: unknown): string {
 async function captureSubmission(c: PoolClient, e: SubmissionEvent): Promise<void> {
   // Header row (idempotent on re-capture of the same submission id).
   await c.query(
-    `INSERT INTO submissions (id, municipality, industry, business_type, location_type)
-     VALUES ($1,$2,$3,$4,$5)
+    `INSERT INTO submissions (id, municipality, industry, business_type, business_structure, location_type)
+     VALUES ($1,$2,$3,$4,$5,$6)
      ON CONFLICT (id) DO UPDATE SET
        municipality=EXCLUDED.municipality, industry=EXCLUDED.industry,
-       business_type=EXCLUDED.business_type, location_type=EXCLUDED.location_type,
-       updated_at=now()`,
-    [e.submission_id, e.municipality ?? null, e.industry ?? null, e.business_type ?? null, e.location_type ?? null]
+       business_type=EXCLUDED.business_type, business_structure=EXCLUDED.business_structure,
+       location_type=EXCLUDED.location_type, updated_at=now()`,
+    [e.submission_id, e.municipality ?? null, e.industry ?? null, e.business_type ?? null, e.business_structure ?? null, e.location_type ?? null]
   );
 
   // Replace child rows so a re-capture stays consistent (no duplicates).

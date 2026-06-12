@@ -16,13 +16,14 @@
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS submissions (
-  id             UUID PRIMARY KEY,            -- client-generated correlation id
-  municipality   TEXT,
-  industry       TEXT,
-  business_type  TEXT,
-  location_type  TEXT,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                 UUID PRIMARY KEY,        -- client-generated correlation id
+  municipality       TEXT,
+  industry           TEXT,
+  business_type      TEXT,
+  business_structure TEXT,
+  location_type      TEXT,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_submissions_bt   ON submissions (business_type);
 CREATE INDEX IF NOT EXISTS idx_submissions_muni ON submissions (municipality);
@@ -94,3 +95,42 @@ CREATE TABLE IF NOT EXISTS scenario_patterns (
   UNIQUE (municipality, business_type, question_hash, requirements_hash)
 );
 CREATE INDEX IF NOT EXISTS idx_scenario_count ON scenario_patterns (occurrence_count DESC);
+
+-- ---------------------------------------------------------------------------
+-- Phase 3: Submission History & Intelligence views
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW v_submission_history AS
+  SELECT s.id, s.created_at, s.municipality, s.industry, s.business_type,
+         s.business_structure, s.location_type,
+         rs.score AS readiness_score, rs.status AS readiness_status,
+         (SELECT COUNT(*) FROM requirements_generated rg WHERE rg.submission_id = s.id) AS document_count
+  FROM submissions s
+  LEFT JOIN LATERAL (SELECT score, status FROM readiness_scores r WHERE r.submission_id = s.id
+                     ORDER BY created_at DESC LIMIT 1) rs ON true
+  ORDER BY s.created_at DESC;
+
+CREATE OR REPLACE VIEW v_submission_timeline AS
+  SELECT submission_id, 'Submission Created' AS event, 'created' AS kind, created_at FROM submissions
+  UNION ALL SELECT submission_id, 'Document Uploaded: ' || document_type, 'document', created_at FROM document_validations
+  UNION ALL SELECT submission_id, 'Readiness Updated: ' || score || '%', 'readiness', created_at FROM readiness_scores;
+
+CREATE OR REPLACE VIEW v_readiness_progression AS
+  SELECT submission_id, score, status, created_at,
+         ROW_NUMBER() OVER (PARTITION BY submission_id ORDER BY created_at) AS seq
+  FROM readiness_scores;
+
+CREATE OR REPLACE VIEW v_document_history AS
+  SELECT dv.submission_id, dv.document_type, dv.validation_result, dv.pass_fail, dv.confidence,
+         dv.expiration_status, dv.extracted_fields, dv.fields_found, dv.fields_missing, dv.created_at,
+         s.business_type
+  FROM document_validations dv JOIN submissions s ON s.id = dv.submission_id;
+
+CREATE OR REPLACE VIEW v_submission_comparison AS
+  SELECT s.id, s.municipality, s.industry, s.business_type, s.business_structure, s.location_type,
+         rs.score AS readiness_score,
+         (SELECT COUNT(*) FROM requirements_generated rg WHERE rg.submission_id = s.id) AS document_count,
+         (SELECT array_agg(rg.document_name ORDER BY rg.document_name)
+            FROM requirements_generated rg WHERE rg.submission_id = s.id) AS documents
+  FROM submissions s
+  LEFT JOIN LATERAL (SELECT score FROM readiness_scores r WHERE r.submission_id = s.id
+                     ORDER BY created_at DESC LIMIT 1) rs ON true;

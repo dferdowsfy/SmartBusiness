@@ -901,6 +901,33 @@ export default function SmartPR() {
   }, [profile, discoveryAnswers]);
 
   // Fetch advisory historical insights once requirements exist (best-effort).
+  // Resume a prior submission from History (?resume=<submissionId>): restore
+  // the core profile and jump back to the requirements step.
+  useEffect(() => {
+    const resumeId = new URLSearchParams(window.location.search).get('resume');
+    if (!resumeId) return;
+    fetch(`/api/history/${resumeId}`)
+      .then(r => r.json())
+      .then(d => {
+        const su = d?.summary;
+        if (!su) return;
+        const restored = {
+          municipality: su.municipality || '',
+          industry: su.industry || '',
+          business_type: su.business_type || '',
+          business_structure: su.business_structure || '',
+          location_type: su.location_type || '',
+        };
+        setProfile(prev => ({ ...prev, ...restored }));
+        const computed = computeRequirements({ ...(profile as any), ...restored }, {});
+        setRequirements(computed);
+        submissionIdRef.current = resumeId;
+        setCurrentStep(3);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!requirements.length || !profile.business_type) { setAdvisory(null); return; }
     let alive = true;
@@ -1200,6 +1227,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         municipality: p.municipality || null,
         industry: p.industry || null,
         business_type: p.business_type || null,
+        business_structure: p.business_structure || null,
         location_type: p.location_type || null,
         answers: capturedAnswers,
         requirements: capturedReqs,
@@ -2265,6 +2293,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           </div>
           
           <div className="flex items-center gap-4 text-sm">
+            <a href="/history" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium">{L('History', language)}</a>
+            <a href="/admin/knowledge-base" className="text-[#0A2540]/70 hover:text-[#0A2540] font-medium hidden sm:inline">{L('Knowledge Graph', language)}</a>
             {/* Language Toggle - kept as professional feature */}
             <div className="flex items-center gap-1 text-xs">
               <button
