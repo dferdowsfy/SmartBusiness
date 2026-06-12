@@ -455,6 +455,106 @@ export const ES: Record<string, string> = {
   "PUERTO RICO BUSINESS LICENSING READINESS":
     "PREPARACIÓN PARA LICENCIAS COMERCIALES DE PUERTO RICO",
   "Powered by AI": "Desarrollado con IA",
+
+  // ---- Validador design system: navigation tabs ----
+  "Intake": "Registro",
+  "Requirements": "Requisitos",
+  "Deliverables": "Entregables",
+  "Guest": "Invitado",
+  "Not signed in": "Sesión no iniciada",
+
+  // ---- Readiness states / status pills ----
+  "Ready For Submission": "Listo para Envío",
+  "Nearly Ready": "Casi Listo",
+  "In Progress": "En Progreso",
+  "Getting Started": "Comenzando",
+  "Confirmed": "Confirmado",
+  "Required": "Requerido",
+  "Optional": "Opcional",
+  "Ready": "Listo",
+  "Waiting": "En espera",
+  "Shareable": "Compartible",
+  "Completed": "Completados",
+  "Missing": "Faltantes",
+  "All": "Todos",
+  "To do": "Pendientes",
+  "Done": "Listos",
+
+  // ---- Intake view ----
+  "Business profile": "Perfil del negocio",
+  "Discovery": "Descubrimiento",
+  "Business basics": "Datos básicos del negocio",
+  "This applies to my business": "Esto aplica a mi negocio",
+  "This does not apply": "Esto no aplica",
+  "completed": "completado",
+  "Back": "Atrás",
+  "See my requirements": "Ver mis requisitos",
+  "Questions completed": "Preguntas completadas",
+  "Agencies identified": "Agencias identificadas",
+  "Requirements discovered": "Requisitos descubiertos",
+  "Licenses detected": "Licencias detectadas",
+  "You don't need to know everything yet.": "No necesitas saberlo todo todavía.",
+  "Anything missing is flagged later — you will always know what is next.":
+    "Lo que falte se señalará más adelante — siempre sabrás qué sigue.",
+  "Reviewing live": "Revisando en vivo",
+  "Regulatory intelligence": "Inteligencia regulatoria",
+  "Updating as you answer — like a senior compliance reviewer over your shoulder.":
+    "Se actualiza mientras respondes — como un revisor de cumplimiento experto a tu lado.",
+  "Launch readiness": "Preparación para operar",
+  "Estimated": "Estimado",
+  "Early discovery": "Descubrimiento inicial",
+  "Mid discovery": "Descubrimiento intermedio",
+  "Late discovery": "Descubrimiento avanzado",
+  "Discovery complete": "Descubrimiento completo",
+  "Agencies involved": "Agencias involucradas",
+  "Select a municipality and business type to begin.":
+    "Selecciona un municipio y tipo de negocio para comenzar.",
+  "Potential obligations": "Obligaciones potenciales",
+  "Licenses": "Licencias",
+  "detected": "detectados",
+  "Permits": "Permisos",
+  "Certifications": "Certificaciones",
+  "Registrations": "Registros",
+  "Live recommendations": "Recomendaciones en vivo",
+  "Recommendations appear as your profile takes shape.":
+    "Las recomendaciones aparecen a medida que tu perfil toma forma.",
+
+  // ---- Requirements view ----
+  "Back to intake": "Volver al registro",
+  "Your requirements": "Tus requisitos",
+  "Every license, permit, inspection, and document discovered for your business — grouped by what to do next.":
+    "Cada licencia, permiso, inspección y documento descubierto para tu negocio — agrupados por lo que debes hacer.",
+  "Missing — handle these next": "Faltan — atiende estos primero",
+  "Completed — looking good": "Completados — todo en orden",
+  "Additional Requirements Based on Your Answers": "Requisitos Adicionales Según Tus Respuestas",
+  "Undo": "Deshacer",
+  "Triggered because": "Activado porque",
+  "Recommendations": "Recomendaciones",
+  "of similar businesses required this.": "de negocios similares requirieron esto.",
+  "Focus on the missing items first.": "Concéntrate primero en los elementos faltantes.",
+  "They move your readiness score the most and unblock everything downstream.":
+    "Son los que más mejoran tu puntuación de preparación y desbloquean todo lo demás.",
+  "Continue to deliverables": "Continuar a entregables",
+
+  // ---- Deliverables view ----
+  "Documents": "Documentos",
+  "Readiness Report (PDF)": "Informe de Preparación (PDF)",
+  "Business profile & readiness score": "Perfil del negocio y puntuación de preparación",
+  "Required, uploaded & missing documents": "Documentos requeridos, subidos y faltantes",
+  "Findings & recommended next steps": "Hallazgos y próximos pasos recomendados",
+  "Submission Package (ZIP)": "Paquete de Envío (ZIP)",
+  "Report + validated documents, renamed and sorted in submission order.":
+    "Informe + documentos validados, renombrados y ordenados según el orden de envío.",
+  "Package readiness": "Preparación del paquete",
+  "documents": "documentos",
+  "Permanent, shareable link to your readiness workspace.":
+    "Enlace permanente y compartible a tu espacio de trabajo de preparación.",
+  "Profile & questionnaire responses": "Perfil y respuestas del cuestionario",
+  "Requirements & validation results": "Requisitos y resultados de validación",
+  "Renders anywhere without a login": "Se visualiza en cualquier lugar sin iniciar sesión",
+  "Need to make changes?": "¿Necesitas hacer cambios?",
+  "Go back to the checklist to upload more documents, or start a new assessment.":
+    "Vuelve a la lista para subir más documentos, o inicia una nueva evaluación.",
 };
 
 export function L(text: string | undefined | null, lang: Lang): string {
