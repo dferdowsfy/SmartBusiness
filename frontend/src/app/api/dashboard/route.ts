@@ -3,6 +3,7 @@
 //   recent activity (most recent events across the user's submissions).
 
 import { getPool, isEnabled } from "../../graph/db";
+import { ensureSchema } from "../../graph/store";
 import { getCurrentUser } from "../../../lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ export async function GET() {
   if (!isEnabled()) return Response.json({ enabled: false });
   const pool = getPool();
   if (!pool) return Response.json({ enabled: false });
+  await ensureSchema();
 
   try {
     const [bizCount, subCount, docCount, avgRow, recent, businesses] = await Promise.all([

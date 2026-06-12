@@ -162,7 +162,10 @@ CREATE OR REPLACE VIEW v_submission_comparison AS
 `;
 
 let schemaReady: Promise<void> | null = null;
-async function ensureSchema(): Promise<void> {
+// Exported so the user-account / business / snapshot / deliverable APIs can
+// guarantee their tables exist before issuing queries — even if no capture
+// event has run yet this process.
+export async function ensureSchema(): Promise<void> {
   if (!schemaReady) {
     const pool = getPool();
     schemaReady = pool ? pool.query(SCHEMA_SQL).then(() => undefined) : Promise.resolve();

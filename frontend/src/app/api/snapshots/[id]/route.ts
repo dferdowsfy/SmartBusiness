@@ -2,6 +2,7 @@
 // later. Save & Resume in its truest form.
 
 import { getPool, isEnabled } from "../../../graph/db";
+import { ensureSchema } from "../../../graph/store";
 import { getCurrentUser } from "../../../../lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
   const pool = getPool();
   if (!pool) return Response.json({ error: "no_database" }, { status: 503 });
+  await ensureSchema();
   try {
     const { rows } = await pool.query(
       `SELECT submission_id, state, updated_at, business_id

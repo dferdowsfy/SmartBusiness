@@ -8,11 +8,12 @@ interface MeUser { id: string; email: string | null; name: string | null; avatar
 // Primary navigation shared across the compliance workspace. Shows the
 // signed-in user (or a Sign-in CTA) on the right.
 export function TopNav({ active }: { active: "dashboard" | "businesses" | "history" | "graph" | "admin" }) {
+  // Knowledge Graph is an internal/admin surface — intentionally not linked
+  // from user-facing navigation. Reach it directly at /admin/knowledge-base.
   const items: { key: string; label: string; href: string }[] = [
     { key: "dashboard", label: "Dashboard", href: "/dashboard" },
     { key: "businesses", label: "My Businesses", href: "/businesses" },
     { key: "history", label: "History", href: "/history" },
-    { key: "graph", label: "Knowledge Graph", href: "/admin/knowledge-base" },
   ];
   const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
 
