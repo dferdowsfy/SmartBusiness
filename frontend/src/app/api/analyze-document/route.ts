@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { buildExtraction } from "../../documentFields";
+import { ACTIVE_JURISDICTION } from "../../jurisdictions";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "x-ai/grok-4.20";
@@ -27,63 +28,22 @@ type DocPayload = {
   business_context?: Record<string, unknown>;
 };
 
+// Jurisdiction-specific extraction hints + document classes come from the
+// active Regulatory Knowledge Pack, so this route has no hardcoded jurisdiction.
 function specializedInstructions(requirementCode: string): string {
   const req = (requirementCode || "").toLowerCase();
-  if (req.includes("ein")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (EIN Letter):
-- Treat the provided text as OCR output from an official IRS EIN confirmation letter.
-- Specifically hunt for and extract the 9-digit Employer Identification Number (EIN). It usually appears as XX-XXXXXXX (e.g. 66-1234567).
-- Prioritize placing the clean EIN into "license_or_permit_number".
-- Also extract business_name / entity_name exactly as shown.
-- Validation checks MUST include "EIN Format Valid", "EIN Found", "Business Name Match".
-- If no properly formatted EIN is present, set overall_status to "Missing Information" or "Needs Review".`;
-  }
-  if (req.includes("health") || req.includes("sanitary")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Health / Sanitary Permit):
-- Treat the provided text as OCR from a Departamento de Salud Health Permit.
-- Extract the permit number, facility name, expiration date, and any "uso"/classification.
-- Place the permit number in "permit_number".
-- Validation checks MUST include "Health Permit Number Found", "Not Expired", "Facility Name Match".`;
-  }
-  if (req.includes("fire") || req.includes("bombero")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Fire Certification):
-- Treat the provided text as OCR from a Certificado de Bomberos / Fire Safety document.
-- Extract the certificate number, business name, and expiration.
-- Place certificate number in "license_or_permit_number".
-- Validation checks MUST include "Fire Certificate Number Found", "Not Expired".`;
-  }
-  if (req.includes("permiso") || req.includes("unico")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Permiso Único):
-- Treat the provided text as OCR from an official OGPe Permiso Único.
-- Extract permit number, business name, address, expiration, and use classification.
-- Place permit number in "permit_number".
-- Validation checks MUST include "Permit Number Found", "Address Match", "Permit Active".`;
-  }
-  if (req.includes("merchant") || req.includes("registro")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Merchant Registration):
-- Treat the provided text as OCR from Hacienda Registro de Comerciante / Merchant Certificate.
-- Extract the Merchant Number (often SURI-related), business name, and address.
-- Place merchant number in "merchant_number".
-- Validation checks MUST include "Merchant Number Extracted", "Merchant Registration Found".`;
-  }
-  if (req.includes("patente")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Patente Municipal):
-- Extract the municipal account / patente number, municipality name, and business name.
-- Place the account number in "license_or_permit_number".`;
-  }
-  if (req.includes("lease")) {
-    return `SPECIALIZED INSTRUCTIONS FOR THIS UPLOAD (Lease Agreement):
-- Extract tenant name, property address, lease start/end dates, landlord.
-- Validate that the tenant roughly matches the business context.`;
+  for (const hint of ACTIVE_JURISDICTION.documentIntelligence.extractionHints) {
+    if (hint.match.some((m) => req.includes(m))) return hint.instructions;
   }
   return `GENERAL DOCUMENT INSTRUCTIONS:
 - Perform careful extraction as if performing OCR + intelligent document processing on the text.`;
 }
 
 function buildSystemPrompt(requirementCode: string): string {
+  const di = ACTIVE_JURISDICTION.documentIntelligence;
   const ocrDirective =
     "You are performing high-accuracy document intelligence as if using OCR + LLM extraction on the uploaded file text (the text may be noisy from scanning). Be extremely precise with numbers, dates, and names.";
-  return `You are an expert Puerto Rico business licensing document analyst for the SmartPR validation engine.
+  return `You are an expert ${di.analystSubject} document analyst for the ${ACTIVE_JURISDICTION.meta.productName} validation engine.
 
 ${ocrDirective}
 
@@ -100,7 +60,7 @@ ${specializedInstructions(requirementCode)}
 
 DOCUMENT CLASSIFICATION:
 Determine document_type from this list only:
-Certificate of Incorporation, Articles of Organization, IRS EIN Letter, Merchant Registration Certificate, Permiso Único, Patente Municipal, Health Permit, Fire Certification, CFPM Certificate, Professional License, Contractor License, Tourism Registration, Lease Agreement, Property Deed, Floor Plan, Insurance Certificate, Workers Compensation Certificate, Medical Waste Contract, Alcohol Permit, Environmental Permit, Sign Permit, Background Check Documentation, Business Address Documentation, Unknown
+${di.documentClasses.join(", ")}
 
 Return ONLY valid JSON (no markdown, no extra text) with this exact structure:
 {

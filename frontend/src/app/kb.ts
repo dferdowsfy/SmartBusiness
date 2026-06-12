@@ -1,36 +1,23 @@
 // ============================================================================
-// Knowledge-base adapter: wires the pure rulesEngine to the SmartPR app.
+// Knowledge-base adapter: wires the pure rulesEngine to the app.
 //
-// - Imports the KB tables (same data as the PostgreSQL knowledge base).
+// - Reads the KB tables + jurisdiction-specific mappings from the ACTIVE
+//   Regulatory Knowledge Pack (see ./jurisdictions). This file contains NO
+//   jurisdiction-specific data — swap the active pack to change jurisdictions.
 // - Translates the existing UI profile/answers into KB question answers
 //   (so the UI is unchanged — no new questionnaire).
 // - Returns requirements in the shape the existing UI already consumes.
 // ============================================================================
 
-import municipalitiesJson from "../kb/municipalities.json";
-import businessTypesJson from "../kb/business_types.json";
-import questionsJson from "../kb/questions.json";
-import documentsJson from "../kb/documents.json";
-import rulesJson from "../kb/rules.json";
+import { ACTIVE_JURISDICTION } from "./jurisdictions";
 import {
   runRulesEngine,
   type KnowledgeBase,
   type EngineInput,
   type EngineResult,
-  type KBMunicipality,
-  type KBBusinessType,
-  type KBQuestion,
-  type KBDocument,
-  type KBRule,
 } from "./rulesEngine";
 
-export const KB: KnowledgeBase = {
-  municipalities: municipalitiesJson as KBMunicipality[],
-  businessTypes: businessTypesJson as KBBusinessType[],
-  questions: questionsJson as KBQuestion[],
-  documents: documentsJson as KBDocument[],
-  rules: rulesJson as KBRule[],
-};
+export const KB: KnowledgeBase = ACTIVE_JURISDICTION.kb;
 
 // UI requirement shape (kept identical to the existing app interface, with a
 // few optional fields appended for the debug panel / engine output).
@@ -56,63 +43,10 @@ interface ProfileLike {
   [key: string]: unknown;
 }
 
-// Map KB document ids to the app's legacy requirement codes so existing
-// behavior (upload matching, submission filename ordering) is preserved.
-const LEGACY_CODE: Record<string, string> = {
-  DOC_CERT_INCORPORATION: "certificate_of_incorporation",
-  DOC_EIN: "ein_letter",
-  DOC_MERCHANT_REGISTRATION: "merchant_registration",
-  DOC_PERMISO_UNICO: "permiso_unico",
-  DOC_PATENTE_MUNICIPAL: "patente_municipal",
-  DOC_HEALTH_PERMIT: "health_permit",
-  DOC_FIRE_CERT: "fire_certification",
-  DOC_CFPM: "food_manager_cert",
-  DOC_ALCOHOL_LICENSE: "alcohol_permit",
-  DOC_LEASE_AGREEMENT: "lease_or_property_docs",
-  DOC_CONTRACTOR_LICENSE: "contractor_license",
-  DOC_CRIM_CLEARANCE: "crim_clearance",
-  DOC_PROFESSIONAL_LICENSE: "professional_licenses",
-  DOC_ENVIRONMENTAL_PERMIT: "environmental_permit",
-  DOC_TRANSPORT_PERMIT: "transportation_permit",
-  DOC_TOURISM_REGISTRATION: "tourism_registration",
-  DOC_SIGN_PERMIT: "sign_permit",
-  DOC_OUTDOOR_SEATING_AUTH: "outdoor_seating_auth",
-  DOC_ENTERTAINMENT_PERMIT: "entertainment_permit",
-  DOC_IMPORT_EXPORT_REG: "import_export_reg",
-  DOC_HOME_DECLARATION: "home_declaration",
-};
-
-// Documents treated as recommended rather than mandatory (affects scoring).
-const RECOMMENDED = new Set([
-  "DOC_INSURANCE",
-  "DOC_CRIM_CLEARANCE",
-  "DOC_SIGN_PERMIT",
-  "DOC_OUTDOOR_SEATING_AUTH",
-  "DOC_ENTERTAINMENT_PERMIT",
-  "DOC_FLOOR_PLANS",
-  "DOC_DBA_REGISTRATION",
-]);
-
-// Display order (formation/tax first, then operational permits, then the rest).
-const DOC_ORDER = [
-  "DOC_CERT_INCORPORATION",
-  "DOC_ARTICLES_ORGANIZATION",
-  "DOC_EIN",
-  "DOC_MERCHANT_REGISTRATION",
-  "DOC_SURI_REGISTRATION",
-  "DOC_PERMISO_UNICO",
-  "DOC_ZONING",
-  "DOC_PATENTE_MUNICIPAL",
-  "DOC_MUNICIPAL_REGISTRATION",
-  "DOC_MUNICIPAL_TAX_COMPLIANCE",
-  "DOC_HEALTH_PERMIT",
-  "DOC_FIRE_CERT",
-  "DOC_CFPM",
-  "DOC_ALCOHOL_LICENSE",
-  "DOC_PROFESSIONAL_LICENSE",
-  "DOC_CONTRACTOR_LICENSE",
-  "DOC_TOURISM_REGISTRATION",
-];
+// Jurisdiction-specific document mappings come from the active pack.
+const LEGACY_CODE: Record<string, string> = ACTIVE_JURISDICTION.docMappings.legacyCode;
+const RECOMMENDED = new Set(ACTIVE_JURISDICTION.docMappings.recommended);
+const DOC_ORDER = ACTIVE_JURISDICTION.docMappings.order;
 const orderIndex = (id: string) => {
   const i = DOC_ORDER.indexOf(id);
   return i === -1 ? DOC_ORDER.length + 1 : i;

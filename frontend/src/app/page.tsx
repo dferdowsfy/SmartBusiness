@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { L } from './i18n';
 import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, KB } from './kb';
+import { ACTIVE_JURISDICTION } from './jurisdictions';
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
@@ -706,48 +707,32 @@ const LOCATION_TYPES = [
   "Mixed Use Property"
 ];
 
-const MUNICIPALITIES = [
-  "Adjuntas", "Aguada", "Aguadilla", "Aguas Buenas", "Aibonito", "Añasco", "Arecibo", "Arroyo",
-  "Barceloneta", "Barranquitas", "Bayamón", "Cabo Rojo", "Caguas", "Camuy", "Canóvanas", "Carolina",
-  "Cataño", "Cayey", "Ceiba", "Ciales", "Cidra", "Coamo", "Comerío", "Corozal", "Culebra", "Dorado",
-  "Fajardo", "Florida", "Guánica", "Guayama", "Guayanilla", "Guaynabo", "Gurabo", "Hatillo",
-  "Hormigueros", "Humacao", "Isabela", "Jayuya", "Juana Díaz", "Juncos", "Lajas", "Lares", "Las Marías",
-  "Las Piedras", "Loíza", "Luquillo", "Manatí", "Maricao", "Maunabo", "Mayagüez", "Moca", "Morovis",
-  "Naguabo", "Naranjito", "Orocovis", "Patillas", "Peñuelas", "Ponce", "Quebradillas", "Rincón",
-  "Río Grande", "Sabana Grande", "Salinas", "San Germán", "San Juan", "San Lorenzo", "San Sebastián",
-  "Santa Isabel", "Toa Alta", "Toa Baja", "Trujillo Alto", "Utuado", "Vega Alta", "Vega Baja", "Vieques",
-  "Villalba", "Yabucoa", "Yauco"
-];
+// Geographic subdivisions come from the active jurisdiction's knowledge base.
+// No hardcoded town/county lists live in the UI anymore.
+const MUNICIPALITIES = KB.municipalities.map((m) => m.name);
 
 // ====================================================================
-// MUNICIPALITY RULES ENGINE
-// Base municipal rules apply to all 78 municipalities; municipality flags
-// (coastal/tourism/historic/metro/island) drive conditional notices that
-// combine with industry, business-type, and trigger rules. One engine —
-// not 78 — per the design.
+// GEO FLAG LOOKUP
+// Base rules apply to all subdivisions; geo flags (e.g. coastal/tourism/
+// historic/metro/island for Puerto Rico) drive conditional notices that
+// combine with industry, business-type, and trigger rules. Flags are KB data,
+// so a new jurisdiction defines its own subdivisions and flags — no code edit.
 // ====================================================================
-const COASTAL_MUNICIPALITIES = new Set([
-  'Aguada', 'Aguadilla', 'Añasco', 'Arecibo', 'Arroyo', 'Cabo Rojo', 'Camuy', 'Carolina',
-  'Ceiba', 'Culebra', 'Dorado', 'Fajardo', 'Guánica', 'Guayama', 'Guayanilla', 'Hatillo',
-  'Humacao', 'Isabela', 'Loíza', 'Luquillo', 'Manatí', 'Maunabo', 'Mayagüez', 'Naguabo',
-  'Patillas', 'Peñuelas', 'Quebradillas', 'Rincón', 'Río Grande', 'Salinas', 'Toa Baja',
-  'Vega Alta', 'Vega Baja', 'Vieques', 'Yabucoa',
-]);
-const TOURISM_MUNICIPALITIES = new Set([
-  'San Juan', 'Rincón', 'Vieques', 'Culebra', 'Dorado', 'Fajardo', 'Río Grande', 'Luquillo',
-  'Cabo Rojo', 'Isabela', 'Aguadilla', 'Mayagüez', 'Humacao',
-]);
-const HISTORIC_MUNICIPALITIES = new Set(['San Juan', 'Ponce', 'San Germán', 'Mayagüez']);
-const METRO_MUNICIPALITIES = new Set(['San Juan', 'Bayamón', 'Carolina', 'Guaynabo', 'Caguas', 'Ponce']);
-const ISLAND_MUNICIPALITIES = new Set(['Vieques', 'Culebra']);
+function municipalityFlagSet(name: string): Set<string> {
+  const m = KB.municipalities.find(
+    (x) => x.name.toLowerCase() === (name || '').toLowerCase()
+  );
+  return new Set<string>(m ? (m.flags as string[]) : []);
+}
 
 function municipalityFlags(name: string) {
+  const f = municipalityFlagSet(name);
   return {
-    coastal: COASTAL_MUNICIPALITIES.has(name),
-    tourism: TOURISM_MUNICIPALITIES.has(name),
-    historic: HISTORIC_MUNICIPALITIES.has(name),
-    metro: METRO_MUNICIPALITIES.has(name),
-    island: ISLAND_MUNICIPALITIES.has(name),
+    coastal: f.has('coastal'),
+    tourism: f.has('tourism'),
+    historic: f.has('historic'),
+    metro: f.has('metro'),
+    island: f.has('island'),
   };
 }
 
@@ -2527,8 +2512,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <Building2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <div className="font-semibold text-xl tracking-tight text-[#0A2540]">SmartPR</div>
-              <div className="text-[10px] text-[#0A2540]/60 -mt-1">Puerto Rico Business Licensing Readiness</div>
+              <div className="font-semibold text-xl tracking-tight text-[#0A2540]">{ACTIVE_JURISDICTION.meta.productName}</div>
+              <div className="text-[10px] text-[#0A2540]/60 -mt-1">{L(ACTIVE_JURISDICTION.meta.tagline, language)}</div>
             </div>
           </div>
           
