@@ -2713,9 +2713,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="uname">{me?.name || (me ? me.email : L('Guest', language))}</div>
                 <div className="uemail">{me?.email || L('Not signed in', language)}</div>
               </div>
-              <a className="uitem" href="/dashboard"><Building2 className="i" /> {L('Dashboard', language)}</a>
-              <a className="uitem" href="/businesses"><Landmark className="i" /> {L('My Businesses', language)}</a>
-              <a className="uitem" href="/history"><RefreshCw className="i" /> {L('History', language)}</a>
               {me === null && <a className="uitem" href="/auth/login"><ExternalLink className="i" /> {L('Sign in', language)}</a>}
               {me && <a className="uitem" href="/auth/signout"><ExternalLink className="i" /> {L('Sign out', language)}</a>}
             </div>

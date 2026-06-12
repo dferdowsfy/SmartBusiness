@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 async function handle(req: NextRequest) {
   const sb = await createSupabaseServer();
   if (sb) await sb.auth.signOut();
-  return NextResponse.redirect(new URL("/", req.url));
+  return NextResponse.redirect(new URL("/auth/login", req.url));
 }
 export const GET = handle;
 export const POST = handle;
