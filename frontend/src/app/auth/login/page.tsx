@@ -19,6 +19,10 @@ function LoginInner() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  // True after a signUp call returns no session — i.e. the project has
+  // email confirmation enabled and we're waiting on the user's inbox.
+  const [needsConfirm, setNeedsConfirm] = useState<string | null>(null);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "rate_limited">("idle");
 
   if (!isAuthConfigured()) {
     return (
@@ -52,9 +56,10 @@ function LoginInner() {
         if (error) { setErr(error.message); return; }
         // If the Supabase project has email confirmation disabled, signUp
         // returns an active session and we can go straight in. Otherwise the
-        // user must click the confirmation link in their inbox.
+        // user must click the confirmation link in their inbox — surface a
+        // dedicated confirm-pending state with a Resend button.
         if (data.session) router.push(nextPath);
-        else setInfo("Account created. Check your email to confirm and finish signing in.");
+        else setNeedsConfirm(email);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) { setErr(error.message); return; }
@@ -66,6 +71,62 @@ function LoginInner() {
       setBusy(false);
     }
   };
+
+  const resend = async () => {
+    if (!needsConfirm) return;
+    setResendState("sending");
+    const { error } = await supabase.auth.resend({
+      type: "signup", email: needsConfirm, options: { emailRedirectTo },
+    });
+    if (error) {
+      setResendState(/rate.?limit/i.test(error.message) ? "rate_limited" : "idle");
+      setErr(error.message);
+    } else {
+      setResendState("sent");
+      setErr(null);
+    }
+  };
+
+  // If sign-up succeeded but Supabase is waiting on email confirmation,
+  // dedicate the whole panel to that state — it's the only thing the user
+  // can do next, and they need a way out (resend, switch to sign-in).
+  if (needsConfirm) {
+    return (
+      <div className="max-w-md mx-auto mt-12 bg-white border border-slate-200 rounded-2xl p-7">
+        <h1 className="text-2xl font-bold text-[#0A2540]">Confirm your email</h1>
+        <p className="text-sm text-[#0A2540]/70 mt-2">
+          We sent a confirmation link to <span className="font-semibold">{needsConfirm}</span>.
+          Click it to finish creating your account, then come back and sign in.
+        </p>
+
+        <div className="mt-5 space-y-2">
+          <button onClick={resend} disabled={resendState === "sending"}
+            className="w-full border border-slate-300 rounded-lg py-2 text-sm font-medium text-[#0A2540] hover:bg-slate-50 disabled:opacity-50">
+            {resendState === "sending" ? "Resending…"
+              : resendState === "sent" ? "✓ Confirmation resent"
+              : resendState === "rate_limited" ? "Rate limit — try again later"
+              : "Resend confirmation email"}
+          </button>
+          <button onClick={() => { setNeedsConfirm(null); setMode("signin"); setResendState("idle"); setErr(null); }}
+            className="w-full bg-[#0A2540] text-white rounded-lg py-2 text-sm font-medium">
+            I&apos;ve confirmed — sign in
+          </button>
+        </div>
+
+        {err && <div className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</div>}
+
+        <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <div className="font-semibold mb-1">Email not arriving?</div>
+          Supabase&apos;s default email service is rate-limited and best for testing. To skip confirmation entirely, an admin can turn off
+          {" "}<span className="font-mono">Confirm email</span> in Supabase → Authentication → Providers → Email.
+        </div>
+
+        <button onClick={() => router.push("/")} className="text-xs text-[#0A2540]/60 hover:text-[#0A2540] mt-5 block mx-auto">
+          Continue without an account →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto mt-12 bg-white border border-slate-200 rounded-2xl p-7">
