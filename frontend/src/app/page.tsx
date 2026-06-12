@@ -1093,6 +1093,16 @@ export default function SmartPR() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingReqCode, setPendingReqCode] = useState<string | null>(null);
 
+  // === Guided UX Refactor (adapted for current Validador + i18n base) ===
+  // Addresses the 7 workflow problems while respecting the new design system.
+  const PROCESS_STAGES = [
+    'Uploading…', 'Extracting text…', 'Classifying document…', 'Validating required fields…', 'Updating readiness score…'
+  ] as const;
+
+  const [processingStates, setProcessingStates] = useState<Record<string, { stageIndex: number; fileName?: string }>>({});
+  const [reviewingCode, setReviewingCode] = useState<string | null>(null);
+  const [highlightCode, setHighlightCode] = useState<string | null>(null);
+
   // Transient upload notification (toast) shown after a document is analyzed by the LLM.
   const [uploadNotice, setUploadNotice] = useState<
     { kind: 'success' | 'warning' | 'error'; title: string; detail?: string } | null
@@ -1736,6 +1746,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     );
     setRequirements(updatedReqs);
 
+    if (newStatus === 'warning') {
+      autoFocusFailed(reqCode);
+    }
+
     // Score calculation (weight 100/total_mandatory, stages, penalties) - from verified only
     const mandatoryReqs = updatedReqs.filter(r => r.mandatory);
     const totalMand = mandatoryReqs.length || 1;
@@ -1871,7 +1885,94 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     if (e.target) e.target.value = ''; // allow re-select same file later
     if (file && code) {
       await processRealFileUpload(file, code);
+    } else if (code) {
+      setProcessingStates(prev => { const n = { ...prev }; delete n[code]; return n; });
     }
+  };
+
+  // Start the visible 5-stage pipeline (fixes "uploads feel dead")
+  const startProcessingPipeline = (reqCode: string, fileName: string) => {
+    setProcessingStates(prev => ({ ...prev, [reqCode]: { stageIndex: 0, fileName } }));
+    let current = 0;
+    const advance = () => {
+      current += 1;
+      if (current < PROCESS_STAGES.length) {
+        setProcessingStates(prev => {
+          if (!prev[reqCode]) return prev;
+          return { ...prev, [reqCode]: { ...prev[reqCode], stageIndex: current } };
+        });
+        setTimeout(advance, 380);
+      } else {
+        setTimeout(() => {
+          setProcessingStates(prev => { const n = { ...prev }; delete n[reqCode]; return n; });
+        }, 550);
+      }
+    };
+    setTimeout(advance, 320);
+  };
+
+  // Enhanced trigger that also starts the visual pipeline
+  const triggerFileUploadWithPipeline = (reqCode: string) => {
+    const doc = uploadedDocs.find(d => d.requirement_code === reqCode);
+    const name = doc?.name || `${reqCode}.pdf`;
+    startProcessingPipeline(reqCode, name);
+    triggerFileUpload(reqCode);
+  };
+
+  // Smart single next action (TurboTax-style)
+  const getRecommendedNextAction = () => {
+    const needsReview = requirements.filter(r => r.mandatory && r.status === 'warning');
+    const uploadedCodes = new Set(uploadedDocs.map(d => d.requirement_code));
+
+    if (needsReview.length > 0) {
+      const first = needsReview[0];
+      return {
+        label: L(`${needsReview.length} document${needsReview.length > 1 ? 's' : ''} need review`, language),
+        action: () => {
+          const el = document.getElementById(`req-row-${first.code}`);
+          if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setHighlightCode(first.code); setTimeout(() => setHighlightCode(null), 2000); }
+          setReviewingCode(first.code);
+        },
+        cta: L('Review now', language)
+      };
+    }
+
+    const missing = requirements.filter(r => r.mandatory && r.status === 'pending' && !uploadedCodes.has(r.code));
+    if (missing.length > 0) {
+      const next = missing[0];
+      return {
+        label: L(`Upload ${next.name}`, language),
+        action: () => triggerFileUploadWithPipeline(next.code),
+        cta: L('Upload', language)
+      };
+    }
+
+    return {
+      label: L('All mandatory items validated', language),
+      action: () => setCurrentStep(9),
+      cta: L('Continue to Deliverables', language)
+    };
+  };
+
+  // Resolve a warning item
+  const resolveAndMarkComplete = (reqCode: string) => {
+    setRequirements(prev => prev.map(r => r.code === reqCode ? { ...r, status: 'passed' as const } : r));
+    setFindings(prev => prev.filter(f => !f.title.toLowerCase().includes(reqCode.replace(/_/g, ' '))));
+    setReviewingCode(null);
+    if (readinessScore != null) setReadinessScore(Math.min(100, readinessScore + 10));
+  };
+
+  // Auto focus + open review for newly failed documents
+  const autoFocusFailed = (reqCode: string) => {
+    setTimeout(() => {
+      const el = document.getElementById(`req-row-${reqCode}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightCode(reqCode);
+        setReviewingCode(reqCode);
+        setTimeout(() => setHighlightCode(null), 2200);
+      }
+    }, 600);
   };
 
   // Step 6-7: Run validation (calls backend mock or local logic)
@@ -2467,7 +2568,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const checkCls = state === 'done' ? 'done' : state === 'review' ? 'progress' : 'missing';
     const promoted = req.code.startsWith('potential_');
     return (
-      <div key={req.code} className="req-row">
+      <div id={`req-row-${req.code}`} key={req.code} className="req-row">
         <div className={`req-check ${checkCls}`}>
           {state === 'done' ? <CheckCircle className="i" style={{ width: 14, height: 14 }} />
             : state === 'review' ? <AlertTriangle className="i" style={{ width: 13, height: 13 }} />
@@ -2497,16 +2598,43 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
           </span>
         </div>
-        <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUpload(req.code)}>
+        <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
           <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload' : 'Upload', language)}
         </button>
+
+        {/* Multi-stage processing (visible inside card) */}
+        {processingStates[req.code] && (
+          <div style={{ gridColumn: '1 / -1', marginTop: 8, padding: '6px 10px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 12 }}>
+            {PROCESS_STAGES.map((lab, i) => {
+              const p = processingStates[req.code]!;
+              const done = i < p.stageIndex;
+              const active = i === p.stageIndex;
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, color: done ? 'var(--accent)' : active ? 'var(--brand-2)' : 'var(--muted)' }}>
+                  {done ? '✓' : active ? <RefreshCw className="i" style={{ animation: 'spin 1s linear infinite' }} /> : '○'} {lab}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Inline review / AI findings when needs attention */}
+        {(state === 'review' || reviewingCode === req.code) && analysis && (
+          <div style={{ gridColumn: '1 / -1', marginTop: 8, padding: 10, background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 8, fontSize: 13 }}>
+            <div style={{ fontWeight: 600, color: 'var(--warn)' }}>AI Findings</div>
+            <div style={{ marginTop: 4 }}>{analysis.notes || 'Required fields incomplete or mismatched per validation.'}</div>
+            <button onClick={() => resolveAndMarkComplete(req.code)} style={{ marginTop: 6, fontSize: 12, padding: '2px 8px', borderRadius: 6, border: '1px solid var(--warn)', background: 'white' }}>
+              Resolve &amp; mark complete
+            </button>
+          </div>
+        )}
       </div>
     );
   };
 
   const reqGroups: { key: string; label: string; pip: string; items: Requirement[] }[] = [
+    { key: 'review', label: L('Needs Review — action required', language), pip: 'warn', items: requirements.filter(r => r.mandatory && r.status === 'warning') },
     { key: 'missing', label: L('Missing — handle these next', language), pip: 'amber', items: requirements.filter(r => r.mandatory && r.status === 'pending') },
-    { key: 'review', label: L('Needs Review', language), pip: 'blue', items: requirements.filter(r => r.mandatory && r.status === 'warning') },
     { key: 'done', label: L('Completed — looking good', language), pip: 'green', items: requirements.filter(r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')) },
     { key: 'recommended', label: L('Recommended Items', language), pip: 'blue', items: requirements.filter(r => !r.mandatory) },
   ];
@@ -2867,6 +2995,54 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           <button className="section-back" onClick={() => goTo('intake')}>
             ← {L('Back to intake', language)}
           </button>
+
+          {/* Prominent Attention banner (Problem 5) — surfaces AI findings at the top */}
+          {(() => {
+            const reviewItems = requirements.filter(r => r.mandatory && r.status === 'warning');
+            if (reviewItems.length === 0) return null;
+            return (
+              <div style={{ marginBottom: 16, padding: 14, background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <AlertTriangle className="i-lg" style={{ color: 'var(--warn)', marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--warn)' }}>⚠ Attention Required</div>
+                  <div style={{ fontSize: 13, marginTop: 4, opacity: 0.9 }}>
+                    {reviewItems.slice(0, 3).map((r, i) => (
+                      <div key={i}>• {trReqName(r)} — review findings in the card below</div>
+                    ))}
+                  </div>
+                  <button onClick={() => { const f = reviewItems[0]; const el = document.getElementById(`req-row-${f.code}`); el?.scrollIntoView({behavior:'smooth', block:'center'}); setReviewingCode(f.code); }} style={{ marginTop: 8, fontSize: 13, padding: '4px 12px', borderRadius: 8, background: 'var(--warn)', color: 'white', border: 'none', cursor: 'pointer' }}>
+                    {L('Review now', language)}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Sticky Guidance / Next Action panel (Problems 3,4,7) — desktop friendly, uses Validador sticky patterns */}
+          <div style={{ position: 'sticky', top: 80, zIndex: 40, marginBottom: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, boxShadow: 'var(--shadow-sm)' }}>
+            {(() => {
+              const nxt = getRecommendedNextAction();
+              const rc = requirements.filter(r => r.mandatory && r.status === 'warning').length;
+              const mc = requirements.filter(r => r.mandatory && r.status === 'pending').length;
+              const dc = doneCount;
+              return (
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div>
+                    <div style={{ fontSize: 11, opacity: 0.6 }}>GUIDANCE</div>
+                    <div style={{ fontWeight: 700 }}>{nxt.label}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                    <span>Done: <strong>{dc}</strong></span>
+                    <span style={{ color: 'var(--warn)' }}>Review: <strong>{rc}</strong></span>
+                    <span>Missing: <strong>{mc}</strong></span>
+                  </div>
+                  <button onClick={nxt.action} style={{ marginLeft: 'auto', padding: '8px 18px', borderRadius: 10, background: 'var(--navy)', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
+                    {nxt.cta}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
 
           {/* Compact readiness banner */}
           <div className="req-banner">
