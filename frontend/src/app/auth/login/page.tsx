@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createSupabaseBrowser, isAuthConfigured } from "../../../lib/supabase/client";
+import { authRedirectUrl } from "../../../lib/siteUrl";
 
 function LoginInner() {
   const sp = useSearchParams();
@@ -27,9 +28,10 @@ function LoginInner() {
   }
 
   const supabase = createSupabaseBrowser();
-  const redirectTo = typeof window !== "undefined"
-    ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
-    : undefined;
+  // Single source of truth — never derive from window.location.origin because
+  // the magic-link URL is embedded in an outbound email and must be a
+  // fully-qualified, deterministic production URL.
+  const redirectTo = authRedirectUrl(nextPath);
 
   const sendMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
