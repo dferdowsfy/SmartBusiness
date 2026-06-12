@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS document_validations (
   business_type TEXT, document_type TEXT NOT NULL, validation_result TEXT, pass_fail BOOLEAN,
   confidence NUMERIC(5,2), expiration_status TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE INDEX IF NOT EXISTS idx_docval_result ON document_validations (validation_result);
+ALTER TABLE document_validations ADD COLUMN IF NOT EXISTS extracted_fields JSONB;
+ALTER TABLE document_validations ADD COLUMN IF NOT EXISTS fields_found JSONB;
+ALTER TABLE document_validations ADD COLUMN IF NOT EXISTS fields_missing JSONB;
 CREATE TABLE IF NOT EXISTS readiness_scores (
   id BIGSERIAL PRIMARY KEY, submission_id UUID REFERENCES submissions(id) ON DELETE CASCADE,
   business_type TEXT, score INTEGER, status TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
@@ -127,11 +130,15 @@ async function captureSubmission(c: PoolClient, e: SubmissionEvent): Promise<voi
 async function captureValidation(c: PoolClient, e: ValidationEvent): Promise<void> {
   await c.query(
     `INSERT INTO document_validations
-       (submission_id, business_type, document_type, validation_result, pass_fail, confidence, expiration_status)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+       (submission_id, business_type, document_type, validation_result, pass_fail,
+        confidence, expiration_status, extracted_fields, fields_found, fields_missing)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [
       sub(e.submission_id), e.business_type ?? null, e.document_type, e.validation_result,
       e.pass_fail, e.confidence, e.expiration_status,
+      e.extracted_fields ? JSON.stringify(e.extracted_fields) : null,
+      e.fields_found ? JSON.stringify(e.fields_found) : null,
+      e.fields_missing ? JSON.stringify(e.fields_missing) : null,
     ]
   );
 }

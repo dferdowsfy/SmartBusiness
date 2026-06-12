@@ -7,6 +7,7 @@ import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
 import { potentialItemsForFlags, type PotentialDef } from './potentialRequirements';
+import { buildExtraction, type ExtractionResult } from './documentFields';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { 
@@ -775,6 +776,57 @@ function ReqReasons({ enr, language }: { enr: EnrichedRequirement; language: any
   );
 }
 
+// Extraction-first results panel for an uploaded document. Replaces generic
+// "needs review / missing information" messages with concrete Fields Found /
+// Fields Missing / Validation Result / Confidence / Reasoning.
+function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; docType: string; language: any }) {
+  const vr = ext.validation_result;
+  const vrColor = vr === 'PASS' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : vr === 'FAIL' ? 'bg-red-100 text-red-800 border-red-200'
+    : 'bg-amber-100 text-amber-800 border-amber-200';
+  const vrLabel = vr === 'PASS' ? L('Pass', language) : vr === 'FAIL' ? L('Fail', language) : L('Needs Review', language);
+  return (
+    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs">
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        <span className="font-semibold text-[#0A2540]">{L('Classified as', language)}:</span>
+        <span className="text-[#0A2540]">{docType}</span>
+        <span className={`rounded-full border px-2 py-0.5 font-semibold ${vrColor}`}>{L('Validation Result', language)}: {vrLabel}</span>
+        <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[#0A2540]/80">{L('Confidence Score', language)}: {ext.classification_confidence}%</span>
+      </div>
+
+      {ext.fields_found.length > 0 && (
+        <div className="mb-1.5">
+          <div className="font-semibold text-emerald-700 mb-1">{L('Fields Found', language)}:</div>
+          <div className="flex flex-col gap-0.5">
+            {ext.fields_found.map((f, i) => (
+              <div key={i} className="flex gap-2">
+                <span className="text-[#0A2540]/60 min-w-[140px]">{L(f.label, language)}</span>
+                <span className="text-[#0A2540] font-medium break-all">{f.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {ext.fields_missing.length > 0 && (
+        <div className="mb-1.5">
+          <div className="font-semibold text-red-700 mb-1">{L('Fields Missing', language)}:</div>
+          <div className="flex flex-wrap gap-1.5">
+            {ext.fields_missing.map((f, i) => (
+              <span key={i} className="rounded-full bg-red-50 border border-red-200 text-red-700 px-2 py-0.5">{L(f.label, language)}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <span className="font-semibold text-[#0A2540]">{L('Reasoning', language)}:</span>{' '}
+        <span className="text-[#0A2540]/80">{ext.reasoning}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function SmartPR() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [profile, setProfile] = useState<BusinessProfile>({
@@ -1426,18 +1478,29 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       else if (/insurance|seguro/.test(lower)) docType = 'Insurance Certificate';
       else if (/alcohol|licor|bebidas/.test(lower)) docType = 'Alcohol Permit';
 
+      const fbExtraction = buildExtraction(docType, extracted, 0.65, { businessName: profile.name || null });
       analysis = {
         document_type: docType,
         confidence: 0.65,
         extracted,
-        validation_checks: [
-          { check: "Business Name Match", result: "pass", details: "Matched to profile context" },
-          { check: "Required Fields Present", result: "pass", details: "From uploaded file" },
-          { check: "Not Expired", result: "warning", details: "Verify date" }
-        ],
-        overall_status: docType === 'Unknown' ? 'Needs Review' : 'Complete',
-        notes: `Processed uploaded file "${filename}" using AI document intelligence.`
+        extraction: fbExtraction,
+        validation_checks: [],
+        overall_status:
+          fbExtraction.validation_result === 'PASS' ? 'Complete'
+          : fbExtraction.validation_result === 'FAIL' ? 'Missing Information'
+          : 'Needs Review',
+        notes: fbExtraction.reasoning,
       };
+    }
+
+    // Ensure an extraction object always exists (older responses / safety).
+    if (analysis && !analysis.extraction) {
+      analysis.extraction = buildExtraction(
+        analysis.document_type || 'Unknown',
+        analysis.extracted || extracted,
+        typeof analysis.confidence === 'number' ? analysis.confidence : 0.5,
+        { businessName: profile.name || null }
+      );
     }
 
     const newDoc = {
@@ -1476,32 +1539,26 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       const doc = newUploaded.find(d => d.requirement_code === req.code);
       if (!doc || !doc.ai_analysis) return;
       const a = doc.ai_analysis;
-      const checks = a.validation_checks || [];
-
+      // Extraction-first scoring: the readiness contribution is driven by the
+      // structured extraction result (fields found vs. required), not by
+      // generic statuses.
+      const ext: ExtractionResult | undefined = a.extraction;
       let stage = 0;
-      const hasId = a.document_type && a.document_type !== 'Unknown';
-      const hasExtract = a.extracted && Object.values(a.extracted).some((v: any) => v);
-      const isVerified = (a.overall_status === 'Complete' || a.overall_status === 'Verified') &&
-                         checks.every((c: any) => c.result === 'pass' || !(c.check.includes('Match') || c.check.includes('Expired')));
+      if (ext) {
+        if (ext.validation_result === 'PASS') stage = 1.0;
+        else if (ext.validation_result === 'NEEDS_REVIEW') stage = 0.6;
+        else stage = ext.fields_found.length > 0 ? 0.3 : 0; // FAIL: partial credit for any extraction
+      } else {
+        const hasId = a.document_type && a.document_type !== 'Unknown';
+        const hasExtract = a.extracted && Object.values(a.extracted).some((v: any) => v);
+        stage = hasExtract ? 0.5 : hasId ? 0.25 : 0;
+      }
 
-      if (isVerified) stage = 1.0;
-      else if (hasExtract) stage = 0.5;
-      else if (hasId) stage = 0.25;
+      score += stage * weight;
 
-      let contrib = stage * weight;
-
-      const nameMismatch = checks.some((c: any) => c.check.includes('Name') && c.result !== 'pass');
-      const addrMismatch = checks.some((c: any) => c.check.includes('Address') && c.result !== 'pass');
-      const expired = checks.some((c: any) => c.check.includes('Expired') && c.result !== 'pass') ||
-                      (a.extracted?.expiration_date && new Date(a.extracted.expiration_date) < new Date());
-      const missingKey = checks.some((c: any) => (c.check.includes('Permit') || c.check.includes('Number') || c.check.includes('License')) && c.result !== 'pass');
-
-      if (expired) penalties += weight;
-      if (nameMismatch) penalties += 0.5 * weight;
-      if (addrMismatch) penalties += 0.25 * weight;
-      if (missingKey) penalties += 0.25 * weight;
-
-      score += contrib;
+      // Penalties for concrete extracted problems.
+      if (ext?.expiration_status === 'Expired') penalties += weight;
+      if (ext && ext.fields_missing.length > 0) penalties += 0.25 * weight;
     });
 
     score = Math.max(0, Math.min(100, Math.round(score - penalties)));
@@ -1509,21 +1566,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     // --- Knowledge-graph capture: document validation + readiness ---
     try {
-      const expDate = analysis?.extracted?.expiration_date;
-      const expirationStatus: 'Valid' | 'Expired' | 'Unknown' = expDate
-        ? (new Date(expDate) < new Date() ? 'Expired' : 'Valid')
-        : 'Unknown';
+      const ext: ExtractionResult | undefined = analysis?.extraction;
       const validationResult: 'PASS' | 'NEEDS_REVIEW' | 'FAIL' =
-        newStatus === 'passed' ? 'PASS' : newStatus === 'warning' ? 'NEEDS_REVIEW' : 'NEEDS_REVIEW';
+        ext?.validation_result || (newStatus === 'passed' ? 'PASS' : 'NEEDS_REVIEW');
       captureEvent({
         kind: 'validation',
         submission_id: submissionIdRef.current,
         business_type: profile.business_type || null,
         document_type: analysis?.document_type || reqCode,
         validation_result: validationResult,
-        pass_fail: newStatus === 'passed',
-        confidence: Math.round((analysis?.confidence || 0) * 100),
-        expiration_status: expirationStatus,
+        pass_fail: validationResult === 'PASS',
+        confidence: ext ? ext.classification_confidence : Math.round((analysis?.confidence || 0) * 100),
+        expiration_status: ext?.expiration_status || 'Unknown',
+        extracted_fields: analysis?.extracted || undefined,
+        fields_found: ext?.fields_found.map(f => f.label),
+        fields_missing: ext?.fields_missing.map(f => f.label),
       });
 
       const missingDocuments = updatedReqs
@@ -1579,18 +1636,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           ? `${llmError}. ${L('Add OPENROUTER_API_KEY in your environment to enable AI analysis.', language)}`
           : L('AI analysis unavailable. Using basic classification.', language),
       });
-    } else if (newStatus === 'passed') {
-      setUploadNotice({
-        kind: 'success',
-        title: `✓ ${reqLabel} ${L('passed', language)}`,
-        detail: `${L('AI verified', language)} ${analysis.document_type}. ${L('Readiness score updated.', language)}`,
-      });
     } else {
-      setUploadNotice({
-        kind: 'warning',
-        title: `${reqLabel} ${L('needs review', language)}`,
-        detail: analysis.notes || `${L('AI analyzed', language)} ${analysis.document_type} ${L("but couldn't fully verify it.", language)}`,
-      });
+      // Specific, extraction-first toast: counts of fields found/missing.
+      const ext: ExtractionResult | undefined = analysis?.extraction;
+      const found = ext?.fields_found.length ?? 0;
+      const missing = ext?.fields_missing.length ?? 0;
+      const vr = ext?.validation_result;
+      const detail = `${found} ${L('fields found', language)}${missing ? `, ${missing} ${L('required missing', language)}` : ''} · ${analysis.document_type}`;
+      if (vr === 'PASS') {
+        setUploadNotice({ kind: 'success', title: `✓ ${reqLabel} — ${L('Pass', language)}`, detail });
+      } else if (vr === 'FAIL') {
+        setUploadNotice({ kind: 'warning', title: `${reqLabel} — ${L('Fields Missing', language)}`, detail });
+      } else {
+        setUploadNotice({ kind: 'warning', title: `${reqLabel} — ${L('Needs Review', language)}`, detail });
+      }
     }
 
     setIsLoading(false);
@@ -2092,24 +2151,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const renderReqRow = (req: Requirement, idx: number) => {
     const doc = uploadedDocs.find(d => d.requirement_code === req.code);
     const analysis = doc?.ai_analysis;
+    const ext: ExtractionResult | undefined = analysis?.extraction;
     let icon = <div className="w-4 h-4 rounded-full border-2 border-[#0A2540]/30 mt-0.5 flex-shrink-0" />;
-    let extra = '';
-    if (analysis) {
-      const st = analysis.overall_status;
-      const conf = Math.round((analysis.confidence || 0) * 100);
-      if (st === 'Complete') {
-        icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
-        extra = ` ✓ ${L('Complete', language)} (${L('conf', language)} ${conf}%)`;
-      } else if (st === 'Needs Review' || st === 'Missing Information') {
-        icon = <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />;
-        extra = ` ⚠ ${L(st, language)}`;
-      } else if (st === 'Mismatch' || st === 'Expired') {
-        icon = <span className="text-red-600 mt-0.5 flex-shrink-0">✕</span>;
-        extra = ` ✕ ${L(st, language)}`;
-      } else {
-        icon = <span className="text-yellow-600 mt-0.5 flex-shrink-0">◐</span>;
-        extra = ` ◐ ${L(st, language)}`;
-      }
+    if (ext) {
+      if (ext.validation_result === 'PASS') icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
+      else if (ext.validation_result === 'NEEDS_REVIEW') icon = <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />;
+      else icon = <span className="text-red-600 mt-0.5 flex-shrink-0 font-bold">✕</span>;
     } else if (req.status === 'uploaded' || req.status === 'passed') {
       icon = <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />;
     }
@@ -2119,8 +2166,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1">
             {icon}
-            <div className="min-w-0">
-              <div className="font-medium text-[#0A2540]">{trReqName(req)}{extra}</div>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-[#0A2540]">{trReqName(req)}</div>
               <div className="text-xs text-[#0A2540]/70 mt-0.5">
                 <span className="font-semibold">{L(req.agency, language)}</span> • {promoted ? L('Confirmed — applies', language) : req.mandatory ? L('Mandatory', language) : L('Recommended', language)}
               </div>
@@ -2128,13 +2175,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               {req.document_id && reasonsByDoc[req.document_id] && (
                 <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
               )}
+              {ext && analysis && (
+                <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
+              )}
             </div>
           </div>
           <button
             onClick={() => triggerFileUpload(req.code)}
             className="text-xs px-3 py-1.5 rounded-full border border-[#0A2540] text-[#0A2540] hover:bg-[#0A2540] hover:text-white flex items-center gap-1 flex-shrink-0"
           >
-            <Upload className="w-3.5 h-3.5" /> {L('Upload', language)}
+            <Upload className="w-3.5 h-3.5" /> {L(doc ? 'Re-upload' : 'Upload', language)}
           </button>
         </div>
       </div>

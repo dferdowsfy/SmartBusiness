@@ -43,6 +43,10 @@ export interface ValidationEvent {
   pass_fail: boolean;
   confidence: number;          // 0..100
   expiration_status: "Valid" | "Expired" | "Unknown";
+  // Extraction-first details (all optional for backward compatibility).
+  extracted_fields?: Record<string, string | null>;
+  fields_found?: string[];
+  fields_missing?: string[];
 }
 
 // Emitted when the readiness score is (re)computed.
