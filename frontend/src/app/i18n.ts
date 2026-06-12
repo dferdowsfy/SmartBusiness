@@ -8,6 +8,18 @@
 export type Lang = "en" | "es";
 
 export const ES: Record<string, string> = {
+  // ---- Extraction-first document validation ----
+  "Classified as": "Clasificado como",
+  "Validation Result": "Resultado de Validación",
+  "Confidence Score": "Puntuación de Confianza",
+  "Fields Found": "Campos Encontrados",
+  "Fields Missing": "Campos Faltantes",
+  "Reasoning": "Razonamiento",
+  "Pass": "Aprobado",
+  "Fail": "Falla",
+  "Re-upload": "Volver a subir",
+  "fields found": "campos encontrados",
+  "required missing": "requeridos faltantes",
   // ---- Relationship engine / potential requirements ----
   "Mandatory Required Items": "Documentos Obligatorios",
   "Potentially Required Items": "Documentos Posiblemente Requeridos",

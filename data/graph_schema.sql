@@ -62,6 +62,9 @@ CREATE TABLE IF NOT EXISTS document_validations (
   pass_fail         BOOLEAN,
   confidence        NUMERIC(5,2),              -- 0..100
   expiration_status TEXT,                      -- Valid | Expired | Unknown
+  extracted_fields  JSONB,                     -- all candidate fields extracted
+  fields_found      JSONB,                     -- labels of fields present
+  fields_missing    JSONB,                     -- labels of required fields absent
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_docval_doc    ON document_validations (document_type);

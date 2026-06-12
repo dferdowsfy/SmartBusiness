@@ -12,6 +12,8 @@ export const runtime = "nodejs";
 // Never statically optimize/cache this handler.
 export const dynamic = "force-dynamic";
 
+import { buildExtraction } from "../../documentFields";
+
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "x-ai/grok-4.20";
 const OPENROUTER_BASE_URL =
@@ -84,6 +86,15 @@ function buildSystemPrompt(requirementCode: string): string {
   return `You are an expert Puerto Rico business licensing document analyst for the SmartPR validation engine.
 
 ${ocrDirective}
+
+EXTRACTION-FIRST MANDATE:
+Your PRIMARY job is field extraction, not judgement. Exhaustively extract EVERY
+identifiable field present in the document into the "extracted" object below —
+business name, entity name, owner/authorized person, full address, all dates,
+and every license/permit/merchant/account number you can find. Use null only
+when a field is genuinely absent from the text. Do NOT summarize a document as
+"blank", "needs review", or "missing information" — extract the concrete fields
+and let the structured result speak for itself.
 
 ${specializedInstructions(requirementCode)}
 
@@ -228,6 +239,25 @@ Follow the SMARTPR DOCUMENT VALIDATION ENGINE rules exactly. Analyze and return 
     const data = await res.json();
     const text: string = data?.choices?.[0]?.message?.content || "";
     const analysis = parseAnalysis(text);
+
+    // Extraction-first: deterministically derive fields found/missing,
+    // validation result, and reasoning from the extracted values + the
+    // required-field schema for this document type. This never relies on the
+    // model emitting vague statuses.
+    const businessName =
+      (businessContext as Record<string, unknown>).name as string | undefined;
+    const extraction = buildExtraction(
+      analysis.document_type || "Unknown",
+      analysis.extracted || {},
+      typeof analysis.confidence === "number" ? analysis.confidence : 0.5,
+      { businessName: businessName ?? null }
+    );
+    analysis.extraction = extraction;
+    // Keep overall_status consistent with the structured result for scoring.
+    analysis.overall_status =
+      extraction.validation_result === "PASS" ? "Complete"
+      : extraction.validation_result === "FAIL" ? "Missing Information"
+      : "Needs Review";
 
     return Response.json({
       analysis,
