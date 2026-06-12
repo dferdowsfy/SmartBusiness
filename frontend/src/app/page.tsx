@@ -1410,19 +1410,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
   };
 
-  // Sign out: clear the browser session (cookies) AND the server session, then
-  // hard-redirect to the login/sign-up screen. Doing the client signOut first
-  // guarantees the local session is gone regardless of the server round-trip.
-  const handleSignOut = async () => {
+  // Sign out: navigate to the server route IMMEDIATELY (it clears the httpOnly
+  // cookies and 302s to /auth/login). The browser-side signOut is fired
+  // best-effort WITHOUT awaiting — a hanging network call must never block the
+  // redirect, which was the cause of "nothing happens on click".
+  const handleSignOut = () => {
+    setMenuOpen(false);
     try {
       if (isAuthConfigured()) {
-        await createSupabaseBrowser().auth.signOut();
+        void createSupabaseBrowser().auth.signOut().catch(() => {});
       }
     } catch {
-      /* ignore — still redirect through the server route below */
+      /* ignore — the server route below is the source of truth */
     }
-    // The server route also clears httpOnly cookies, then 302s to /auth/login.
-    window.location.href = '/auth/signout';
+    window.location.assign('/auth/signout');
   };
 
   // Load / recompute requirements (powered by the design-accurate compute function)
