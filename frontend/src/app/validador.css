@@ -767,11 +767,61 @@ button { font-family: inherit; }
   .vform { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
-  .appbar-inner { grid-template-columns: auto auto; gap: 8px;}
-  .nav-tabs { display: none; }
+  .appbar-inner { grid-template-columns: auto 1fr auto; gap: 8px; padding: 0 14px; }
+  /* Keep section navigation reachable on mobile via a horizontally-scrollable
+     tab strip that lives at the right edge of the navy bar. */
+  .nav-tabs {
+    display: flex; flex-wrap: nowrap;
+    overflow-x: auto; max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 3px;
+  }
+  .nav-tabs::-webkit-scrollbar { display: none; }
+  .nav-tab { padding: 6px 10px; font-size: 12px; flex-shrink: 0; }
+  .nav-tab .tab-icon { width: 13px; height: 13px; }
   .saved-pill { display: none; }
-  .qcard { padding: 32px 24px 24px; }
-  .qtitle { font-size: 24px; }
+  .lang-toggle { margin-right: 4px; }
+  .lang-toggle button { padding: 4px 6px; font-size: 11px; }
+  .qcard { padding: 24px 18px 22px; }
+  .qtitle { font-size: 22px; }
   .answers, .packages, .progress-row { grid-template-columns: 1fr !important; }
   .project-pill { display: none; }
+  .shell { padding: 18px 14px 96px; }
+
+  /* ---- Requirement rows: stack content vertically so the Upload button
+     can render full-width inside the card instead of overflowing off-screen. */
+  .req-row {
+    grid-template-columns: 28px 1fr;
+    gap: 12px;
+    padding: 14px 14px;
+  }
+  .req-check { width: 22px; height: 22px; margin-top: 1px; }
+  .req-main .name { font-size: 15px; }
+  /* Move tags + action into the .req-main column flow */
+  .req-tags {
+    grid-column: 2 / 3;
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
+  .tag { font-size: 11px; padding: 4px 8px; }
+  .req-action {
+    grid-column: 2 / 3;
+    width: 100%;
+    justify-content: center;
+    padding: 11px 14px;
+    font-size: 14px;
+    min-height: 44px;
+    margin-top: 10px;
+  }
+
+  /* ---- Requirement group / banner headings tighten up ---- */
+  .req-banner { padding: 14px; }
+  .req-group { padding: 8px 4px; }
+
+  /* ---- User-menu width fits the viewport ---- */
+  .user-menu { width: calc(100vw - 24px); right: 12px; }
+
+  /* ---- Decide buttons (potentially-required) become full-width stacks ---- */
+  .decide-row .btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-height: 40px; }
 }
