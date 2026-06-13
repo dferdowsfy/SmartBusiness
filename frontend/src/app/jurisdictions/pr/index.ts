@@ -109,12 +109,12 @@ export const puertoRicoPack: JurisdictionPack = {
       island: {
         flag: "island",
         flagLabel: "Island Municipality",
-        document: "Transportation / Logistics Documentation",
-        agency: "Departamento de Transportación y Obras Públicas (DTOP)",
+        document: "ATM Ferry Logistics + Island Waste Management",
+        agency: "Autoridad de Transporte Marítimo (ATM) + Municipal Solid Waste",
         why:
-          "This municipality is classified as an island municipality. Businesses operating from island municipalities may have additional transportation, delivery, shipping, or logistics considerations depending on operations.",
+          "Vieques and Culebra depend on Autoridad de Transporte Marítimo (ATM) ferry service for inventory, staff, and customer access, and have limited island landfill capacity. Hospitality, F&B, retail, and tour operators here typically need an ATM ferry-logistics manifest and a commercial waste-collection contract.",
         followUp:
-          "Will this business transport goods, equipment, employees, food, materials, or customers to/from the island?",
+          "Will this business transport goods, equipment, employees, food, materials, or customers to/from the island, or generate regular commercial waste?",
       },
       coastal: {
         flag: "coastal",
@@ -143,9 +143,9 @@ export const puertoRicoPack: JurisdictionPack = {
         agency:
           "Instituto de Cultura Puertorriqueña / Oficina Estatal de Conservación Histórica",
         why:
-          "This municipality contains a designated historic district. Businesses occupying or altering a property within the historic zone may require a historic-preservation review.",
+          "This municipality contains a designated historic district. Hospitality, F&B, retail, and personal-care businesses operating in the historic zone face additional review: facade preservation, structural/interior alteration approval, and stricter signage variances distinct from a regular sign permit.",
         followUp:
-          "Will this business occupy, renovate, or place signage on a building within the historic district?",
+          "Will this business occupy, renovate, alter the interior, or place signage on a building within the historic district?",
       },
       metro: {
         flag: "metro",

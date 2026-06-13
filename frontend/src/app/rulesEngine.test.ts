@@ -95,3 +95,80 @@ test("no municipality selected yields no universal municipality docs", () => {
   const docs = runRulesEngine(KB, { municipalityName: null, businessTypeName: "Restaurant", answers: {} }).debug.documentsGenerated;
   assert.ok(lacks(docs, "DOC_PATENTE_MUNICIPAL"));
 });
+
+// ============================================================================
+// municipality_flag composite coverage (phases 1-3). These lock in the per-BT
+// rules so future KB edits can't silently drop a town's requirements.
+// ============================================================================
+
+test("Restaurant in Bayamón (metro) gets metro baseline + restaurant traffic study", () => {
+  const docs = run("Restaurant", {}, "Bayamón");
+  assert.ok(has(docs, "DOC_STORMWATER_PLAN", "DOC_WASTE_COLLECTION_CONTRACT", "DOC_PARKING_COMPLIANCE"),
+    "metro universal triad missing: " + docs.join(","));
+  assert.ok(has(docs, "DOC_TRAFFIC_IMPACT_STUDY"), "metro+restaurant composite missing");
+});
+
+test("Software Company in San Juan stays at universal baseline (no traffic/loading/noise)", () => {
+  const docs = run("Software Company");
+  assert.ok(has(docs, "DOC_STORMWATER_PLAN", "DOC_WASTE_COLLECTION_CONTRACT", "DOC_PARKING_COMPLIANCE"),
+    "metro universal triad should still apply to office uses");
+  assert.ok(lacks(docs, "DOC_TRAFFIC_IMPACT_STUDY", "DOC_LOADING_ZONE_PERMIT", "DOC_NOISE_VARIANCE"),
+    "office-only BT must not pick up per-BT metro composites");
+});
+
+test("Hotel in San Juan picks up historic + capital + tourism composites", () => {
+  const docs = run("Hotel");
+  assert.ok(has(docs, "DOC_FACADE_PRESERVATION"), "historic universal facade preservation missing");
+  assert.ok(has(docs, "DOC_HISTORIC_DISTRICT_REVIEW", "DOC_SIGN_VARIANCE_HISTORIC"),
+    "historic+hotel composites missing");
+  assert.ok(has(docs, "DOC_SAN_JUAN_USE_PERMIT"), "capital universal use permit missing");
+});
+
+test("Restaurant in Ponce gets historic composites + metro baseline", () => {
+  const docs = run("Restaurant", {}, "Ponce");
+  assert.ok(has(docs, "DOC_HISTORIC_DISTRICT_REVIEW", "DOC_SIGN_VARIANCE_HISTORIC"),
+    "historic+restaurant composites missing in Ponce");
+  assert.ok(has(docs, "DOC_PARKING_COMPLIANCE", "DOC_STORMWATER_PLAN"), "metro baseline missing in Ponce");
+});
+
+test("Art Gallery in San Germán picks up historic sign variance", () => {
+  const docs = run("Art Gallery", {}, "San Germán");
+  assert.ok(has(docs, "DOC_SIGN_VARIANCE_HISTORIC", "DOC_FACADE_PRESERVATION"));
+  // San Germán is historic but not metro — metro triad should NOT fire.
+  assert.ok(lacks(docs, "DOC_STORMWATER_PLAN", "DOC_WASTE_COLLECTION_CONTRACT"),
+    "non-metro historic town shouldn't pick up metro baseline");
+});
+
+test("Hotel in Vieques gets island ferry manifest + waste contract + tourism", () => {
+  const docs = run("Hotel", {}, "Vieques");
+  assert.ok(has(docs, "DOC_ISLAND_FERRY_MANIFEST"), "island+hotel ferry manifest missing");
+  assert.ok(has(docs, "DOC_WASTE_COLLECTION_CONTRACT"), "island universal waste contract missing");
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION"), "tourism+hotel registration missing");
+});
+
+test("Restaurant in Culebra picks up island ferry logistics", () => {
+  const docs = run("Restaurant", {}, "Culebra");
+  assert.ok(has(docs, "DOC_ISLAND_FERRY_MANIFEST"), "island+restaurant ferry manifest missing");
+  assert.ok(has(docs, "DOC_WASTE_COLLECTION_CONTRACT"));
+});
+
+test("Architecture Firm in San Juan gets metro fill-in traffic + loading", () => {
+  const docs = run("Architecture Firm");
+  assert.ok(has(docs, "DOC_TRAFFIC_IMPACT_STUDY", "DOC_LOADING_ZONE_PERMIT"),
+    "architecture firm metro fill-in missing");
+});
+
+test("Tutoring Center in metro town gets traffic study (parent drop-off)", () => {
+  const docs = run("Tutoring Center", {}, "Caguas");
+  assert.ok(has(docs, "DOC_TRAFFIC_IMPACT_STUDY"),
+    "tutoring center metro fill-in for parent drop-off missing");
+});
+
+test("Restaurant in Adjuntas (no flags) gets none of the flag-driven docs", () => {
+  const docs = run("Restaurant", {}, "Adjuntas");
+  assert.ok(lacks(docs,
+    "DOC_TRAFFIC_IMPACT_STUDY", "DOC_LOADING_ZONE_PERMIT", "DOC_NOISE_VARIANCE",
+    "DOC_STORMWATER_PLAN", "DOC_HISTORIC_DISTRICT_REVIEW", "DOC_ISLAND_FERRY_MANIFEST",
+    "DOC_FACADE_PRESERVATION", "DOC_SAN_JUAN_USE_PERMIT"),
+    "Adjuntas has no flags — no flag-driven docs should fire");
+});

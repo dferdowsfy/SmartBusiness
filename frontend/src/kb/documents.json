@@ -46,5 +46,8 @@
 {"id": "DOC_PARKING_COMPLIANCE", "name": "Off-Street Parking Compliance Certificate", "agency": "Municipal Permits Office", "category": "Municipal"},
 {"id": "DOC_LOADING_ZONE_PERMIT", "name": "Commercial Loading / Unloading Zone Permit", "agency": "Municipal Permits Office", "category": "Municipal"},
 {"id": "DOC_SAN_JUAN_USE_PERMIT", "name": "San Juan Municipal Use Permit (Permiso Municipal de Uso)", "agency": "Municipio de San Juan — Permisos Municipales", "category": "Municipal"},
-{"id": "DOC_FACADE_PRESERVATION", "name": "Historic Facade Preservation Plan", "agency": "Instituto de Cultura Puertorriqueña (ICP) / OECH", "category": "Regulatory"}
+{"id": "DOC_FACADE_PRESERVATION", "name": "Historic Facade Preservation Plan", "agency": "Instituto de Cultura Puertorriqueña (ICP) / OECH", "category": "Regulatory"},
+{"id": "DOC_HISTORIC_DISTRICT_REVIEW", "name": "Historic District Structural Review", "agency": "Instituto de Cultura Puertorriqueña (ICP) / OECH", "category": "Regulatory"},
+{"id": "DOC_SIGN_VARIANCE_HISTORIC", "name": "Historic-District Sign Variance", "agency": "Instituto de Cultura Puertorriqueña (ICP) + Municipal Permits Office", "category": "Regulatory"},
+{"id": "DOC_ISLAND_FERRY_MANIFEST", "name": "ATM Ferry Logistics Manifest (Vieques/Culebra)", "agency": "Autoridad de Transporte Marítimo (ATM)", "category": "Regulatory"}
 ]
