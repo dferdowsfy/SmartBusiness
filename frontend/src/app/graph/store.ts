@@ -130,8 +130,11 @@ CREATE OR REPLACE VIEW v_submission_history AS
   ) rs ON true
   ORDER BY s.created_at DESC;
 
-CREATE OR REPLACE VIEW v_submission_timeline AS
-  SELECT submission_id, 'Submission Created' AS event, 'created' AS kind, created_at FROM submissions
+DROP VIEW IF EXISTS v_submission_timeline;
+CREATE VIEW v_submission_timeline AS
+  -- The submissions table's PK is "id" — alias it so the view's column is
+  -- named submission_id like the other two branches of the union.
+  SELECT id AS submission_id, 'Submission Created' AS event, 'created' AS kind, created_at FROM submissions
   UNION ALL
   SELECT submission_id, 'Document Uploaded: ' || document_type, 'document', created_at FROM document_validations
   UNION ALL
@@ -165,10 +168,18 @@ let schemaReady: Promise<void> | null = null;
 // Exported so the user-account / business / snapshot / deliverable APIs can
 // guarantee their tables exist before issuing queries — even if no capture
 // event has run yet this process.
+//
+// On failure we clear the cached promise so the next request can retry —
+// otherwise a single bootstrap error would stick until the process restarted.
 export async function ensureSchema(): Promise<void> {
   if (!schemaReady) {
     const pool = getPool();
-    schemaReady = pool ? pool.query(SCHEMA_SQL).then(() => undefined) : Promise.resolve();
+    schemaReady = pool
+      ? pool.query(SCHEMA_SQL).then(() => undefined).catch((e) => {
+          schemaReady = null;
+          throw e;
+        })
+      : Promise.resolve();
   }
   return schemaReady;
 }
