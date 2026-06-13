@@ -240,10 +240,15 @@ function RequirementsFlowTab() {
 // ===========================================================================
 // 3. KNOWLEDGE GRAPH (interactive column traversal)
 // ===========================================================================
-function GraphColumn({ title, color, children }: { title: string; color: string; children: React.ReactNode }) {
+function GraphColumn({ title, color, step, children }: { title: string; color: string; step?: number; children: React.ReactNode }) {
   return (
-    <div style={{ minWidth: 220, flex: "1 1 220px" }}>
-      <div style={{ color, fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10, paddingLeft: 4 }}>{title}</div>
+    <div className="kg-col" style={{ minWidth: 220, flex: "1 1 220px" }}>
+      <div style={{ color, fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10, paddingLeft: 4, display: "flex", alignItems: "center", gap: 8 }}>
+        {step != null && (
+          <span style={{ background: color + "22", color, border: `1px solid ${color}66`, borderRadius: 999, width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{step}</span>
+        )}
+        {title}
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{children}</div>
     </div>
   );
@@ -287,35 +292,51 @@ function KnowledgeGraphTab() {
 
   return (
     <div>
-      <p style={{ color: COLORS.dim, fontSize: 13, marginBottom: 18 }}>
-        Traverse the knowledge graph left to right. Pick an industry, then a business type, to reveal the questions and documents connected to it. Click a question to highlight the documents it triggers.
+      <p style={{ color: COLORS.dim, fontSize: 13, marginBottom: 14 }}>
+        Pick an industry, then a business type, to reveal the questions and documents connected to it. Click a question to highlight the documents it triggers.
       </p>
-      <div style={{ display: "flex", gap: 18, overflowX: "auto", paddingBottom: 8 }}>
-        <GraphColumn title="Industry" color={LAYER.industry}>
+
+      {/* Sticky selection breadcrumb (mobile) so the active path stays visible
+          while scrolling down through the stacked Questions / Documents. */}
+      <div className="kg-path">
+        <span style={{ color: industryId ? LAYER.industry : COLORS.faint, fontWeight: 600 }}>
+          {industries.find((i) => i.id === industryId)?.name || "Choose industry"}
+        </span>
+        <span style={{ color: COLORS.faint }}>›</span>
+        <span style={{ color: bt ? LAYER.businessType : COLORS.faint, fontWeight: 600 }}>
+          {bt?.name || "business type"}
+        </span>
+        {bt && <span style={{ color: COLORS.faint }}>· {qs.length}Q · {docs.length} docs</span>}
+      </div>
+
+      <div className="kg-columns">
+        <GraphColumn title="Industry" color={LAYER.industry} step={1}>
           {[...industries].sort((a, b) => a.name.localeCompare(b.name)).map((i) => (
             <GraphNode key={i.id} label={i.name} color={LAYER.industry} active={industryId === i.id}
+              dim={industryId !== "" && industryId !== i.id}
               onClick={() => { setIndustryId(i.id); setBtId(""); setActiveQuestion(null); }} />
           ))}
         </GraphColumn>
 
-        <GraphColumn title="Business Type" color={LAYER.businessType}>
-          {industryId === "" && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>← Select an industry</span>}
+        <GraphColumn title="Business Type" color={LAYER.businessType} step={2}>
+          {industryId === "" && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select an industry first</span>}
           {bts.map((b) => (
             <GraphNode key={b.id} label={b.name} color={LAYER.businessType} active={btId === b.id}
+              dim={btId !== "" && btId !== b.id}
               onClick={() => { setBtId(b.id); setActiveQuestion(null); }} />
           ))}
         </GraphColumn>
 
-        <GraphColumn title="Questions" color={LAYER.question}>
-          {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>← Select a business type</span>}
+        <GraphColumn title={bt ? `Questions for ${bt.name}` : "Questions"} color={LAYER.question} step={3}>
+          {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select a business type first</span>}
           {qs.map((q) => (
             <GraphNode key={q.id} label={q.question} color={LAYER.question} active={activeQuestion === q.id}
               onClick={() => setActiveQuestion(activeQuestion === q.id ? null : q.id)} />
           ))}
         </GraphColumn>
 
-        <GraphColumn title="Documents" color={LAYER.document}>
-          {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>← Select a business type</span>}
+        <GraphColumn title={activeQuestion ? "Documents triggered" : bt ? `Documents for ${bt.name}` : "Documents"} color={LAYER.document} step={4}>
+          {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select a business type first</span>}
           {docs.map((d) => {
             const dimmed = triggeredDocIds !== null && !triggeredDocIds.has(d.document.id);
             const highlighted = triggeredDocIds !== null && triggeredDocIds.has(d.document.id);
@@ -440,7 +461,7 @@ function BusinessTypesTab() {
   const agencies = agenciesForDocuments(docs.map((d) => d.document));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 24 }}>
+    <div className="kb-split s300">
       <div>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search business types…" style={{ ...selectStyle, marginBottom: 10 }} />
         <div style={{ maxHeight: 540, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -529,7 +550,7 @@ function DocumentsTab() {
   const triggerQuestions = doc ? questionsTriggeringDocument(doc.id) : [];
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 24 }}>
+    <div className="kb-split s300">
       <div>
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search documents…" style={{ ...selectStyle, marginBottom: 10 }} />
         <div style={{ maxHeight: 540, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -744,7 +765,7 @@ function SimulatorTab() {
   const setSelect = (qid: string, val: string) => setAnswers((p) => ({ ...p, [qid]: val }));
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 24 }}>
+    <div className="kb-split s360">
       {/* Controls */}
       <div>
         <Card>
@@ -1003,7 +1024,50 @@ export default function KnowledgeBaseAdminPage() {
   const [tab, setTab] = useState<TabId>("overview");
 
   return (
-    <div style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.text, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div className="kbadmin" style={{ minHeight: "100vh", background: COLORS.bg, color: COLORS.text, fontFamily: "system-ui, -apple-system, sans-serif" }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        .kbadmin .kb-tabs {
+          display: flex; gap: 8px; flex-wrap: wrap;
+          padding-bottom: 12px; margin-bottom: 22px;
+          border-bottom: 1px solid ${COLORS.border};
+        }
+        .kbadmin .kb-tab {
+          flex: 0 0 auto; white-space: nowrap;
+          border: 1px solid ${COLORS.border}; border-radius: 999px;
+          padding: 8px 16px; cursor: pointer; font-size: 13.5px;
+          background: ${COLORS.panel2}; color: ${COLORS.faint}; font-weight: 500;
+          transition: all .12s ease;
+        }
+        .kbadmin .kb-tab:hover { color: ${COLORS.text}; border-color: ${COLORS.accent}66; }
+        .kbadmin .kb-tab.active {
+          background: ${COLORS.accent}22; color: ${COLORS.text};
+          border-color: ${COLORS.accent}; font-weight: 700;
+        }
+        .kbadmin .kg-columns { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 8px; }
+        .kbadmin .kg-path { display: none; }
+        .kbadmin .kb-split { display: grid; gap: 24px; }
+        .kbadmin .kb-split.s300 { grid-template-columns: 300px 1fr; }
+        .kbadmin .kb-split.s360 { grid-template-columns: 360px 1fr; }
+        @media (max-width: 760px) {
+          .kbadmin .kb-tabs {
+            flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; gap: 8px;
+          }
+          .kbadmin .kb-tabs::-webkit-scrollbar { display: none; }
+          .kbadmin .kg-columns { flex-direction: column; overflow-x: visible; gap: 14px; }
+          .kbadmin .kg-col { min-width: 0 !important; width: 100% !important; flex: none !important; }
+          .kbadmin .kb-split.s300, .kbadmin .kb-split.s360 { grid-template-columns: 1fr; gap: 16px; }
+          /* Sticky breadcrumb so the selected path stays visible while scrolling
+             down through Questions and Documents on a phone. */
+          .kbadmin .kg-path {
+            display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+            position: sticky; top: 0; z-index: 5;
+            background: ${COLORS.bg}; padding: 8px 0; margin-bottom: 4px;
+            font-size: 12px; color: ${COLORS.dim};
+            border-bottom: 1px solid ${COLORS.border};
+          }
+        }
+      ` }} />
       <div style={{ background: COLORS.purple, padding: "6px 24px", fontSize: 12, fontWeight: 700, color: "#fff", letterSpacing: 1 }}>
         ADMIN — KNOWLEDGE GRAPH EXPLORER — INTERNAL USE ONLY
       </div>
@@ -1016,14 +1080,11 @@ export default function KnowledgeBaseAdminPage() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${COLORS.border}`, marginBottom: 22, flexWrap: "wrap" }}>
+        <div className="kb-tabs">
           {TABS.map((t) => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              background: tab === t.id ? COLORS.panel : "transparent",
-              color: tab === t.id ? COLORS.text : COLORS.faint,
-              border: "none", borderBottom: tab === t.id ? `2px solid ${COLORS.accent}` : "2px solid transparent",
-              padding: "10px 18px", cursor: "pointer", fontWeight: tab === t.id ? 700 : 500, fontSize: 13.5, borderRadius: "6px 6px 0 0",
-            }}>{t.label}</button>
+            <button key={t.id} onClick={() => setTab(t.id)} className={`kb-tab ${tab === t.id ? "active" : ""}`}>
+              {t.label}
+            </button>
           ))}
         </div>
 
