@@ -90,11 +90,16 @@ export default function SubmissionDetailPage({ params }: { params: Promise<{ sub
               )}
             </Card>
 
-            {/* Questions answered */}
+            {/* Questions answered — only affirmative responses the user
+                actually gave. Older submissions captured every KB question
+                (including the default "false" fan-out), so filter on display. */}
+            {(() => {
+              const answered = (d.questions || []).filter((q) => truthy(q.answer));
+              return (
             <Card title="Questions Answered" accent="#f59e0b">
-              {(d.questions || []).length === 0 ? <Empty /> : (
+              {answered.length === 0 ? <Empty /> : (
                 <div className="divide-y divide-slate-100">
-                  {d.questions!.map((q) => {
+                  {answered.map((q) => {
                     const triggered = truthy(q.answer) ? whyItMattered(q.question_id) : [];
                     return (
                       <div key={q.question_id} className="py-2.5">
@@ -111,6 +116,8 @@ export default function SubmissionDetailPage({ params }: { params: Promise<{ sub
                 </div>
               )}
             </Card>
+              );
+            })()}
 
             {/* Requirements generated */}
             <Card title="Requirements Generated" accent="#10b981">

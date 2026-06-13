@@ -1354,8 +1354,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       submissionIdRef.current = submissionId;
       const engineInput = buildEngineInput(p as any, answers);
       const qText = new Map(KB.questions.map((q) => [q.id, q.question]));
+      // buildEngineInput expands the profile into EVERY canonical Q_* question,
+      // defaulting the ones the user never engaged with to `false`. Capturing
+      // those would make a submission's history list every question in the KB.
+      // Only persist affirmative answers — the Yes responses that actually
+      // drove requirements — so "Questions Answered" reflects real input.
+      const isAnswered = (v: unknown) => {
+        if (v === true) return true;
+        if (typeof v === 'string') {
+          const s = v.trim();
+          return s !== '' && !/^(false|no)$/i.test(s);
+        }
+        return false;
+      };
       const capturedAnswers: CapturedAnswer[] = Object.entries(engineInput.answers)
-        .filter(([, v]) => v !== undefined && v !== null && v !== '')
+        .filter(([, v]) => isAnswered(v))
         .map(([qid, v]) => ({ question_id: qid, question: qText.get(qid) || qid, answer: v as any }));
       const capturedReqs: CapturedRequirement[] = computed.map((r) => ({
         document_id: r.document_id,
