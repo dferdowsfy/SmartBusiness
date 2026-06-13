@@ -156,8 +156,15 @@ export function documentsForBusinessType(btId: string): DocReason[] {
     const q = r.question_id ? questionById[r.question_id] : null;
     push(r.requires_document_id, explainRule(r), "question", { questionText: q?.question });
   }
-  // 4. Flag rules tied to this business type
-  for (const r of rules.filter((r) => r.rule_type === "municipality_flag" && r.business_type_id === btId)) {
+  // 4. Flag rules — both composites tied to this business type AND universal
+  //    flag rules (business_type_id === null) that apply to ANY business in a
+  //    municipality carrying the flag (e.g. metro stormwater/waste/parking,
+  //    island waste, historic facade). This mirrors the live rules engine
+  //    (rulesEngine.ts municipality_flag branch), so the admin graph shows the
+  //    same documents a user sees in their checklist.
+  for (const r of rules.filter(
+    (r) => r.rule_type === "municipality_flag" && (r.business_type_id === btId || r.business_type_id === null)
+  )) {
     push(r.requires_document_id, explainRule(r), "flag", { flag: r.municipality_flag || undefined });
   }
   return out;
