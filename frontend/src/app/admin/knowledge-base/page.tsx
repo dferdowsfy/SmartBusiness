@@ -240,16 +240,17 @@ function RequirementsFlowTab() {
 // ===========================================================================
 // 3. KNOWLEDGE GRAPH (interactive column traversal)
 // ===========================================================================
-function GraphColumn({ title, color, step, children, colRef, locked, revealKey }: { title: string; color: string; step?: number; children: React.ReactNode; colRef?: (el: HTMLDivElement | null) => void; locked?: boolean; revealKey?: string }) {
+function GraphColumn({ title, color, step, children, colRef, locked, revealKey, header, scrollCap }: { title: string; color: string; step?: number; children: React.ReactNode; colRef?: (el: HTMLDivElement | null) => void; locked?: boolean; revealKey?: string; header?: React.ReactNode; scrollCap?: boolean }) {
   return (
-    <div ref={colRef} className={`kg-col ${locked ? "locked" : "ready"}`} data-reveal={revealKey} style={{ minWidth: 220, flex: "1 1 220px" }}>
+    <div ref={colRef} className={`kg-col ${locked ? "locked" : "ready"}`} style={{ minWidth: 220, flex: "1 1 220px" }}>
       <div style={{ color, fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10, paddingLeft: 4, display: "flex", alignItems: "center", gap: 8 }}>
         {step != null && (
           <span style={{ background: color + "22", color, border: `1px solid ${color}66`, borderRadius: 999, width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{step}</span>
         )}
         {title}
       </div>
-      <div key={revealKey} className="kg-col-body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>{children}</div>
+      {header}
+      <div key={revealKey} className="kg-col-body" style={{ display: "flex", flexDirection: "column", gap: 6, ...(scrollCap ? { maxHeight: 420, overflowY: "auto", paddingRight: 4 } : null) }}>{children}</div>
     </div>
   );
 }
@@ -282,11 +283,16 @@ function GraphNode({ label, color, active, dim, onClick, nodeRef }: { label: str
 }
 
 function KnowledgeGraphTab() {
+  const [municipalityId, setMunicipalityId] = useState("");
+  const [munSearch, setMunSearch] = useState("");
   const [industryId, setIndustryId] = useState("");
   const [btId, setBtId] = useState("");
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
 
+  const mun = municipalityId ? municipalities.find((m) => m.id === municipalityId) : null;
+  const munFlags = new Set<string>(mun?.flags || []);
+  const flagLabelShort = (f: string) => flagLabel(f).replace(/ Municipality$/, "");
   const bts = industryId ? businessTypesForIndustry(industryId) : [];
   const bt = btId ? businessTypes.find((b) => b.id === btId) : null;
   const qs = bt ? questionsForBusinessType(bt.id) : [];
@@ -294,13 +300,27 @@ function KnowledgeGraphTab() {
 
   // When a question node is active, highlight the documents it triggers.
   const triggeredDocIds = activeQuestion ? new Set(documentsForQuestion(activeQuestion).map((d) => d.id)) : null;
+  // When a municipality is selected (and no question is active), the documents
+  // whose flag matches the town's flags are the ones that actually apply.
+  const munActive = !!municipalityId && !activeQuestion;
+  const munDocIds = munActive
+    ? new Set(docs.filter((d) => d.triggerType === "flag" && d.flag && munFlags.has(d.flag)).map((d) => d.document.id))
+    : null;
+
+  const filteredMuns = useMemo(() => {
+    const s = munSearch.trim().toLowerCase();
+    const list = [...municipalities].sort((a, b) => a.name.localeCompare(b.name));
+    return s ? list.filter((m) => m.name.toLowerCase().includes(s)) : list;
+  }, [munSearch]);
 
   // ---- Refs for SVG path geometry ----
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const munNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const industryNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const btNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const qNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
   const docNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  const industryColRef = useRef<HTMLDivElement | null>(null);
   const btColRef = useRef<HTMLDivElement | null>(null);
   const qColRef = useRef<HTMLDivElement | null>(null);
   const docColRef = useRef<HTMLDivElement | null>(null);
@@ -343,6 +363,7 @@ function KnowledgeGraphTab() {
 
       const iEl = industryId ? industryNodeRefs.current.get(industryId) : null;
       const btEl = btId ? btNodeRefs.current.get(btId) : null;
+      const munEl = municipalityId ? munNodeRefs.current.get(municipalityId) : null;
 
       // Industry → Business Type (single bold edge)
       if (iEl && btEl) {
@@ -362,8 +383,8 @@ function KnowledgeGraphTab() {
         });
       }
 
-      // Question → triggered documents (when a question is active)
-      // OR Business Type → all docs (faint baseline) when no question is selected.
+      // Question → triggered documents (when a question is active),
+      // else Business Type → all docs (faint baseline).
       if (activeQuestion) {
         const qEl = qNodeRefs.current.get(activeQuestion);
         if (qEl) {
@@ -384,6 +405,18 @@ function KnowledgeGraphTab() {
         });
       }
 
+      // Municipality → the documents its flags activate (parallel input that
+      // converges on Documents). Bold cyan edges that skip over the middle
+      // columns to show the "where you operate" contribution at a glance.
+      if (munEl && munDocIds && munDocIds.size > 0) {
+        const s = edges(munEl);
+        docNodeRefs.current.forEach((el, did) => {
+          if (!el || !munDocIds.has(did)) return;
+          const t = edges(el);
+          out.push({ d: bezier(s.right, s.centerY, t.left, t.centerY), color: LAYER.municipality, key: `m-d-${did}`, emphasis: 2 });
+        });
+      }
+
       setPaths(out);
     };
 
@@ -391,26 +424,27 @@ function KnowledgeGraphTab() {
     const ro = new ResizeObserver(compute);
     if (containerRef.current) ro.observe(containerRef.current);
     window.addEventListener("resize", compute);
-    // Recompute after fonts/layout settle (rare second pass).
     const t = setTimeout(compute, 50);
     return () => {
       ro.disconnect();
       window.removeEventListener("resize", compute);
       clearTimeout(t);
     };
-  }, [industryId, btId, activeQuestion, isMobile, qs.length, docs.length]);
+  }, [municipalityId, industryId, btId, activeQuestion, isMobile, qs.length, docs.length, munActive]);
 
   // ---- Mobile: smooth-scroll the newly-revealed column into view ----
+  useEffect(() => {
+    if (!isMobile || !municipalityId) return;
+    industryColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [municipalityId, isMobile]);
   useEffect(() => {
     if (!isMobile || !industryId) return;
     btColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [industryId, isMobile]);
-
   useEffect(() => {
     if (!isMobile || !btId) return;
     qColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [btId, isMobile]);
-
   useEffect(() => {
     if (!isMobile || !activeQuestion) return;
     docColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -419,14 +453,18 @@ function KnowledgeGraphTab() {
   return (
     <div>
       <p style={{ color: COLORS.dim, fontSize: 13, marginBottom: 14 }}>
-        Pick an industry, then a business type, to reveal the questions and documents connected to it. Click a question to highlight the documents it triggers.
+        Optionally pick a municipality (where the business operates), then an industry and business type, to reveal the questions and documents connected to it. Click a question to highlight the documents it triggers.
       </p>
 
       {/* Sticky selection breadcrumb (mobile) so the active path stays visible
-          while scrolling down through the stacked Questions / Documents. */}
+          while scrolling down through the stacked columns. */}
       <div className="kg-path">
+        <span style={{ color: mun ? LAYER.municipality : COLORS.faint, fontWeight: 600 }}>
+          {mun?.name || "Any municipality"}
+        </span>
+        <span style={{ color: COLORS.faint }}>›</span>
         <span style={{ color: industryId ? LAYER.industry : COLORS.faint, fontWeight: 600 }}>
-          {industries.find((i) => i.id === industryId)?.name || "Choose industry"}
+          {industries.find((i) => i.id === industryId)?.name || "industry"}
         </span>
         <span style={{ color: COLORS.faint }}>›</span>
         <span style={{ color: bt ? LAYER.businessType : COLORS.faint, fontWeight: 600 }}>
@@ -436,8 +474,7 @@ function KnowledgeGraphTab() {
       </div>
 
       <div ref={containerRef} className="kg-columns" style={{ position: "relative" }}>
-        {/* SVG knowledge-graph overlay (desktop only) — draws the actual
-            connections between selected nodes so the path is visible at a glance. */}
+        {/* SVG knowledge-graph overlay (desktop only). */}
         {!isMobile && canvasSize.w > 0 && (
           <svg
             className="kg-canvas"
@@ -465,7 +502,29 @@ function KnowledgeGraphTab() {
           </svg>
         )}
 
-        <GraphColumn title="Industry" color={LAYER.industry} step={1}>
+        <GraphColumn title="Municipality" color={LAYER.municipality} step={1}
+          header={
+            <input
+              value={munSearch}
+              onChange={(e) => setMunSearch(e.target.value)}
+              placeholder="Search municipality…"
+              style={{ ...selectStyle, marginBottom: 8, padding: "8px 10px", fontSize: 13 }}
+            />
+          }
+          scrollCap>
+          {filteredMuns.map((m) => (
+            <GraphNode key={m.id} label={m.flags.length ? `${m.name}  ·  ${m.flags.map(flagLabelShort).join(", ")}` : m.name}
+              color={LAYER.municipality}
+              active={municipalityId === m.id}
+              dim={municipalityId !== "" && municipalityId !== m.id}
+              nodeRef={(el) => { munNodeRefs.current.set(m.id, el); }}
+              onClick={() => { setMunicipalityId(municipalityId === m.id ? "" : m.id); }} />
+          ))}
+          {filteredMuns.length === 0 && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>No match</span>}
+        </GraphColumn>
+
+        <GraphColumn title="Industry" color={LAYER.industry} step={2}
+          colRef={(el) => { industryColRef.current = el; }}>
           {[...industries].sort((a, b) => a.name.localeCompare(b.name)).map((i) => (
             <GraphNode key={i.id} label={i.name} color={LAYER.industry}
               active={industryId === i.id}
@@ -475,7 +534,7 @@ function KnowledgeGraphTab() {
           ))}
         </GraphColumn>
 
-        <GraphColumn title="Business Type" color={LAYER.businessType} step={2}
+        <GraphColumn title="Business Type" color={LAYER.businessType} step={3}
           colRef={(el) => { btColRef.current = el; }}
           locked={!industryId}
           revealKey={industryId || "none"}>
@@ -489,7 +548,7 @@ function KnowledgeGraphTab() {
           ))}
         </GraphColumn>
 
-        <GraphColumn title={bt ? `Questions for ${bt.name}` : "Questions"} color={LAYER.question} step={3}
+        <GraphColumn title={bt ? `Questions for ${bt.name}` : "Questions"} color={LAYER.question} step={4}
           colRef={(el) => { qColRef.current = el; }}
           locked={!bt}
           revealKey={btId || "none"}>
@@ -503,16 +562,27 @@ function KnowledgeGraphTab() {
           ))}
         </GraphColumn>
 
-        <GraphColumn title={activeQuestion ? "Documents triggered" : bt ? `Documents for ${bt.name}` : "Documents"} color={LAYER.document} step={4}
+        <GraphColumn title={activeQuestion ? "Documents triggered" : munActive && munDocIds && munDocIds.size > 0 ? `Documents · ${mun?.name}` : bt ? `Documents for ${bt.name}` : "Documents"} color={LAYER.document} step={5}
           colRef={(el) => { docColRef.current = el; }}
           locked={!bt}
-          revealKey={btId + "|" + (activeQuestion || "")}>
+          revealKey={btId + "|" + (activeQuestion || "") + "|" + (municipalityId || "")}>
           {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select a business type first</span>}
           {docs.map((d) => {
-            const dimmed = triggeredDocIds !== null && !triggeredDocIds.has(d.document.id);
-            const highlighted = triggeredDocIds !== null && triggeredDocIds.has(d.document.id);
+            const isFlag = d.triggerType === "flag";
+            const flagApplies = isFlag && !!d.flag && munFlags.has(d.flag);
+            const flagMismatch = isFlag && !!municipalityId && !!d.flag && !munFlags.has(d.flag);
+            let highlighted = false;
+            let dimmed = false;
+            if (activeQuestion) {
+              highlighted = !!triggeredDocIds && triggeredDocIds.has(d.document.id);
+              dimmed = !!triggeredDocIds && !triggeredDocIds.has(d.document.id);
+            } else if (munActive) {
+              highlighted = flagApplies;
+              dimmed = flagMismatch;
+            }
+            const suffix = isFlag && d.flag ? `  ·  ${flagLabelShort(d.flag)}` : "";
             return (
-              <GraphNode key={d.document.id} label={d.document.name} color={LAYER.document}
+              <GraphNode key={d.document.id} label={`${d.document.name}${suffix}`} color={LAYER.document}
                 active={highlighted} dim={dimmed}
                 nodeRef={(el) => { docNodeRefs.current.set(d.document.id, el); }} />
             );
@@ -520,9 +590,14 @@ function KnowledgeGraphTab() {
         </GraphColumn>
       </div>
 
-      {bt && (
+      {(bt || mun) && (
         <div style={{ marginTop: 20, color: COLORS.faint, fontSize: 12 }}>
-          Showing the graph for <span style={{ color: COLORS.text }}>{bt.name}</span> — {qs.length} questions, {docs.length} possible documents.
+          {bt && <>Showing the graph for <span style={{ color: COLORS.text }}>{bt.name}</span> — {qs.length} questions, {docs.length} possible documents. </>}
+          {mun && munDocIds && (
+            <>In <span style={{ color: COLORS.text }}>{mun.name}</span>{mun.flags.length ? <> (flags: {mun.flags.map(flagLabelShort).join(", ")})</> : <> (no special flags)</>}
+              {bt ? <>, {munDocIds.size} flag-triggered document{munDocIds.size === 1 ? "" : "s"} apply.</> : <>. Pick a business type to see which flag documents apply.</>}
+            </>
+          )}
           {activeQuestion && <> Highlighting documents triggered by the selected question.</>}
         </div>
       )}
