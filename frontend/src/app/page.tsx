@@ -2518,6 +2518,22 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // App-bar user menu open state.
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Close the avatar menu on outside click via a document listener — NOT via
+  // an overlay div. A full-viewport overlay sits in a different stacking
+  // context than the menu (the .appbar is position:sticky with z-index:50,
+  // which boxes the menu's z-index in), so the overlay ended up intercepting
+  // clicks on menu items including Sign out.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.closest('.user-menu') || t.closest('.avatar'))) return;
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [menuOpen]);
+
   // Live rules-engine output while the user is still in intake, so the
   // intelligence panel and progress stats update as they answer.
   const liveReqs = React.useMemo(() => {
@@ -3445,9 +3461,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         accept=".pdf,.txt,.doc,.docx,.png,.jpg,.jpeg,.md"
         onChange={onFileInputChange}
       />
-
-      {/* Close the user menu when clicking anywhere else */}
-      {menuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 100 }} onClick={() => setMenuOpen(false)} />}
 
       {/* Workspace Modal */}
       {showWorkspaceModal && activeWorkspaceId && (
