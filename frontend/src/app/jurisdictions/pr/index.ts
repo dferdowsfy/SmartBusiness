@@ -104,7 +104,7 @@ export const puertoRicoPack: JurisdictionPack = {
   },
 
   flagAdvisories: {
-    order: ["island", "coastal", "tourism", "historic", "metro"],
+    order: ["island", "coastal", "tourism", "historic", "metro", "capital"],
     byFlag: {
       island: {
         flag: "island",
@@ -156,6 +156,16 @@ export const puertoRicoPack: JurisdictionPack = {
           "This municipality is a major metropolitan area with additional municipal ordinances. Businesses here may face supplementary zoning, traffic, or municipal review depending on size and location.",
         followUp:
           "Will this business have significant foot/vehicle traffic, a large footprint, or operate in a dense commercial zone?",
+      },
+      capital: {
+        flag: "capital",
+        flagLabel: "Capital City (San Juan)",
+        document: "San Juan-Specific Municipal Review",
+        agency: "Municipio Autónomo de San Juan",
+        why:
+          "San Juan applies city-specific ordinances on top of the standard metro requirements (Old San Juan facade preservation, stricter noise ordinance, dedicated loading zones, San Juan Municipal Use Permit).",
+        followUp:
+          "Will this business operate in San Juan? It may need additional San Juan-specific permits beyond the standard metro requirements.",
       },
     },
   },
