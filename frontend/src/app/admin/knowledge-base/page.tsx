@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { runRulesEngine } from "../../rulesEngine";
 import { enrichRequirements, type EnrichedRequirement, type RequirementReason } from "../../relationshipEngine";
 import {
@@ -240,23 +240,24 @@ function RequirementsFlowTab() {
 // ===========================================================================
 // 3. KNOWLEDGE GRAPH (interactive column traversal)
 // ===========================================================================
-function GraphColumn({ title, color, step, children }: { title: string; color: string; step?: number; children: React.ReactNode }) {
+function GraphColumn({ title, color, step, children, colRef, locked, revealKey }: { title: string; color: string; step?: number; children: React.ReactNode; colRef?: (el: HTMLDivElement | null) => void; locked?: boolean; revealKey?: string }) {
   return (
-    <div className="kg-col" style={{ minWidth: 220, flex: "1 1 220px" }}>
+    <div ref={colRef} className={`kg-col ${locked ? "locked" : "ready"}`} data-reveal={revealKey} style={{ minWidth: 220, flex: "1 1 220px" }}>
       <div style={{ color, fontWeight: 700, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 10, paddingLeft: 4, display: "flex", alignItems: "center", gap: 8 }}>
         {step != null && (
           <span style={{ background: color + "22", color, border: `1px solid ${color}66`, borderRadius: 999, width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>{step}</span>
         )}
         {title}
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{children}</div>
+      <div key={revealKey} className="kg-col-body" style={{ display: "flex", flexDirection: "column", gap: 6 }}>{children}</div>
     </div>
   );
 }
 
-function GraphNode({ label, color, active, dim, onClick }: { label: string; color: string; active?: boolean; dim?: boolean; onClick?: () => void }) {
+function GraphNode({ label, color, active, dim, onClick, nodeRef }: { label: string; color: string; active?: boolean; dim?: boolean; onClick?: () => void; nodeRef?: (el: HTMLButtonElement | null) => void }) {
   return (
     <button
+      ref={nodeRef}
       onClick={onClick}
       style={{
         textAlign: "left",
@@ -270,6 +271,9 @@ function GraphNode({ label, color, active, dim, onClick }: { label: string; colo
         cursor: onClick ? "pointer" : "default",
         opacity: dim ? 0.45 : 1,
         transition: "all .12s",
+        boxShadow: active ? `0 0 0 4px ${color}22, 0 0 24px ${color}44` : "none",
+        position: "relative",
+        zIndex: 2,
       }}
     >
       {label}
@@ -281,6 +285,7 @@ function KnowledgeGraphTab() {
   const [industryId, setIndustryId] = useState("");
   const [btId, setBtId] = useState("");
   const [activeQuestion, setActiveQuestion] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   const bts = industryId ? businessTypesForIndustry(industryId) : [];
   const bt = btId ? businessTypes.find((b) => b.id === btId) : null;
@@ -289,6 +294,127 @@ function KnowledgeGraphTab() {
 
   // When a question node is active, highlight the documents it triggers.
   const triggeredDocIds = activeQuestion ? new Set(documentsForQuestion(activeQuestion).map((d) => d.id)) : null;
+
+  // ---- Refs for SVG path geometry ----
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const industryNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  const btNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  const qNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  const docNodeRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  const btColRef = useRef<HTMLDivElement | null>(null);
+  const qColRef = useRef<HTMLDivElement | null>(null);
+  const docColRef = useRef<HTMLDivElement | null>(null);
+
+  const [paths, setPaths] = useState<Array<{ d: string; color: string; key: string; emphasis: 0 | 1 | 2 }>>([]);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
+
+  // Watch viewport so SVG paths only render on desktop (they don't make sense
+  // when the columns are stacked vertically).
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 760px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Recompute SVG path geometry whenever the selection or layout changes.
+  useLayoutEffect(() => {
+    if (isMobile) { setPaths([]); return; }
+    const compute = () => {
+      const c = containerRef.current;
+      if (!c) return;
+      const crect = c.getBoundingClientRect();
+      setCanvasSize({ w: crect.width, h: crect.height });
+      const out: Array<{ d: string; color: string; key: string; emphasis: 0 | 1 | 2 }> = [];
+
+      const edges = (el: HTMLElement) => {
+        const r = el.getBoundingClientRect();
+        return {
+          right: r.right - crect.left,
+          left: r.left - crect.left,
+          centerY: r.top - crect.top + r.height / 2,
+        };
+      };
+      const bezier = (sx: number, sy: number, tx: number, ty: number) => {
+        const mid = (sx + tx) / 2;
+        return `M ${sx} ${sy} C ${mid} ${sy}, ${mid} ${ty}, ${tx} ${ty}`;
+      };
+
+      const iEl = industryId ? industryNodeRefs.current.get(industryId) : null;
+      const btEl = btId ? btNodeRefs.current.get(btId) : null;
+
+      // Industry → Business Type (single bold edge)
+      if (iEl && btEl) {
+        const s = edges(iEl);
+        const t = edges(btEl);
+        out.push({ d: bezier(s.right, s.centerY, t.left, t.centerY), color: LAYER.businessType, key: "i-bt", emphasis: 2 });
+      }
+
+      // Business Type → each Question (fan out)
+      if (btEl) {
+        const s = edges(btEl);
+        qNodeRefs.current.forEach((el, qid) => {
+          if (!el) return;
+          const t = edges(el);
+          const emphasis: 0 | 1 | 2 = activeQuestion ? (activeQuestion === qid ? 2 : 0) : 1;
+          out.push({ d: bezier(s.right, s.centerY, t.left, t.centerY), color: LAYER.question, key: `bt-q-${qid}`, emphasis });
+        });
+      }
+
+      // Question → triggered documents (when a question is active)
+      // OR Business Type → all docs (faint baseline) when no question is selected.
+      if (activeQuestion) {
+        const qEl = qNodeRefs.current.get(activeQuestion);
+        if (qEl) {
+          const s = edges(qEl);
+          docNodeRefs.current.forEach((el, did) => {
+            if (!el) return;
+            if (!triggeredDocIds || !triggeredDocIds.has(did)) return;
+            const t = edges(el);
+            out.push({ d: bezier(s.right, s.centerY, t.left, t.centerY), color: LAYER.document, key: `q-d-${did}`, emphasis: 2 });
+          });
+        }
+      } else if (btEl) {
+        const s = edges(btEl);
+        docNodeRefs.current.forEach((el, did) => {
+          if (!el) return;
+          const t = edges(el);
+          out.push({ d: bezier(s.right, s.centerY, t.left, t.centerY), color: LAYER.document, key: `bt-d-${did}`, emphasis: 0 });
+        });
+      }
+
+      setPaths(out);
+    };
+
+    compute();
+    const ro = new ResizeObserver(compute);
+    if (containerRef.current) ro.observe(containerRef.current);
+    window.addEventListener("resize", compute);
+    // Recompute after fonts/layout settle (rare second pass).
+    const t = setTimeout(compute, 50);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", compute);
+      clearTimeout(t);
+    };
+  }, [industryId, btId, activeQuestion, isMobile, qs.length, docs.length]);
+
+  // ---- Mobile: smooth-scroll the newly-revealed column into view ----
+  useEffect(() => {
+    if (!isMobile || !industryId) return;
+    btColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [industryId, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile || !btId) return;
+    qColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [btId, isMobile]);
+
+  useEffect(() => {
+    if (!isMobile || !activeQuestion) return;
+    docColRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [activeQuestion, isMobile]);
 
   return (
     <div>
@@ -309,39 +435,86 @@ function KnowledgeGraphTab() {
         {bt && <span style={{ color: COLORS.faint }}>· {qs.length}Q · {docs.length} docs</span>}
       </div>
 
-      <div className="kg-columns">
+      <div ref={containerRef} className="kg-columns" style={{ position: "relative" }}>
+        {/* SVG knowledge-graph overlay (desktop only) — draws the actual
+            connections between selected nodes so the path is visible at a glance. */}
+        {!isMobile && canvasSize.w > 0 && (
+          <svg
+            className="kg-canvas"
+            width={canvasSize.w}
+            height={canvasSize.h}
+            style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}
+            aria-hidden
+          >
+            {paths.map((p) => {
+              const opacity = p.emphasis === 2 ? 0.9 : p.emphasis === 1 ? 0.4 : 0.12;
+              const width = p.emphasis === 2 ? 2 : 1.3;
+              return (
+                <path
+                  key={p.key}
+                  d={p.d}
+                  fill="none"
+                  stroke={p.color}
+                  strokeWidth={width}
+                  strokeOpacity={opacity}
+                  strokeLinecap="round"
+                  style={{ transition: "stroke-opacity .25s ease, stroke-width .25s ease" }}
+                />
+              );
+            })}
+          </svg>
+        )}
+
         <GraphColumn title="Industry" color={LAYER.industry} step={1}>
           {[...industries].sort((a, b) => a.name.localeCompare(b.name)).map((i) => (
-            <GraphNode key={i.id} label={i.name} color={LAYER.industry} active={industryId === i.id}
+            <GraphNode key={i.id} label={i.name} color={LAYER.industry}
+              active={industryId === i.id}
               dim={industryId !== "" && industryId !== i.id}
+              nodeRef={(el) => { industryNodeRefs.current.set(i.id, el); }}
               onClick={() => { setIndustryId(i.id); setBtId(""); setActiveQuestion(null); }} />
           ))}
         </GraphColumn>
 
-        <GraphColumn title="Business Type" color={LAYER.businessType} step={2}>
+        <GraphColumn title="Business Type" color={LAYER.businessType} step={2}
+          colRef={(el) => { btColRef.current = el; }}
+          locked={!industryId}
+          revealKey={industryId || "none"}>
           {industryId === "" && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select an industry first</span>}
           {bts.map((b) => (
-            <GraphNode key={b.id} label={b.name} color={LAYER.businessType} active={btId === b.id}
+            <GraphNode key={b.id} label={b.name} color={LAYER.businessType}
+              active={btId === b.id}
               dim={btId !== "" && btId !== b.id}
+              nodeRef={(el) => { btNodeRefs.current.set(b.id, el); }}
               onClick={() => { setBtId(b.id); setActiveQuestion(null); }} />
           ))}
         </GraphColumn>
 
-        <GraphColumn title={bt ? `Questions for ${bt.name}` : "Questions"} color={LAYER.question} step={3}>
+        <GraphColumn title={bt ? `Questions for ${bt.name}` : "Questions"} color={LAYER.question} step={3}
+          colRef={(el) => { qColRef.current = el; }}
+          locked={!bt}
+          revealKey={btId || "none"}>
           {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select a business type first</span>}
           {qs.map((q) => (
-            <GraphNode key={q.id} label={q.question} color={LAYER.question} active={activeQuestion === q.id}
+            <GraphNode key={q.id} label={q.question} color={LAYER.question}
+              active={activeQuestion === q.id}
+              dim={activeQuestion !== null && activeQuestion !== q.id}
+              nodeRef={(el) => { qNodeRefs.current.set(q.id, el); }}
               onClick={() => setActiveQuestion(activeQuestion === q.id ? null : q.id)} />
           ))}
         </GraphColumn>
 
-        <GraphColumn title={activeQuestion ? "Documents triggered" : bt ? `Documents for ${bt.name}` : "Documents"} color={LAYER.document} step={4}>
+        <GraphColumn title={activeQuestion ? "Documents triggered" : bt ? `Documents for ${bt.name}` : "Documents"} color={LAYER.document} step={4}
+          colRef={(el) => { docColRef.current = el; }}
+          locked={!bt}
+          revealKey={btId + "|" + (activeQuestion || "")}>
           {!bt && <span style={{ color: COLORS.faint, fontSize: 12, padding: 4 }}>Select a business type first</span>}
           {docs.map((d) => {
             const dimmed = triggeredDocIds !== null && !triggeredDocIds.has(d.document.id);
             const highlighted = triggeredDocIds !== null && triggeredDocIds.has(d.document.id);
             return (
-              <GraphNode key={d.document.id} label={d.document.name} color={LAYER.document} active={highlighted} dim={dimmed} />
+              <GraphNode key={d.document.id} label={d.document.name} color={LAYER.document}
+                active={highlighted} dim={dimmed}
+                nodeRef={(el) => { docNodeRefs.current.set(d.document.id, el); }} />
             );
           })}
         </GraphColumn>
@@ -1043,7 +1216,32 @@ export default function KnowledgeBaseAdminPage() {
           background: ${COLORS.accent}22; color: ${COLORS.text};
           border-color: ${COLORS.accent}; font-weight: 700;
         }
-        .kbadmin .kg-columns { display: flex; gap: 18px; overflow-x: auto; padding-bottom: 8px; }
+        .kbadmin .kg-columns {
+          display: flex; gap: 18px; overflow: visible;
+          padding: 8px 4px 12px;
+          background:
+            radial-gradient(900px 220px at 50% 0%, ${COLORS.accent}10, transparent 60%),
+            radial-gradient(700px 200px at 50% 100%, ${LAYER.document}10, transparent 60%);
+          border-radius: 12px;
+        }
+        .kbadmin .kg-col { transition: opacity .25s ease; }
+        .kbadmin .kg-col.locked { opacity: 0.55; }
+        .kbadmin .kg-col.ready .kg-col-body { animation: kgReveal .28s ease both; }
+        .kbadmin .kg-col-body > * { animation: kgNodeIn .28s ease both; }
+        .kbadmin .kg-col-body > *:nth-child(1) { animation-delay: 0ms; }
+        .kbadmin .kg-col-body > *:nth-child(2) { animation-delay: 20ms; }
+        .kbadmin .kg-col-body > *:nth-child(3) { animation-delay: 40ms; }
+        .kbadmin .kg-col-body > *:nth-child(4) { animation-delay: 60ms; }
+        .kbadmin .kg-col-body > *:nth-child(n+5) { animation-delay: 80ms; }
+        @keyframes kgReveal {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes kgNodeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .kbadmin .kg-canvas path { will-change: stroke-opacity, stroke-width; }
         .kbadmin .kg-path { display: none; }
         .kbadmin .kb-split { display: grid; gap: 24px; }
         .kbadmin .kb-split.s300 { grid-template-columns: 300px 1fr; }
