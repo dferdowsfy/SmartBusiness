@@ -15,7 +15,7 @@ import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle
 } from 'lucide-react';
 
 // SmartPR
@@ -2871,14 +2871,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       <h2 className="qtitle" style={{ fontSize: 24 }}>{L(currentQuestion.text, language)}</h2>
                       <div className="answers">
                         <button className="answer answer-reveal" onClick={() => handleQuestionAnswer(true)}>
-                          <div className="answer-emoji">✅</div>
+                          <div className="answer-icon answer-icon-yes"><CheckCircle className="i" style={{ width: 22, height: 22 }} /></div>
                           <div>
                             <div className="answer-title">{t('yes')}</div>
                             <div className="answer-sub">{L('This applies to my business', language)}</div>
                           </div>
                         </button>
                         <button className="answer answer-reveal" style={{ animationDelay: '30ms' }} onClick={() => handleQuestionAnswer(false)}>
-                          <div className="answer-emoji">🚫</div>
+                          <div className="answer-icon answer-icon-no"><XCircle className="i" style={{ width: 22, height: 22 }} /></div>
                           <div>
                             <div className="answer-title">{t('no')}</div>
                             <div className="answer-sub">{L('This does not apply', language)}</div>
@@ -3113,6 +3113,50 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <div className="lab">{L('Recommended', language)}</div>
               <div className="val">{recommendedCount}</div>
             </div>
+
+            {/* Conditional ("Potentially Required") items sit INSIDE the banner
+                so the user resolves the gating questions next to their readiness
+                summary, not buried below in the checklist. */}
+            {potentialItems.length > 0 && (
+              <div className="banner-conditionals">
+                <div className="bc-head">
+                  <span className="pip" /> {L('Additional Requirements Based on Your Answers', language)}
+                  <span className="count">{potentialItems.length}</span>
+                </div>
+                {potentialItems.map(p => {
+                  const decision = potentialDecisions[p.flag];
+                  if (decision === 'applies') return null;
+                  if (decision === 'not_applies') {
+                    return (
+                      <div key={p.flag} className="bc-resolved">
+                        <CheckCircle className="i" style={{ width: 14, height: 14, color: 'var(--muted)' }} />
+                        <span>{p.document} — {L('Does Not Apply', language)}</span>
+                        <button className="undo" onClick={() => decidePotential(p, 'not_sure')}>{L('Undo', language)}</button>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={p.flag} className="bc-item">
+                      <div className="bc-ic"><AlertTriangle className="i" style={{ width: 16, height: 16 }} /></div>
+                      <div className="bc-body">
+                        <div className="bc-name">{p.document}</div>
+                        <div className="bc-q">{L(p.followUp, language)}</div>
+                        {decision === 'not_sure' && (
+                          <div className="bc-q" style={{ color: 'var(--warn)', marginTop: 6 }}>
+                            {L('Kept as potentially required. Revisit before submission.', language)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="bc-actions">
+                        <button className="btn btn-primary" onClick={() => decidePotential(p, 'applies')}>{L('Applies', language)}</button>
+                        <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_applies')}>{L('Does Not Apply', language)}</button>
+                        <button className="btn btn-secondary" style={decision === 'not_sure' ? { borderColor: 'var(--warn)', color: 'var(--warn)' } : undefined} onClick={() => decidePotential(p, 'not_sure')}>{L('Not Sure', language)}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Municipal notices */}
@@ -3170,53 +3214,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               );
             })}
 
-            {/* Potentially required — decision cards */}
-            {potentialItems.length > 0 && reqFilter !== 'done' && reqFilter !== 'recommended' && (
-              <div className="req-group">
-                <div className="req-group-title">
-                  <span className="pip amber" />{L('Additional Requirements Based on Your Answers', language)}<span className="count">{potentialItems.length}</span>
-                </div>
-                {potentialItems.map(p => {
-                  const decision = potentialDecisions[p.flag];
-                  if (decision === 'applies') return null; /* promoted into Missing above */
-                  if (decision === 'not_applies') {
-                    return (
-                      <div key={p.flag} className="req-row" style={{ opacity: 0.65 }}>
-                        <div className="req-check done"><CheckCircle className="i" style={{ width: 14, height: 14 }} /></div>
-                        <div className="req-main">
-                          <div className="name">{p.document}</div>
-                          <div className="why">{L('Does Not Apply', language)}</div>
-                        </div>
-                        <div className="req-tags"><span className="tag">{L('Does Not Apply', language)}</span></div>
-                        <button className="req-action" onClick={() => decidePotential(p, 'not_sure')}>{L('Undo', language)}</button>
-                      </div>
-                    );
-                  }
-                  return (
-                    <div key={p.flag} className="req-row">
-                      <div className="req-check missing">
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'block' }} />
-                      </div>
-                      <div className="req-main">
-                        <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>{docIconFor(p.document)}{p.document}</div>
-                        <div className="why">{L('Triggered because', language)} {L(p.flagLabel, language)}. {L(p.why, language)}</div>
-                        <div className="why" style={{ color: 'var(--ink)', fontWeight: 550 }}>{L(p.followUp, language)}</div>
-                        <div className="decide-row">
-                          <button className="btn applies" onClick={() => decidePotential(p, 'applies')}>{L('Applies', language)}</button>
-                          <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_applies')}>{L('Does Not Apply', language)}</button>
-                          <button className="btn btn-secondary" style={decision === 'not_sure' ? { borderColor: 'var(--warn)', color: 'var(--warn)' } : undefined} onClick={() => decidePotential(p, 'not_sure')}>{L('Not Sure', language)}</button>
-                        </div>
-                        {decision === 'not_sure' && (
-                          <div className="why" style={{ color: 'var(--warn)' }}>{L('Kept as potentially required. Revisit before submission.', language)}</div>
-                        )}
-                      </div>
-                      <div className="req-tags"><span className="tag due">{L('Potentially Required', language)}</span></div>
-                      <span />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* Recommendation panel — advisory historical insights (never mandatory) */}

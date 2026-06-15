@@ -271,15 +271,17 @@ button { font-family: inherit; }
 }
 .answer:hover { border-color: #C7D2FE; box-shadow: 0 0 0 4px #EEF2FF; transform: translateY(-1px); }
 .answer.selected { border-color: var(--brand-2); background: #F7F8FF; box-shadow: 0 0 0 4px #EEF2FF; }
-.answer-emoji {
-  font-size: 22px;
+.answer-icon {
   width: 38px; height: 38px;
   background: var(--bg-tint);
   border-radius: 10px;
   display: grid; place-items: center;
-  line-height: 1;
+  flex-shrink: 0;
+  color: var(--ink-2);
 }
-.answer.selected .answer-emoji { background: #EEF2FF; }
+.answer-icon-yes { background: #ECFDF5; color: #047857; }
+.answer-icon-no  { background: #FEF2F2; color: #B91C1C; }
+.answer.selected .answer-icon { background: #EEF2FF; }
 .answer-title { font-weight: 600; font-size: 14.5px; letter-spacing: -0.005em; }
 .answer-sub { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .answer-reveal { animation: revealUp .35s ease both; }
@@ -335,10 +337,31 @@ button { font-family: inherit; }
   font-family: inherit;
 }
 .btn-primary {
-  background: var(--ink); color: white;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.12), 0 1px 2px rgba(0,0,0,.12);
+  /* Dark-blue brand button — replaces the previous near-black slab that didn't
+     read as interactive. Adds a clear hover lift + active depression so users
+     can tell it's a button. */
+  background: linear-gradient(180deg, #1E3A8A 0%, #1E2F6F 100%);
+  color: white;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 1px 2px rgba(15, 23, 42, .25),
+    0 0 0 1px rgba(15, 23, 42, .35);
 }
-.btn-primary:hover { background: #000; transform: translateY(-1px); }
+.btn-primary:hover {
+  background: linear-gradient(180deg, #2347A8 0%, #1E3A8A 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    0 4px 10px rgba(30, 58, 138, .35),
+    0 0 0 1px rgba(30, 58, 138, .55);
+}
+.btn-primary:active { transform: translateY(0); box-shadow: inset 0 2px 4px rgba(15,23,42,.35); }
+.btn-primary:focus-visible {
+  outline: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    0 0 0 3px rgba(99, 102, 241, .45);
+}
 .btn-secondary { background: transparent; color: var(--ink-2); border-color: var(--border-strong); }
 .btn-secondary:hover { background: var(--bg-tint); }
 .btn-ghost { background: transparent; color: var(--muted); }
@@ -479,6 +502,57 @@ button { font-family: inherit; }
   box-shadow: var(--shadow);
   display: grid; grid-template-columns: auto 1fr auto auto auto auto; gap: 28px; align-items: center;
 }
+/* Conditional requirements that depend on the user's answers live INSIDE the
+   readiness banner, to the right of the headline (or under it on narrow
+   widths). Compact decision row per item: name + 3 buttons. */
+.req-banner .banner-conditionals {
+  grid-column: 1 / -1;
+  border-top: 1px dashed var(--border);
+  padding-top: 14px; margin-top: 4px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.req-banner .bc-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted);
+}
+.req-banner .bc-head .pip { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.req-banner .bc-head .count {
+  background: var(--bg-tint); color: var(--ink-2); padding: 1px 7px;
+  border-radius: 999px; font-size: 11px; letter-spacing: 0; text-transform: none;
+}
+.req-banner .bc-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto; gap: 12px;
+  align-items: center;
+}
+.req-banner .bc-ic {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--warn-soft); color: var(--warn);
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.req-banner .bc-body { min-width: 0; }
+.req-banner .bc-name { font-weight: 600; font-size: 14px; color: var(--ink); }
+.req-banner .bc-q { font-size: 12.5px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.req-banner .bc-actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.req-banner .bc-actions .btn { padding: 6px 12px; font-size: 12.5px; }
+.req-banner .bc-resolved {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-tint); border: 1px solid var(--border);
+  border-radius: 10px; padding: 8px 12px; font-size: 13px; color: var(--muted);
+}
+.req-banner .bc-resolved .undo {
+  margin-left: auto; background: transparent; border: 0;
+  color: var(--brand-2); font-weight: 600; cursor: pointer; font-size: 12.5px;
+}
+@media (max-width: 760px) {
+  .req-banner .bc-item { grid-template-columns: auto 1fr; }
+  .req-banner .bc-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
 .req-banner .mini-ring {
   --p: 0; --size: 72px;
   width: var(--size); height: var(--size); border-radius: 50%;
@@ -599,8 +673,25 @@ button { font-family: inherit; }
   font-family: inherit; margin-top: 2px;
 }
 .req-action:hover { background: var(--bg-tint); }
-.req-action.primary { background: var(--ink); color: white; border-color: var(--ink); }
-.req-action.primary:hover { background: #000; }
+.req-action.primary {
+  /* Dark-blue Upload action — matches .btn-primary so the page reads as one
+     consistent interactive vocabulary. */
+  background: linear-gradient(180deg, #1E3A8A 0%, #1E2F6F 100%);
+  color: white;
+  border-color: #1E2F6F;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.18),
+    0 1px 2px rgba(15, 23, 42, .25);
+}
+.req-action.primary:hover {
+  background: linear-gradient(180deg, #2347A8 0%, #1E3A8A 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    0 4px 10px rgba(30, 58, 138, .35);
+  transform: translateY(-1px);
+}
+.req-action.primary:active { transform: translateY(0); box-shadow: inset 0 2px 4px rgba(15,23,42,.35); }
+.req-action.primary:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(99, 102, 241, .45); }
 
 /* Decision buttons for "potentially required" items */
 .decide-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
