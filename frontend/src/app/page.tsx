@@ -1350,7 +1350,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     computed: Requirement[]
   ) => {
     try {
-      const submissionId = newSubmissionId();
+      // Reuse the existing submission id when one's already in flight so
+      // repeated saves (e.g. each potential-decision click) update the SAME
+      // submission row instead of minting a new one every time. Resume sets
+      // submissionIdRef from the URL; first capture mints a fresh id.
+      const submissionId = submissionIdRef.current || newSubmissionId();
       submissionIdRef.current = submissionId;
       const engineInput = buildEngineInput(p as any, answers);
       const qText = new Map(KB.questions.map((q) => [q.id, q.question]));
@@ -2502,6 +2506,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       if (decision !== 'applies' && exists) return prev.filter(r => r.code !== code);
       return prev;
     });
+    // Persist the decision to the backend so it survives reload. saveProgress
+    // PUTs the workflow snapshot (signed-in users) and emits a capture event
+    // (anonymous + signed-in). The header pill shows "Saving…" -> "Saved" as
+    // visible confirmation that the choice was written to the DB.
+    void saveProgress();
   };
 
   // Render one requirement row (shared by Mandatory + Recommended sections).
@@ -3116,7 +3125,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
             {/* Conditional ("Potentially Required") items sit INSIDE the banner
                 so the user resolves the gating questions next to their readiness
-                summary, not buried below in the checklist. */}
+                summary, not buried below in the checklist. After ANY decision
+                the message stays visible with a green checkmark — visible
+                confirmation that the choice was saved (header pill goes
+                "Saving…" -> "Saved"). */}
             {potentialItems.length > 0 && (
               <div className="banner-conditionals">
                 <div className="bc-head">
@@ -3125,32 +3137,53 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 </div>
                 {potentialItems.map(p => {
                   const decision = potentialDecisions[p.flag];
-                  if (decision === 'applies') return null;
-                  if (decision === 'not_applies') {
-                    return (
-                      <div key={p.flag} className="bc-resolved">
-                        <CheckCircle className="i" style={{ width: 14, height: 14, color: 'var(--muted)' }} />
-                        <span>{p.document} — {L('Does Not Apply', language)}</span>
-                        <button className="undo" onClick={() => decidePotential(p, 'not_sure')}>{L('Undo', language)}</button>
-                      </div>
-                    );
-                  }
+                  const answered = !!decision;
+                  // Decision-specific badge metadata for the resolved-pill state.
+                  const meta = decision === 'applies'
+                    ? { cls: 'applies', label: L('Applies', language), tail: L('Added to required documents.', language) }
+                    : decision === 'not_applies'
+                    ? { cls: 'no', label: L('Does Not Apply', language), tail: L('Dismissed for this submission.', language) }
+                    : decision === 'not_sure'
+                    ? { cls: 'maybe', label: L('Not Sure', language), tail: L('Kept as potentially required. Revisit before submission.', language) }
+                    : null;
                   return (
-                    <div key={p.flag} className="bc-item">
-                      <div className="bc-ic"><AlertTriangle className="i" style={{ width: 16, height: 16 }} /></div>
+                    <div key={p.flag} className={`bc-item ${answered ? `answered ${meta!.cls}` : ''}`}>
+                      <div className="bc-ic">
+                        {answered
+                          ? <CheckCircle className="i" style={{ width: 16, height: 16 }} />
+                          : <AlertTriangle className="i" style={{ width: 16, height: 16 }} />}
+                      </div>
                       <div className="bc-body">
-                        <div className="bc-name">{p.document}</div>
+                        <div className="bc-name">
+                          {p.document}
+                          {answered && <span className={`bc-badge ${meta!.cls}`}>{meta!.label}</span>}
+                        </div>
                         <div className="bc-q">{L(p.followUp, language)}</div>
-                        {decision === 'not_sure' && (
-                          <div className="bc-q" style={{ color: 'var(--warn)', marginTop: 6 }}>
-                            {L('Kept as potentially required. Revisit before submission.', language)}
-                          </div>
+                        {answered && (
+                          <div className={`bc-tail ${meta!.cls}`}>{meta!.tail}</div>
                         )}
                       </div>
                       <div className="bc-actions">
-                        <button className="btn btn-primary" onClick={() => decidePotential(p, 'applies')}>{L('Applies', language)}</button>
-                        <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_applies')}>{L('Does Not Apply', language)}</button>
-                        <button className="btn btn-secondary" style={decision === 'not_sure' ? { borderColor: 'var(--warn)', color: 'var(--warn)' } : undefined} onClick={() => decidePotential(p, 'not_sure')}>{L('Not Sure', language)}</button>
+                        {answered ? (
+                          <button className="btn btn-secondary" onClick={() => {
+                            // Clear the decision so the question reopens.
+                            setPotentialDecisions(prev => {
+                              const { [p.flag]: _, ...rest } = prev; void _;
+                              return rest;
+                            });
+                            // If the decision was 'applies', remove the promoted requirement
+                            // so the user can re-answer cleanly.
+                            const code = 'potential_' + p.flag;
+                            setRequirements(prev => prev.filter(r => r.code !== code));
+                            void saveProgress();
+                          }}>{L('Change answer', language)}</button>
+                        ) : (
+                          <>
+                            <button className="btn btn-primary" onClick={() => decidePotential(p, 'applies')}>{L('Applies', language)}</button>
+                            <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_applies')}>{L('Does Not Apply', language)}</button>
+                            <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_sure')}>{L('Not Sure', language)}</button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
