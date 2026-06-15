@@ -49,5 +49,9 @@
 {"id": "DOC_FACADE_PRESERVATION", "name": "Historic Facade Preservation Plan", "agency": "Instituto de Cultura Puertorriqueña (ICP) / OECH", "category": "Regulatory"},
 {"id": "DOC_HISTORIC_DISTRICT_REVIEW", "name": "Historic District Structural Review", "agency": "Instituto de Cultura Puertorriqueña (ICP) / OECH", "category": "Regulatory"},
 {"id": "DOC_SIGN_VARIANCE_HISTORIC", "name": "Historic-District Sign Variance", "agency": "Instituto de Cultura Puertorriqueña (ICP) + Municipal Permits Office", "category": "Regulatory"},
-{"id": "DOC_ISLAND_FERRY_MANIFEST", "name": "ATM Ferry Logistics Manifest (Vieques/Culebra)", "agency": "Autoridad de Transporte Marítimo (ATM)", "category": "Regulatory"}
+{"id": "DOC_ISLAND_FERRY_MANIFEST", "name": "ATM Ferry Logistics Manifest (Vieques/Culebra)", "agency": "Autoridad de Transporte Marítimo (ATM)", "category": "Regulatory"},
+{"id": "DOC_NPDES_INDUSTRIAL", "name": "NPDES Industrial Discharge Permit", "agency": "EPA / Junta de Calidad Ambiental (JCA)", "category": "Regulatory"},
+{"id": "DOC_HAZMAT_HANDLER", "name": "RCRA Hazardous Waste Handler ID (40 CFR 262)", "agency": "EPA / Junta de Calidad Ambiental (JCA)", "category": "Regulatory"},
+{"id": "DOC_PORT_FACILITY_PERMIT", "name": "Port Facility Operating Authorization", "agency": "Autoridad de los Puertos de Puerto Rico", "category": "Regulatory"},
+{"id": "DOC_AIR_EMISSION_PERMIT", "name": "Title V Air Emission Permit", "agency": "EPA / Junta de Calidad Ambiental (JCA)", "category": "Regulatory"}
 ]

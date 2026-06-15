@@ -104,7 +104,7 @@ export const puertoRicoPack: JurisdictionPack = {
   },
 
   flagAdvisories: {
-    order: ["island", "coastal", "tourism", "historic", "metro", "capital"],
+    order: ["island", "coastal", "tourism", "historic", "metro", "capital", "industrial_port"],
     byFlag: {
       island: {
         flag: "island",
@@ -166,6 +166,16 @@ export const puertoRicoPack: JurisdictionPack = {
           "San Juan applies city-specific ordinances on top of the standard metro requirements (Old San Juan facade preservation, stricter noise ordinance, dedicated loading zones, San Juan Municipal Use Permit).",
         followUp:
           "Will this business operate in San Juan? It may need additional San Juan-specific permits beyond the standard metro requirements.",
+      },
+      industrial_port: {
+        flag: "industrial_port",
+        flagLabel: "Industrial / Port Corridor",
+        document: "Heavy Industry & Port Compliance",
+        agency: "Autoridad de los Puertos + EPA / Junta de Calidad Ambiental",
+        why:
+          "Ponce, Cataño, Guayanilla, Salinas, and Yabucoa sit along Puerto Rico's heavy-industry / port corridor. Manufacturing, logistics, and waste-handling businesses here face EPA/JCA point-source discharge (NPDES industrial), RCRA hazardous-waste handler registration, Title V air emissions, and Port Authority docking authorization — obligations that don't apply to ordinary coastal towns.",
+        followUp:
+          "Does this business manufacture, store hazardous materials, generate point-source discharge, or operate at or near a port facility?",
       },
     },
   },

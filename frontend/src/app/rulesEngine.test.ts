@@ -212,3 +212,47 @@ test("Trujillo Alto (metro) — Dental Office gets metro baseline + dental traff
   assert.ok(has(docs, "DOC_STORMWATER_PLAN", "DOC_TRAFFIC_IMPACT_STUDY",
     "DOC_ENVIRONMENTAL_PERMIT"));
 });
+
+// ----- Phase 5: industrial_port flag (Ponce/Cataño/Guayanilla/Salinas/Yabucoa) ---
+
+test("Chemical Mfg in Ponce (industrial_port) gets all heavy-industry docs", () => {
+  const docs = run("Chemical Manufacturing", {}, "Ponce");
+  assert.ok(has(docs,
+    "DOC_NPDES_INDUSTRIAL", "DOC_HAZMAT_HANDLER", "DOC_AIR_EMISSION_PERMIT"),
+    "industrial_port + chem mfg should fire NPDES + RCRA + Title V");
+});
+
+test("Pharmaceutical Mfg in Guayanilla gets the full industrial heavy triad", () => {
+  const docs = run("Pharmaceutical Manufacturing", {}, "Guayanilla");
+  assert.ok(has(docs,
+    "DOC_NPDES_INDUSTRIAL", "DOC_HAZMAT_HANDLER", "DOC_AIR_EMISSION_PERMIT"));
+});
+
+test("Freight Forwarding in Cataño gets port facility permit", () => {
+  const docs = run("Freight Forwarding Company", {}, "Cataño");
+  assert.ok(has(docs, "DOC_PORT_FACILITY_PERMIT"));
+});
+
+test("Body Shop in Salinas picks up RCRA hazmat handler (solvent / paint waste)", () => {
+  const docs = run("Body Shop", {}, "Salinas");
+  assert.ok(has(docs, "DOC_HAZMAT_HANDLER"));
+});
+
+test("Restaurant in Ponce does NOT pick up industrial-port docs", () => {
+  // Negative control: industrial_port composites are per-BT, not universal —
+  // a restaurant in an industrial-port town must NOT get NPDES/Title V/etc.
+  const docs = run("Restaurant", {}, "Ponce");
+  assert.ok(lacks(docs,
+    "DOC_NPDES_INDUSTRIAL", "DOC_HAZMAT_HANDLER",
+    "DOC_AIR_EMISSION_PERMIT", "DOC_PORT_FACILITY_PERMIT"),
+    "non-industrial BT in industrial_port town must not pick up heavy docs");
+});
+
+test("Chemical Mfg in San Juan does NOT get industrial-port docs (SJ lacks flag)", () => {
+  // Negative control: the heavy-industry rules only fire on the industrial_port
+  // flag, NOT just because a chem facility is in a metro town.
+  const docs = run("Chemical Manufacturing", {}, "San Juan");
+  assert.ok(lacks(docs,
+    "DOC_NPDES_INDUSTRIAL", "DOC_AIR_EMISSION_PERMIT", "DOC_PORT_FACILITY_PERMIT"),
+    "industrial_port composites must not fire in San Juan");
+});

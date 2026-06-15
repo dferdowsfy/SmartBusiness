@@ -52,6 +52,7 @@ export const FLAG_LABELS: Record<string, string> = {
   metro: "Metro Area",
   island: "Island Municipality",
   capital: "Capital (San Juan)",
+  industrial_port: "Industrial Port Corridor",
 };
 
 export const FLAG_COLORS: Record<string, string> = {
@@ -61,6 +62,7 @@ export const FLAG_COLORS: Record<string, string> = {
   metro: "#6366f1",
   island: "#10b981",
   capital: "#ec4899",
+  industrial_port: "#f97316",
 };
 
 export function flagLabel(flag: string): string {
