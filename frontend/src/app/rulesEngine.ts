@@ -11,7 +11,11 @@
 
 export type Flag = "tourism" | "coastal" | "historic" | "metro" | "island";
 
-export interface KBMunicipality { id: string; name: string; flags: Flag[] }
+// `patente_rate` is the municipal gross-receipts tax rate as a decimal (e.g.
+// 0.005 = 0.5%). Optional: when null the platform reports the rate is not yet
+// captured rather than guessing — the framework is in place for KB enrichment
+// without forcing made-up data.
+export interface KBMunicipality { id: string; name: string; flags: Flag[]; patente_rate?: number | null }
 export interface KBBusinessType { id: string; industry_id: string; name: string; description: string }
 export interface KBQuestion { id: string; question: string; type: string; options?: string[] }
 export interface KBDocument { id: string; name: string; agency: string; category: string }

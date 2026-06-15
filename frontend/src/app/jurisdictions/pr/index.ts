@@ -104,7 +104,7 @@ export const puertoRicoPack: JurisdictionPack = {
   },
 
   flagAdvisories: {
-    order: ["island", "coastal", "tourism", "historic", "metro", "capital", "industrial_port"],
+    order: ["island", "coastal", "tourism", "historic", "metro", "capital", "industrial_port", "airport_host"],
     byFlag: {
       island: {
         flag: "island",
@@ -176,6 +176,16 @@ export const puertoRicoPack: JurisdictionPack = {
           "Ponce, Cataño, Guayanilla, Salinas, and Yabucoa sit along Puerto Rico's heavy-industry / port corridor. Manufacturing, logistics, and waste-handling businesses here face EPA/JCA point-source discharge (NPDES industrial), RCRA hazardous-waste handler registration, Title V air emissions, and Port Authority docking authorization — obligations that don't apply to ordinary coastal towns.",
         followUp:
           "Does this business manufacture, store hazardous materials, generate point-source discharge, or operate at or near a port facility?",
+      },
+      airport_host: {
+        flag: "airport_host",
+        flagLabel: "Airport-Host Municipality",
+        document: "Airport-Adjacent Federal Compliance",
+        agency: "U.S. Customs and Border Protection + TSA + Aerostar / Autoridad de los Puertos",
+        why:
+          "Carolina (LMM/SJU), Aguadilla (BQN), and Ponce (Mercedita) host customs-active airports. Air-cargo logistics, freight forwarding, importers, and airport-area car rentals face CBP customs brokerage bonds, TSA Known Shipper / Indirect Air Carrier certification, and airport-area concession agreements that don't apply elsewhere.",
+        followUp:
+          "Does this business ship cargo by air, clear customs, or operate as a concession in or directly adjacent to the airport?",
       },
     },
   },

@@ -15,7 +15,7 @@ import industriesJson from "../../kb/industries.json";
 import businessTypeQuestionsJson from "../../kb/business_type_questions.json";
 import type { KnowledgeBase, KBRule } from "../rulesEngine";
 
-export interface Municipality { id: string; name: string; flags: string[] }
+export interface Municipality { id: string; name: string; flags: string[]; patente_rate?: number | null }
 export interface Industry { id: string; name: string; description: string }
 export interface BusinessType { id: string; industry_id: string; name: string; description: string }
 export interface Question { id: string; question: string; type: string; options?: string[] }
@@ -53,6 +53,7 @@ export const FLAG_LABELS: Record<string, string> = {
   island: "Island Municipality",
   capital: "Capital (San Juan)",
   industrial_port: "Industrial Port Corridor",
+  airport_host: "Airport Host",
 };
 
 export const FLAG_COLORS: Record<string, string> = {
@@ -63,6 +64,7 @@ export const FLAG_COLORS: Record<string, string> = {
   island: "#10b981",
   capital: "#ec4899",
   industrial_port: "#f97316",
+  airport_host: "#a855f7",
 };
 
 export function flagLabel(flag: string): string {

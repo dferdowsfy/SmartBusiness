@@ -256,3 +256,38 @@ test("Chemical Mfg in San Juan does NOT get industrial-port docs (SJ lacks flag)
     "DOC_NPDES_INDUSTRIAL", "DOC_AIR_EMISSION_PERMIT", "DOC_PORT_FACILITY_PERMIT"),
     "industrial_port composites must not fire in San Juan");
 });
+
+// ----- Phase 6: airport_host flag (Carolina LMM, Aguadilla BQN, Ponce Mercedita) ---
+
+test("Freight Forwarding in Carolina (LMM) gets CBP bond + TSA known shipper", () => {
+  const docs = run("Freight Forwarding Company", {}, "Carolina");
+  assert.ok(has(docs, "DOC_CUSTOMS_BROKER_BOND", "DOC_TSA_KNOWN_SHIPPER"),
+    "airport_host + freight forwarder federal compliance missing");
+});
+
+test("Car Rental in Aguadilla (BQN) gets airport concession agreement", () => {
+  const docs = run("Car Rental Business", {}, "Aguadilla");
+  assert.ok(has(docs, "DOC_AIRPORT_CONCESSION"),
+    "airport_host + car rental concession missing");
+});
+
+test("Import/Export in Ponce (Mercedita) gets CBP customs broker bond", () => {
+  const docs = run("Import / Export Business", {}, "Ponce");
+  assert.ok(has(docs, "DOC_CUSTOMS_BROKER_BOND"));
+});
+
+test("Restaurant in Carolina does NOT pick up airport-host federal docs", () => {
+  // Negative control: airport_host composites are per-BT — restaurants don't
+  // need a customs bond just because they're in an airport-host town.
+  const docs = run("Restaurant", {}, "Carolina");
+  assert.ok(lacks(docs,
+    "DOC_CUSTOMS_BROKER_BOND", "DOC_TSA_KNOWN_SHIPPER", "DOC_AIRPORT_CONCESSION"),
+    "non-aviation BT in airport_host town must not pick up federal aviation docs");
+});
+
+test("Freight Forwarding in San Juan (no airport flag) gets no airport docs", () => {
+  // Negative control: the rules fire on the flag, not on proximity guesses.
+  const docs = run("Freight Forwarding Company");  // default municipality = San Juan
+  assert.ok(lacks(docs, "DOC_CUSTOMS_BROKER_BOND", "DOC_TSA_KNOWN_SHIPPER", "DOC_AIRPORT_CONCESSION"),
+    "airport_host composites must NOT fire in San Juan (no flag)");
+});

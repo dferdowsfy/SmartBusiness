@@ -596,6 +596,12 @@ function KnowledgeGraphTab() {
           {mun && munDocIds && (
             <>In <span style={{ color: COLORS.text }}>{mun.name}</span>{mun.flags.length ? <> (flags: {mun.flags.map(flagLabelShort).join(", ")})</> : <> (no special flags)</>}
               {bt ? <>, {munDocIds.size} flag-triggered document{munDocIds.size === 1 ? "" : "s"} apply.</> : <>. Pick a business type to see which flag documents apply.</>}
+              {" "}
+              <span style={{ color: COLORS.dim }}>
+                Patente rate: {typeof mun.patente_rate === "number"
+                  ? `${(mun.patente_rate * 100).toFixed(2)}% of gross receipts (advisory)`
+                  : "not yet captured"}.
+              </span>
             </>
           )}
           {activeQuestion && <> Highlighting documents triggered by the selected question.</>}
