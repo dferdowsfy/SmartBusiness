@@ -3462,7 +3462,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </div>
               <div className="pkg-foot">
                 <span className="pkg-sub" style={{ fontFamily: 'monospace', fontSize: 11 }}>{activeWorkspaceId ? `/workspace/${activeWorkspaceId}` : '/workspace/…'}</span>
-                <button className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={openSmartPRWorkspace}>
+                <button className="btn btn-accent" style={{ padding: '8px 14px', fontSize: 13 }} onClick={openSmartPRWorkspace}>
                   {L('Open Workspace', language)} <ExternalLink className="i" style={{ width: 14, height: 14 }} />
                 </button>
               </div>

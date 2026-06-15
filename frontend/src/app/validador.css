@@ -362,6 +362,34 @@ button { font-family: inherit; }
     inset 0 1px 0 rgba(255,255,255,.20),
     0 0 0 3px rgba(99, 102, 241, .45);
 }
+/* Accent CTA (teal). Used where we want a primary-strength button that reads
+   as distinct from the dark-blue .btn-primary — currently the deliverables
+   "Open Workspace" action, so the three package cards each have a clearly
+   different action color (Download Report = blue, Download ZIP = blue,
+   Open Workspace = teal). */
+.btn-accent {
+  background: linear-gradient(180deg, #0EA371 0%, #047F58 100%);
+  color: white;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    0 1px 2px rgba(4, 127, 88, .25),
+    0 0 0 1px rgba(4, 127, 88, .35);
+}
+.btn-accent:hover {
+  background: linear-gradient(180deg, #11B881 0%, #069770 100%);
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    0 4px 10px rgba(14, 163, 113, .35),
+    0 0 0 1px rgba(14, 163, 113, .55);
+}
+.btn-accent:active { transform: translateY(0); box-shadow: inset 0 2px 4px rgba(4,127,88,.35); }
+.btn-accent:focus-visible {
+  outline: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.20),
+    0 0 0 3px rgba(14, 163, 113, .45);
+}
 .btn-secondary { background: transparent; color: var(--ink-2); border-color: var(--border-strong); }
 .btn-secondary:hover { background: var(--bg-tint); }
 .btn-ghost { background: transparent; color: var(--muted); }
