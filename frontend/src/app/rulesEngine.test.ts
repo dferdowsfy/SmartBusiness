@@ -172,3 +172,43 @@ test("Restaurant in Adjuntas (no flags) gets none of the flag-driven docs", () =
     "DOC_FACADE_PRESERVATION", "DOC_SAN_JUAN_USE_PERMIT"),
     "Adjuntas has no flags — no flag-driven docs should fire");
 });
+
+// ----- Phase 4: popular non-metro beach + north-coast + SJ-corridor coverage -----
+
+test("Hotel in Fajardo (tourism+coastal) gets DRNA env permit + tourism reg", () => {
+  const docs = run("Hotel", {}, "Fajardo");
+  assert.ok(has(docs, "DOC_ENVIRONMENTAL_PERMIT"), "coastal+hotel DRNA permit missing");
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION"), "tourism+hotel registration missing");
+});
+
+test("Gift Shop in Fajardo (tourism+coastal) picks up tourism reg + sign permit + coastal env", () => {
+  const docs = run("Gift Shop", {}, "Fajardo");
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION", "DOC_SIGN_PERMIT"),
+    "tourism retail composites missing");
+  assert.ok(has(docs, "DOC_ENVIRONMENTAL_PERMIT"),
+    "coastal small-retail env permit missing");
+});
+
+test("Food Truck in Aguadilla (tourism+coastal) gets tourism reg", () => {
+  const docs = run("Food Truck", {}, "Aguadilla");
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION"));
+});
+
+test("Arecibo gains tourism flag → Hotel gets tourism registration", () => {
+  const docs = run("Hotel", {}, "Arecibo");
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION"),
+    "Arecibo Observatory / karst eco-tourism: hotel should register with Compañía de Turismo");
+});
+
+test("Toa Alta gains metro flag → Restaurant picks up full metro baseline", () => {
+  const docs = run("Restaurant", {}, "Toa Alta");
+  assert.ok(has(docs, "DOC_STORMWATER_PLAN", "DOC_WASTE_COLLECTION_CONTRACT",
+    "DOC_PARKING_COMPLIANCE", "DOC_TRAFFIC_IMPACT_STUDY"),
+    "Toa Alta is now metro — restaurant metro composites should fire");
+});
+
+test("Trujillo Alto (metro) — Dental Office gets metro baseline + dental traffic/env", () => {
+  const docs = run("Dental Office", {}, "Trujillo Alto");
+  assert.ok(has(docs, "DOC_STORMWATER_PLAN", "DOC_TRAFFIC_IMPACT_STUDY",
+    "DOC_ENVIRONMENTAL_PERMIT"));
+});
