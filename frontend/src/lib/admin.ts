@@ -5,8 +5,9 @@
 // (comma-separated, case-insensitive). This gates the discovery/monitoring/
 // review tools both in the UI (hide the entry point) and on the server (403).
 //
-// SAFE DEFAULT: if ADMIN_EMAILS is empty/unset, NOBODY is an admin. The
-// operator must set it (e.g. ADMIN_EMAILS=dferdows@gmail.com).
+// OPEN DEFAULT: if ADMIN_EMAILS is empty/unset, ANY signed-in user is treated
+// as an admin (so the tools are reachable out of the box). Set ADMIN_EMAILS to
+// lock access down to a specific allowlist.
 // ============================================================================
 
 import { getCurrentUser } from "./supabase/server";
@@ -22,7 +23,9 @@ function adminSet(): Set<string> {
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   if (!email) return false;
-  return adminSet().has(email.toLowerCase());
+  const set = adminSet();
+  if (set.size === 0) return true; // open default: no allowlist configured
+  return set.has(email.toLowerCase());
 }
 
 export async function isCurrentUserAdmin(): Promise<boolean> {
