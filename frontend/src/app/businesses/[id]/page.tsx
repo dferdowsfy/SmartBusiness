@@ -41,9 +41,14 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
             <h1 className="text-2xl font-bold text-[#0A2540]">{b.name}</h1>
             <p className="text-xs text-[#0A2540]/50">Added {fmtDate(b.created_at)}</p>
           </div>
-          <Link href={`/?business=${b.id}`} className="bg-[#0D9488] text-white rounded-full px-5 py-2 text-sm font-medium">
-            Start new assessment →
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={`/requirements/${b.id}`} className="border border-[#0D9488] text-[#0D9488] rounded-full px-5 py-2 text-sm font-medium">
+              Required forms
+            </Link>
+            <Link href={`/?business=${b.id}`} className="bg-[#0D9488] text-white rounded-full px-5 py-2 text-sm font-medium">
+              Start new assessment →
+            </Link>
+          </div>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-5">

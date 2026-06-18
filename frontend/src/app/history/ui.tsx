@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, Landmark, RefreshCw, ExternalLink } from "lucide-react";
+import { Building2, Landmark, RefreshCw, ExternalLink, ShieldCheck } from "lucide-react";
 import { ACTIVE_JURISDICTION } from "../jurisdictions";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 
@@ -27,6 +27,7 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "histo
     { key: "dashboard", label: "Dashboard", href: "/dashboard", Icon: Building2 },
     { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
     { key: "history", label: "History", href: "/history", Icon: RefreshCw },
+    { key: "admin", label: "Admin Review", href: "/admin/requirements", Icon: ShieldCheck },
   ];
   const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
   const [menuOpen, setMenuOpen] = useState(false);
