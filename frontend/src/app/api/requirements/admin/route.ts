@@ -3,14 +3,14 @@
 // POST { action, itemId } -> { ok, message }
 import { isEnabled } from "../../../graph/db";
 import { getCurrentUser } from "../../../../lib/supabase/server";
+import { isCurrentUserAdmin } from "../../../../lib/admin";
 import { listAdminReviewQueue, applyAdminAction, type AdminAction } from "../../../requirements/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
   if (!isEnabled()) return Response.json({ items: [] });
   const items = await listAdminReviewQueue();
   return Response.json({ items });
@@ -18,7 +18,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!user || !(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
   if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
 
   let body: { action?: AdminAction; itemId?: string };

@@ -4,7 +4,7 @@
 // POST { stateOrTerritory, municipality?, county?, businessType, activityType?,
 //        seedUrl?, usePlaywright?, maxPages?, maxDepth? }
 import { isEnabled } from "../../../graph/db";
-import { getCurrentUser } from "../../../../lib/supabase/server";
+import { isCurrentUserAdmin } from "../../../../lib/admin";
 import { discoverRequirementRules } from "../../../requirements/agents";
 
 export const runtime = "nodejs";
@@ -13,8 +13,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+  if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
   if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
 
   let body: {

@@ -980,7 +980,7 @@ export default function SmartPR() {
   // For anonymous users: email used to claim this submission on later sign-in.
   const [claimEmail, setClaimEmail] = useState<string>('');
   // Signed-in user (null when anonymous, undefined while loading).
-  const [me, setMe] = useState<{ id: string; email: string | null; name: string | null } | null | undefined>(undefined);
+  const [me, setMe] = useState<{ id: string; email: string | null; name: string | null; isAdmin?: boolean } | null | undefined>(undefined);
   // Save Progress state for user feedback.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // Advisory historical recommendations (never mandatory; rules stay authoritative).
@@ -2754,6 +2754,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <a className="nav-tab" href="/history">
               <RefreshCw className="tab-icon" /> {L('History', language)}
             </a>
+            {me?.isAdmin && (
+              <a className="nav-tab" href="/admin/requirements">
+                <ShieldCheck className="tab-icon" /> {L('Admin', language)}
+              </a>
+            )}
           </nav>
 
           <div className="appbar-actions">
@@ -2769,6 +2774,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="uemail">{me?.email || L('Not signed in', language)}</div>
               </div>
               {me === null && <a className="uitem" href="/auth/login"><ExternalLink className="i" /> {L('Sign in', language)}</a>}
+              {me?.isAdmin && <a className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
               {me && <button type="button" className="uitem" onClick={handleSignOut}><ExternalLink className="i" /> {L('Sign out', language)}</button>}
             </div>
           </div>

@@ -6,7 +6,7 @@
 //
 // POST { ruleId?, municipality?, stateOrTerritory?, businessType?, activityType?, forceRefresh? }
 import { isEnabled } from "../../../graph/db";
-import { getCurrentUser } from "../../../../lib/supabase/server";
+import { isCurrentUserAdmin } from "../../../../lib/admin";
 import { runRequirementMonitoringAgent } from "../../../requirements/agents";
 
 export const runtime = "nodejs";
@@ -39,8 +39,7 @@ export async function POST(req: Request) {
     /* empty body is fine for a sweep */
   }
   if (!cronAuthorized(req)) {
-    const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
   }
   return handle(req, body);
 }
@@ -48,8 +47,7 @@ export async function POST(req: Request) {
 // Allow GET for the simplest cron setups (secret header still required).
 export async function GET(req: Request) {
   if (!cronAuthorized(req)) {
-    const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+    if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
   }
   return handle(req, {});
 }

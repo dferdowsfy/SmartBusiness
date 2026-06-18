@@ -52,6 +52,7 @@ export default function AdminRequirementsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = checking
 
   const load = useCallback(async () => {
     const res = await fetch("/api/requirements/admin");
@@ -63,8 +64,13 @@ export default function AdminRequirementsPage() {
   useEffect(() => {
     let active = true;
     void (async () => {
-      await load();
+      const meRes = await fetch("/api/me");
+      const me = await meRes.json();
+      const admin = !!me?.user?.isAdmin;
       if (!active) return;
+      setIsAdmin(admin);
+      if (admin) await load();
+      else setLoading(false);
     })();
     return () => {
       active = false;
@@ -135,6 +141,19 @@ export default function AdminRequirementsPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <TopNav active="admin" />
+      {isAdmin === false ? (
+        <div className="max-w-5xl mx-auto px-5 py-8">
+          <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center">
+            <h1 className="text-xl font-bold text-[#0A2540]">Not authorized</h1>
+            <p className="mt-2 text-sm text-[#0A2540]/60">
+              This area is restricted to administrators. Ask an administrator to add your account
+              to <code className="rounded bg-slate-100 px-1">ADMIN_EMAILS</code>.
+            </p>
+          </div>
+        </div>
+      ) : isAdmin === null ? (
+        <div className="p-10 text-center text-[#0A2540]/50">Checking access…</div>
+      ) : (
       <div className="max-w-5xl mx-auto px-5 py-8">
         <div className="flex items-end justify-between mb-2">
           <div>
@@ -241,6 +260,7 @@ export default function AdminRequirementsPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
