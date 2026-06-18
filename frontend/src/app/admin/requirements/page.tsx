@@ -87,6 +87,38 @@ export default function AdminRequirementsPage() {
     }
   };
 
+  const [disc, setDisc] = useState({ stateOrTerritory: "PR", municipality: "", businessType: "restaurant", seedUrl: "" });
+
+  const runDiscovery = async () => {
+    setBusy("discover");
+    try {
+      const res = await fetch("/api/requirements/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          stateOrTerritory: disc.stateOrTerritory,
+          municipality: disc.municipality || undefined,
+          businessType: disc.businessType,
+          seedUrl: disc.seedUrl || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setToast(`Discovery failed: ${data.message || data.error}`);
+      } else {
+        setToast(
+          `Discovery complete: crawled ${data.sourcesCrawled?.length ?? 0} source(s), ` +
+            `created ${data.rulesCreated} rule(s), ${data.documentsCreated} document(s), ` +
+            `${data.draftTemplatesCreated} draft template(s).` +
+            (data.errors?.length ? ` (${data.errors.length} warning(s))` : "")
+        );
+      }
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const runMonitor = async () => {
     setBusy("monitor");
     try {
@@ -122,6 +154,47 @@ export default function AdminRequirementsPage() {
         </div>
 
         {toast && <div className="my-3 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{toast}</div>}
+
+        <div className="my-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="text-sm font-bold text-[#0A2540]">Discover requirements from official sources</div>
+          <p className="mb-3 text-xs text-[#0A2540]/60">
+            Crawls curated government portals (OGPe + municipalities) or an official seed URL you
+            provide, extracts forms/checklists/fees, and files them as needs_review.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-4">
+            <input
+              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="State/Territory (e.g. PR)"
+              value={disc.stateOrTerritory}
+              onChange={(e) => setDisc((d) => ({ ...d, stateOrTerritory: e.target.value }))}
+            />
+            <input
+              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="Municipality (optional)"
+              value={disc.municipality}
+              onChange={(e) => setDisc((d) => ({ ...d, municipality: e.target.value }))}
+            />
+            <input
+              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="Business type"
+              value={disc.businessType}
+              onChange={(e) => setDisc((d) => ({ ...d, businessType: e.target.value }))}
+            />
+            <input
+              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              placeholder="Official seed URL (optional)"
+              value={disc.seedUrl}
+              onChange={(e) => setDisc((d) => ({ ...d, seedUrl: e.target.value }))}
+            />
+          </div>
+          <button
+            onClick={runDiscovery}
+            disabled={busy === "discover"}
+            className="mt-3 rounded-full bg-[#0D9488] px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {busy === "discover" ? "Crawling…" : "Run discovery"}
+          </button>
+        </div>
 
         {loading ? (
           <div className="p-10 text-center text-[#0A2540]/50">Loading…</div>

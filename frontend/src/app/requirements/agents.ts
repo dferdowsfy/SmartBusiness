@@ -21,6 +21,8 @@ import { createHash } from "crypto";
 import { randomUUID } from "crypto";
 import { getPool } from "../graph/db";
 import { ensureRequirementsSchema } from "./schema";
+import { crawlSource } from "./crawler";
+import { sourcesFor } from "./sources";
 import type { RequirementRule } from "./types";
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -71,21 +73,30 @@ export interface DiscoverInput {
   county?: string;
   businessType: string;
   activityType?: string;
+  /** Optional explicit official seed URL (admin-supplied) to crawl. */
+  seedUrl?: string;
+  /** Use the Playwright fallback for JS-rendered pages (default false). */
+  usePlaywright?: boolean;
+  maxPages?: number;
+  maxDepth?: number;
 }
 
-export interface DiscoveredRequirement {
-  suggestedQueries: string[];
+export interface DiscoveryResult {
+  sourcesCrawled: { seedUrl: string; agency: string; pagesVisited: number; documentsFound: number }[];
+  rulesCreated: number;
+  documentsCreated: number;
+  draftTemplatesCreated: number;
+  feeReferences: string[];
+  errors: string[];
   note: string;
 }
 
 /**
- * Returns the official-source search strategy for a jurisdiction + business
- * type. This phase emits the guardrailed query set (to be run against an
- * official-source-restricted search later); it never scrapes blogs or paid
- * APIs and never auto-creates active rules. Discovered candidates must be
- * admin-reviewed before becoming active.
+ * The official-source SEARCH STRATEGY (query set) for a jurisdiction + business
+ * type. Retained as a helper/reference; the live discovery agent crawls the
+ * curated official entry points in sources.ts rather than a paid search API.
  */
-export function discoverRequirementRules(input: DiscoverInput): DiscoveredRequirement {
+export function discoveryQueryStrategy(input: DiscoverInput): string[] {
   const m = input.municipality ?? "";
   const bt = input.businessType;
   const generic = [
@@ -106,18 +117,161 @@ export function discoverRequirementRules(input: DiscoverInput): DiscoveredRequir
           `"certificado de uso"`,
           `"OGPe" "${bt}" "solicitud"`,
           `"permiso único" "${m}"`,
-          `"permiso de uso" "${m}"`,
           `"licencia sanitaria" "${m}"`,
           `"bomberos" "${m}"`,
           `"salud ambiental" "${m}"`,
         ]
       : [];
-  return {
-    suggestedQueries: [...generic, ...puertoRico],
+  return [...generic, ...puertoRico];
+}
+
+/**
+ * LIVE discovery agent: crawls curated official government entry points (and/or
+ * an admin-supplied official seed URL), extracts candidate requirement
+ * documents, and PERSISTS them as requirement_rules + requirement_documents.
+ * Discovered application forms also get a DRAFT form_template so an admin can
+ * finish the schema and publish it.
+ *
+ * GUARDRAILS: official hosts only, bounded crawl, checksum de-dup, everything
+ * created as needs_review/draft — never active without admin approval.
+ */
+export async function discoverRequirementRules(input: DiscoverInput): Promise<DiscoveryResult> {
+  const result: DiscoveryResult = {
+    sourcesCrawled: [],
+    rulesCreated: 0,
+    documentsCreated: 0,
+    draftTemplatesCreated: 0,
+    feeReferences: [],
+    errors: [],
     note:
-      "Official government sources only. Reject consultant/blog/law-firm/mirror/AI " +
-      "summaries. Discovered candidates are created as needs_review and require admin approval.",
+      "Official government sources only. Discovered items are created as " +
+      "needs_review/draft and require admin approval before going live.",
   };
+
+  const pool = getPool();
+  if (!pool) {
+    result.errors.push("no_database");
+    return result;
+  }
+  await ensureRequirementsSchema();
+
+  // Build the set of seeds to crawl: registry matches + any explicit seed.
+  const seeds = sourcesFor(input.stateOrTerritory, input.municipality);
+  const adminSeed = input.seedUrl
+    ? [{ seedUrl: input.seedUrl, agencyName: "Admin-supplied source", stateOrTerritory: input.stateOrTerritory, municipality: input.municipality, officialHosts: [] as string[] }]
+    : [];
+  const allSeeds = [...adminSeed, ...seeds];
+  if (allSeeds.length === 0) {
+    result.errors.push(`No official source registered for ${input.stateOrTerritory}${input.municipality ? "/" + input.municipality : ""}. Provide a seedUrl.`);
+    return result;
+  }
+
+  for (const src of allSeeds) {
+    const crawl = await crawlSource(src.seedUrl, {
+      officialHosts: src.officialHosts,
+      usePlaywright: input.usePlaywright,
+      maxPages: input.maxPages,
+      maxDepth: input.maxDepth,
+    });
+    result.errors.push(...crawl.errors);
+    for (const f of crawl.feeReferences) if (!result.feeReferences.includes(f)) result.feeReferences.push(f);
+    result.sourcesCrawled.push({
+      seedUrl: src.seedUrl,
+      agency: src.agencyName,
+      pagesVisited: crawl.pagesVisited.length,
+      documentsFound: crawl.documents.length,
+    });
+
+    for (const docItem of crawl.documents) {
+      // De-dup: skip if a document with this checksum already exists.
+      const dup = await pool.query(`SELECT 1 FROM requirement_documents WHERE checksum = $1 LIMIT 1`, [docItem.checksum]);
+      if (dup.rows.length > 0) continue;
+
+      const sourceDomain = (() => {
+        try { return new URL(docItem.url).hostname; } catch { return null; }
+      })();
+
+      // One needs_review rule per discovered document (admin can merge/edit).
+      const ruleId = randomUUID();
+      await pool.query(
+        `INSERT INTO requirement_rules
+           (id, state_or_territory, municipality, agency_name, business_type, activity_type,
+            requirement_category, requirement_name, description, official_source_url,
+            source_domain, confidence_score, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'needs_review')`,
+        [
+          ruleId,
+          input.stateOrTerritory,
+          src.municipality ?? input.municipality ?? null,
+          src.agencyName,
+          input.businessType,
+          input.activityType ?? null,
+          docItem.documentType,
+          docItem.title.slice(0, 300),
+          `Auto-discovered from ${src.agencyName}. Needs admin review/classification.`,
+          docItem.url,
+          sourceDomain,
+          0.3,
+        ]
+      );
+      result.rulesCreated += 1;
+
+      const docId = randomUUID();
+      await pool.query(
+        `INSERT INTO requirement_documents
+           (id, requirement_rule_id, document_title, document_type, source_url, source_file_url,
+            checksum, file_type, language, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'needs_review')`,
+        [
+          docId,
+          ruleId,
+          docItem.title.slice(0, 300),
+          docItem.documentType,
+          docItem.url,
+          docItem.fileType && docItem.fileType !== "html" ? docItem.url : null,
+          docItem.checksum,
+          docItem.fileType,
+          docItem.language,
+        ]
+      );
+      result.documentsCreated += 1;
+
+      // For application forms, scaffold a DRAFT template for admin completion.
+      if (docItem.documentType === "application_form") {
+        const renderMode = docItem.fileType === "pdf" ? "pdf_overlay" : "native_ui";
+        const schema = {
+          sections: [
+            {
+              title: "Applicant Information",
+              description: "Auto-scaffolded from a discovered form. Admin: add/adjust fields to match the official source.",
+              fields: [
+                { key: "legal_business_name", label: "Legal Business Name", type: "text", required: true, source: "intake.business.legal_name" },
+                { key: "owner_name", label: "Owner Name", type: "text", required: true, source: "intake.owner.full_name" },
+                { key: "business_address", label: "Business Address", type: "address", required: true, source: "intake.location.address" },
+                { key: "municipality", label: "Municipality", type: "text", required: true, source: "intake.location.municipality" },
+              ],
+            },
+          ],
+        };
+        await pool.query(
+          `INSERT INTO form_templates
+             (requirement_document_id, template_name, template_version, render_mode,
+              schema_json, output_pdf_template_path, status)
+           VALUES ($1,$2,1,$3,$4,$5,'draft')`,
+          [
+            docId,
+            docItem.title.slice(0, 300),
+            renderMode,
+            JSON.stringify(schema),
+            docItem.fileType === "pdf" ? docItem.url : null,
+          ]
+        );
+        result.draftTemplatesCreated += 1;
+      }
+    }
+  }
+
+  return result;
 }
 
 // ---- Monitoring (PR 9) -----------------------------------------------------
