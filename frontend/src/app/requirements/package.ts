@@ -10,29 +10,9 @@
 
 import { getPool } from "../graph/db";
 import { ensureRequirementsSchema } from "./schema";
-import type { ValidationResult } from "./types";
+import type { PackagedForm, SubmissionPackage, ValidationResult } from "./types";
 
-export interface PackagedForm {
-  instanceId: string;
-  templateName: string | null;
-  requirementName: string | null;
-  agency: string | null;
-  status: string;
-  formData: Record<string, unknown>;
-  validation: ValidationResult | null;
-  generatedPdfPath: string | null;
-  source: { url: string | null; domain: string | null; lastCheckedAt: string | null };
-}
-
-export interface SubmissionPackage {
-  tenantId: string;
-  targetId: string;
-  generatedAt: string;
-  readiness: "ready" | "incomplete";
-  forms: PackagedForm[];
-  openIssues: string[];
-  disclaimer: string;
-}
+export type { PackagedForm, SubmissionPackage } from "./types";
 
 const DISCLAIMER =
   "This package reports submission READINESS only. It does not constitute legal advice, " +

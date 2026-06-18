@@ -112,6 +112,30 @@ export interface ValidationResult {
   blockingIssues: string[];
 }
 
+// ---- Submission package (PR 7) ---------------------------------------------
+
+export interface PackagedForm {
+  instanceId: string;
+  templateName: string | null;
+  requirementName: string | null;
+  agency: string | null;
+  status: string;
+  formData: Record<string, unknown>;
+  validation: ValidationResult | null;
+  generatedPdfPath: string | null;
+  source: { url: string | null; domain: string | null; lastCheckedAt: string | null };
+}
+
+export interface SubmissionPackage {
+  tenantId: string;
+  targetId: string;
+  generatedAt: string;
+  readiness: "ready" | "incomplete";
+  forms: PackagedForm[];
+  openIssues: string[];
+  disclaimer: string;
+}
+
 // ---- Row shapes ------------------------------------------------------------
 
 export interface RequirementRule {

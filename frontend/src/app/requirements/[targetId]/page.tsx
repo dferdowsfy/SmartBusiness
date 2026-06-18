@@ -15,9 +15,11 @@ import type {
   FormSchema,
   FormField,
   FormTemplate,
+  SubmissionPackage,
   UserFormInstance,
   ValidationResult,
 } from "../types";
+import { generatePackagePDF, generatePackageZip, downloadBlob } from "../deliverable";
 
 interface ResolvedForm {
   instanceId: string;
@@ -365,7 +367,7 @@ function FieldInput({
 // ---- Submission package (PR 7) ---------------------------------------------
 
 function SubmissionPackagePanel({ targetId }: { targetId: string }) {
-  const [pkg, setPkg] = useState<{ readiness: string; openIssues: string[]; forms: unknown[] } | null>(null);
+  const [pkg, setPkg] = useState<SubmissionPackage | null>(null);
   const [building, setBuilding] = useState(false);
 
   const build = async () => {
@@ -381,6 +383,13 @@ function SubmissionPackagePanel({ targetId }: { targetId: string }) {
     } finally {
       setBuilding(false);
     }
+  };
+
+  const downloadPdf = () => {
+    if (pkg) downloadBlob(generatePackagePDF(pkg), `submission-package-${targetId}.pdf`);
+  };
+  const downloadZip = async () => {
+    if (pkg) downloadBlob(await generatePackageZip(pkg), `submission-package-${targetId}.zip`);
   };
 
   return (
@@ -412,6 +421,20 @@ function SubmissionPackagePanel({ targetId }: { targetId: string }) {
               {pkg.openIssues.map((i, idx) => <li key={idx}>{i}</li>)}
             </ul>
           )}
+          <div className="mt-3 flex gap-2">
+            <button
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={downloadPdf}
+            >
+              Download PDF
+            </button>
+            <button
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              onClick={downloadZip}
+            >
+              Download ZIP bundle
+            </button>
+          </div>
         </div>
       )}
     </section>
