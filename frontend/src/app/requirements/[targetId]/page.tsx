@@ -36,7 +36,17 @@ interface ResolvedForm {
     last_checked_at: string | null;
     last_changed_at: string | null;
   } | null;
-  template: { id: string; template_name: string | null; render_mode: string; template_version: number } | null;
+  template: { id: string; template_name: string | null; render_mode: string; template_version: number; output_pdf_template_path: string | null } | null;
+  sourceDocument: {
+    id: string;
+    document_title: string | null;
+    document_type: string | null;
+    source_url: string | null;
+    source_file_url: string | null;
+    file_type: string | null;
+    language: string | null;
+    status: string;
+  } | null;
   validation: ValidationResult | null;
 }
 
@@ -112,7 +122,7 @@ export default function RequiredFormsPage({ params }: { params: Promise<{ target
             <li key={f.instanceId || f.rule?.id} className="rounded-lg border border-gray-200 p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="font-medium">{f.rule?.requirement_name || f.template?.template_name}</h2>
+                  <h2 className="font-medium">{f.rule?.requirement_name || f.template?.template_name || f.sourceDocument?.document_title}</h2>
                   <p className="text-sm text-gray-600">{f.rule?.agency_name}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                     {f.rule?.source_domain && (
@@ -122,7 +132,17 @@ export default function RequiredFormsPage({ params }: { params: Promise<{ target
                     )}
                     {f.rule?.confidence_score != null && <span>Confidence: {Math.round(Number(f.rule.confidence_score) * 100)}%</span>}
                     {f.rule?.last_checked_at && <span>Verified: {new Date(f.rule.last_checked_at).toLocaleDateString()}</span>}
+                    {f.sourceDocument?.document_type && <span>Required doc: {f.sourceDocument.document_type.replaceAll("_", " ")}</span>}
+                    {f.sourceDocument?.file_type && <span>Format: {f.sourceDocument.file_type.toUpperCase()}</span>}
                   </div>
+                  {f.sourceDocument?.source_url && (
+                    <p className="mt-2 text-xs text-gray-600">
+                      Official document is available in this UI for structured completion. {" "}
+                      <a className="underline" href={f.sourceDocument.source_file_url || f.sourceDocument.source_url} target="_blank" rel="noreferrer">
+                        Open official source
+                      </a>
+                    </p>
+                  )}
                   {changed && (
                     <p className="mt-2 rounded bg-yellow-50 px-2 py-1 text-xs text-yellow-800">
                       ⚠ This requirement recently changed and is under review.
@@ -144,7 +164,7 @@ export default function RequiredFormsPage({ params }: { params: Promise<{ target
               )}
 
               {isOpen && f.template && (
-                <FormEditor instanceId={f.instanceId} onSaved={load} />
+                <FormEditor instanceId={f.instanceId} onSaved={load} sourceUrl={f.sourceDocument?.source_file_url || f.sourceDocument?.source_url || f.template.output_pdf_template_path} />
               )}
             </li>
           );
@@ -158,7 +178,7 @@ export default function RequiredFormsPage({ params }: { params: Promise<{ target
 
 // ---- Dynamic form editor (PR 4/5/6) ----------------------------------------
 
-function FormEditor({ instanceId, onSaved }: { instanceId: string; onSaved: () => void }) {
+function FormEditor({ instanceId, onSaved, sourceUrl }: { instanceId: string; onSaved: () => void; sourceUrl?: string | null }) {
   const [template, setTemplate] = useState<FormTemplate | null>(null);
   const [data, setData] = useState<Record<string, unknown>>({});
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -208,6 +228,12 @@ function FormEditor({ instanceId, onSaved }: { instanceId: string; onSaved: () =
 
   return (
     <div className="mt-4 rounded border border-gray-100 bg-gray-50 p-4">
+      {sourceUrl && (
+        <div className="mb-4 rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-900">
+          Fill the structured fields below, attach completed files when requested, then submit for review.
+          <a className="ml-1 underline" href={sourceUrl} target="_blank" rel="noreferrer">Open official document</a>.
+        </div>
+      )}
       {schema.sections.map((section) => (
         <fieldset key={section.title} className="mb-4">
           <legend className="text-sm font-semibold text-gray-800">{section.title}</legend>
@@ -283,6 +309,7 @@ function FieldInput({
     <label className="mb-1 block text-xs font-medium text-gray-700">
       {field.label}
       {field.required && <span className="text-red-500"> *</span>}
+      {field.help && <span className="mt-0.5 block font-normal text-gray-500">{field.help}</span>}
     </label>
   );
 
