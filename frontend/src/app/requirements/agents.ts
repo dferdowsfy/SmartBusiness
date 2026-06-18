@@ -23,7 +23,7 @@ import { getPool } from "../graph/db";
 import { ensureRequirementsSchema } from "./schema";
 import { crawlSource } from "./crawler";
 import { sourcesFor } from "./sources";
-import type { RequirementRule } from "./types";
+import type { DocumentType, FormSchema, RequirementRule } from "./types";
 
 const FETCH_TIMEOUT_MS = 12_000;
 
@@ -45,6 +45,62 @@ function checksum(text: string): string {
   // Normalize whitespace so trivial reflow doesn't register as a change.
   const normalized = text.replace(/\s+/g, " ").trim();
   return createHash("sha256").update(normalized).digest("hex");
+}
+
+
+function buildScaffoldSchema(doc: { documentType: DocumentType; title: string; url: string; fileType: string | null; language: string | null }): FormSchema {
+  const isApplication = doc.documentType === "application_form";
+  const sourceLabel = doc.title.slice(0, 180);
+  return {
+    sections: [
+      {
+        title: isApplication ? "Applicant Information" : "Required Document" ,
+        description: isApplication
+          ? "Auto-scaffolded from the official source document. Admins should align fields to the exact official form before publishing."
+          : "Official source document surfaced in the UI so the applicant can prepare, attach, and resubmit it without relying on unstructured agent output.",
+        fields: [
+          { key: "legal_business_name", label: "Legal Business Name", type: "text", required: true, source: "intake.business.legal_name" },
+          { key: "owner_name", label: "Owner Name", type: "text", required: true, source: "intake.owner.full_name" },
+          { key: "business_address", label: "Business Address", type: "address", required: true, source: "intake.location.address" },
+          { key: "municipality", label: "Municipality", type: "text", required: true, source: "intake.location.municipality" },
+          ...(!isApplication
+            ? [
+                {
+                  key: "prepared_document",
+                  label: `Upload completed ${sourceLabel}`,
+                  type: "file_upload" as const,
+                  required: true,
+                  help: "Attach the completed official document or supporting evidence requested by the municipality.",
+                },
+                {
+                  key: "source_reviewed",
+                  label: "I reviewed the official source document and confirm this upload matches the requirement.",
+                  type: "declaration" as const,
+                  required: true,
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        title: "Official Source",
+        description: "Reference-only metadata kept with the fillable UI document.",
+        fields: [
+          { key: "official_source_url", label: "Official Source URL", type: "hidden", required: false },
+          { key: "source_document_type", label: "Document Type", type: "hidden", required: false },
+        ],
+      },
+    ],
+  };
+}
+
+function scaffoldValidationRules(documentType: DocumentType): Record<string, unknown> {
+  if (documentType === "application_form") return { requiredFields: ["legal_business_name", "owner_name", "business_address", "municipality"] };
+  return {
+    requiredFields: ["legal_business_name", "owner_name", "business_address", "municipality"],
+    requiredAttachments: ["prepared_document"],
+    requiredDeclarations: ["source_reviewed"],
+  };
 }
 
 async function fetchText(url: string): Promise<{ ok: boolean; text: string; status: number }> {
@@ -236,38 +292,29 @@ export async function discoverRequirementRules(input: DiscoverInput): Promise<Di
       );
       result.documentsCreated += 1;
 
-      // For application forms, scaffold a DRAFT template for admin completion.
-      if (docItem.documentType === "application_form") {
-        const renderMode = docItem.fileType === "pdf" ? "pdf_overlay" : "native_ui";
-        const schema = {
-          sections: [
-            {
-              title: "Applicant Information",
-              description: "Auto-scaffolded from a discovered form. Admin: add/adjust fields to match the official source.",
-              fields: [
-                { key: "legal_business_name", label: "Legal Business Name", type: "text", required: true, source: "intake.business.legal_name" },
-                { key: "owner_name", label: "Owner Name", type: "text", required: true, source: "intake.owner.full_name" },
-                { key: "business_address", label: "Business Address", type: "address", required: true, source: "intake.location.address" },
-                { key: "municipality", label: "Municipality", type: "text", required: true, source: "intake.location.municipality" },
-              ],
-            },
-          ],
-        };
-        await pool.query(
-          `INSERT INTO form_templates
-             (requirement_document_id, template_name, template_version, render_mode,
-              schema_json, output_pdf_template_path, status)
-           VALUES ($1,$2,1,$3,$4,$5,'draft')`,
-          [
-            docId,
-            docItem.title.slice(0, 300),
-            renderMode,
-            JSON.stringify(schema),
-            docItem.fileType === "pdf" ? docItem.url : null,
-          ]
-        );
-        result.draftTemplatesCreated += 1;
-      }
+      // Scaffold every discovered required document into a structured DRAFT
+      // template. Application forms get a fillable form shell; checklists, fee
+      // schedules, zoning/tax/inspection documents become attachment-driven UI
+      // tasks so users can complete/resubmit the actual official file instead
+      // of receiving unstructured scraped text.
+      const renderMode = docItem.documentType === "application_form" && docItem.fileType === "pdf" ? "pdf_overlay" : "native_ui";
+      const schema = buildScaffoldSchema(docItem);
+      await pool.query(
+        `INSERT INTO form_templates
+           (requirement_document_id, template_name, template_version, render_mode,
+            schema_json, field_mappings_json, validation_rules_json, output_pdf_template_path, status)
+         VALUES ($1,$2,1,$3,$4,$5,$6,$7,'draft')`,
+        [
+          docId,
+          docItem.title.slice(0, 300),
+          renderMode,
+          JSON.stringify(schema),
+          JSON.stringify({ official_source_url: docItem.url, source_document_type: docItem.documentType }),
+          JSON.stringify(scaffoldValidationRules(docItem.documentType)),
+          docItem.fileType === "pdf" ? docItem.url : null,
+        ]
+      );
+      result.draftTemplatesCreated += 1;
     }
   }
 
