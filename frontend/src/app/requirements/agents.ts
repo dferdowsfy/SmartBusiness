@@ -49,7 +49,7 @@ function checksum(text: string): string {
 
 
 function buildScaffoldSchema(doc: { documentType: DocumentType; title: string; url: string; fileType: string | null; language: string | null }): FormSchema {
-  const isApplication = doc.documentType === "application_form";
+  const isApplication = ["application", "application_form", "permit_form", "license_form", "inspection_request", "certification_request", "renewal_form"].includes(doc.documentType);
   const sourceLabel = doc.title.slice(0, 180);
   return {
     sections: [
@@ -95,7 +95,7 @@ function buildScaffoldSchema(doc: { documentType: DocumentType; title: string; u
 }
 
 function scaffoldValidationRules(documentType: DocumentType): Record<string, unknown> {
-  if (documentType === "application_form") return { requiredFields: ["legal_business_name", "owner_name", "business_address", "municipality"] };
+  if (["application", "application_form", "permit_form", "license_form", "inspection_request", "certification_request", "renewal_form"].includes(documentType)) return { requiredFields: ["legal_business_name", "owner_name", "business_address", "municipality"] };
   return {
     requiredFields: ["legal_business_name", "owner_name", "business_address", "municipality"],
     requiredAttachments: ["prepared_document"],
@@ -103,6 +103,20 @@ function scaffoldValidationRules(documentType: DocumentType): Record<string, unk
   };
 }
 
+
+function requirementCodeFrom(text: string): string {
+  const hay = text.toLowerCase();
+  if (/merchant|comerciante|hacienda/.test(hay)) return "merchant_registration";
+  if (/bombero|fire/.test(hay)) return "fire_inspection";
+  if (/salud|sanitar/.test(hay)) return "health_permit";
+  if (/patente/.test(hay)) return "municipal_patent";
+  if (/uso|occupancy|ocupaci/.test(hay)) return "occupancy_certification";
+  return hay.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 80) || "discovered_document";
+}
+
+function scopeFor(municipality: string | null | undefined): "statewide" | "municipality_specific" {
+  return municipality ? "municipality_specific" : "statewide";
+}
 async function fetchText(url: string): Promise<{ ok: boolean; text: string; status: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -273,22 +287,53 @@ export async function discoverRequirementRules(input: DiscoverInput): Promise<Di
       result.rulesCreated += 1;
 
       const docId = randomUUID();
+      const canonicalRequirementCode = requirementCodeFrom(`${docItem.title} ${docItem.url} ${input.businessType}`);
+      const documentScope = scopeFor(src.municipality ?? input.municipality ?? null);
+      const storagePath = `government-forms/pr/${canonicalRequirementCode}/${docItem.checksum}.${docItem.fileType || "html"}`;
       await pool.query(
         `INSERT INTO requirement_documents
            (id, requirement_rule_id, document_title, document_type, source_url, source_file_url,
-            checksum, file_type, language, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'needs_review')`,
+            storage_path, extracted_text_path, generated_schema_path, rendered_template_path,
+            checksum, file_type, language, last_modified, scope, canonical_requirement_code, metadata_json, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,'needs_review')`,
         [
           docId,
           ruleId,
           docItem.title.slice(0, 300),
           docItem.documentType,
-          docItem.url,
+          docItem.sourceUrl,
           docItem.fileType && docItem.fileType !== "html" ? docItem.url : null,
+          storagePath,
+          `${storagePath}.txt`,
+          `${storagePath}.schema.json`,
+          `${storagePath}.template.json`,
           docItem.checksum,
           docItem.fileType,
           docItem.language,
+          docItem.lastModified,
+          documentScope,
+          canonicalRequirementCode,
+          JSON.stringify({ download_url: docItem.url, content_length: docItem.contentLength, discovery_source_url: docItem.sourceUrl }),
         ]
+      );
+      await pool.query(
+        `INSERT INTO document_versions
+           (document_id, version_label, source_url, download_url, storage_path, checksum, last_modified, metadata_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+         ON CONFLICT (document_id, checksum) DO NOTHING`,
+        [docId, "discovered", docItem.sourceUrl, docItem.url, storagePath, docItem.checksum, docItem.lastModified, JSON.stringify({ file_type: docItem.fileType, language: docItem.language })]
+      );
+      await pool.query(
+        `INSERT INTO forms_registry
+           (requirement_code, requirement_name, agency, municipality, scope, primary_document_id, status)
+         VALUES ($1,$2,$3,$4,$5,$6,'needs_review')
+         ON CONFLICT (requirement_code, municipality, primary_document_id) DO NOTHING`,
+        [canonicalRequirementCode, input.businessType, src.agencyName, src.municipality ?? input.municipality ?? null, documentScope, docId]
+      );
+      await pool.query(
+        `INSERT INTO document_monitoring (document_id, source_url, last_seen_at, last_checksum, last_modified, status, observation_json)
+         VALUES ($1,$2,now(),$3,$4,'active',$5)`,
+        [docId, docItem.url, docItem.checksum, docItem.lastModified, JSON.stringify({ type: "new_form_discovered", agency: src.agencyName, document: docItem.title })]
       );
       result.documentsCreated += 1;
 
@@ -297,7 +342,7 @@ export async function discoverRequirementRules(input: DiscoverInput): Promise<Di
       // schedules, zoning/tax/inspection documents become attachment-driven UI
       // tasks so users can complete/resubmit the actual official file instead
       // of receiving unstructured scraped text.
-      const renderMode = docItem.documentType === "application_form" && docItem.fileType === "pdf" ? "pdf_overlay" : "native_ui";
+      const renderMode = ["application", "application_form", "permit_form", "license_form", "inspection_request", "certification_request", "renewal_form"].includes(docItem.documentType) && docItem.fileType === "pdf" ? "pdf_overlay" : "native_ui";
       const schema = buildScaffoldSchema(docItem);
       await pool.query(
         `INSERT INTO form_templates
