@@ -51,19 +51,29 @@ CREATE TABLE IF NOT EXISTS requirement_documents (
   document_title            TEXT,
   document_type             TEXT
                               CHECK (document_type IN (
-                                'application_form','checklist','fee_schedule','instructions',
-                                'zoning_document','tax_registration','license_requirement',
-                                'inspection_requirement','supporting_document_template',
-                                'portal_instruction','other')),
+                                'application','permit_form','license_form','inspection_request',
+                                'certification_request','affidavit','checklist','guide',
+                                'manual','instructions','renewal_form','supporting_document',
+                                'regulation','circular_letter','administrative_order','policy',
+                                'reference_material','application_form','fee_schedule','zoning_document',
+                                'tax_registration','license_requirement','inspection_requirement',
+                                'supporting_document_template','portal_instruction','other')),
   source_url                TEXT,
   source_file_url           TEXT,
   storage_path              TEXT,
+  extracted_text_path       TEXT,
+  generated_schema_path     TEXT,
+  rendered_template_path    TEXT,
   checksum                  TEXT,
   file_type                 TEXT,
   language                  TEXT,
   version_label             TEXT,
   detected_effective_date   DATE,
   detected_last_updated_date DATE,
+  last_modified             TIMESTAMPTZ,
+  scope                     TEXT CHECK (scope IN ('statewide','municipality_specific')),
+  canonical_requirement_code TEXT,
+  metadata_json             JSONB NOT NULL DEFAULT '{}'::jsonb,
   status                    TEXT NOT NULL DEFAULT 'needs_review'
                               CHECK (status IN ('active','needs_review','deprecated','superseded')),
   created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -72,6 +82,15 @@ CREATE TABLE IF NOT EXISTS requirement_documents (
 CREATE INDEX IF NOT EXISTS idx_reqdocs_rule     ON requirement_documents (requirement_rule_id);
 CREATE INDEX IF NOT EXISTS idx_reqdocs_status   ON requirement_documents (status);
 CREATE INDEX IF NOT EXISTS idx_reqdocs_checksum ON requirement_documents (checksum);
+
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS extracted_text_path TEXT;
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS generated_schema_path TEXT;
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS rendered_template_path TEXT;
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS last_modified TIMESTAMPTZ;
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS scope TEXT;
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS canonical_requirement_code TEXT;
+ALTER TABLE requirement_documents ADD COLUMN IF NOT EXISTS metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 CREATE INDEX IF NOT EXISTS idx_reqdocs_type     ON requirement_documents (document_type);
 
 CREATE TABLE IF NOT EXISTS form_templates (
@@ -148,6 +167,7 @@ CREATE TABLE IF NOT EXISTS requirement_change_events (
   monitoring_run_id UUID REFERENCES requirement_monitoring_runs(id) ON DELETE SET NULL,
   change_type       TEXT NOT NULL
                       CHECK (change_type IN (
+                        'document_update','document_removed','document_replaced','new_form_discovered',
                         'new_requirement','removed_requirement','form_updated','fee_updated',
                         'checklist_updated','source_unavailable','language_changed',
                         'manual_review_required')),
@@ -164,23 +184,89 @@ CREATE INDEX IF NOT EXISTS idx_changeevents_status   ON requirement_change_event
 CREATE INDEX IF NOT EXISTS idx_changeevents_severity ON requirement_change_events (severity);
 CREATE INDEX IF NOT EXISTS idx_changeevents_run      ON requirement_change_events (monitoring_run_id);
 
+
+CREATE TABLE IF NOT EXISTS forms_registry (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  requirement_code TEXT NOT NULL,
+  requirement_name TEXT,
+  agency TEXT,
+  municipality TEXT,
+  scope TEXT NOT NULL CHECK (scope IN ('statewide','municipality_specific')),
+  primary_document_id UUID REFERENCES requirement_documents(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'needs_review',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (requirement_code, municipality, primary_document_id)
+);
+CREATE INDEX IF NOT EXISTS idx_forms_registry_requirement ON forms_registry (requirement_code, municipality, status);
+
+CREATE TABLE IF NOT EXISTS document_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES requirement_documents(id) ON DELETE CASCADE,
+  version_label TEXT,
+  source_url TEXT,
+  download_url TEXT,
+  storage_path TEXT,
+  checksum TEXT NOT NULL,
+  last_modified TIMESTAMPTZ,
+  metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (document_id, checksum)
+);
+CREATE INDEX IF NOT EXISTS idx_docversions_document ON document_versions (document_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_docversions_checksum ON document_versions (checksum);
+
+CREATE TABLE IF NOT EXISTS document_relationships (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  parent_document_id UUID REFERENCES requirement_documents(id) ON DELETE CASCADE,
+  child_document_id UUID REFERENCES requirement_documents(id) ON DELETE CASCADE,
+  relationship_type TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (parent_document_id, child_document_id, relationship_type)
+);
+
+CREATE TABLE IF NOT EXISTS document_monitoring (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID REFERENCES requirement_documents(id) ON DELETE CASCADE,
+  source_url TEXT,
+  last_seen_at TIMESTAMPTZ,
+  last_checksum TEXT,
+  last_modified TIMESTAMPTZ,
+  status TEXT NOT NULL DEFAULT 'active',
+  observation_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_docmonitor_document ON document_monitoring (document_id, last_seen_at DESC);
+
 CREATE OR REPLACE VIEW v_admin_review_queue AS
   SELECT 'rule'::text AS item_kind, r.id AS item_id, r.requirement_name AS title,
          r.status, r.confidence_score, r.source_domain, r.official_source_url AS source_url,
-         r.updated_at
+         NULL::text AS source_file_url, r.agency_name, r.municipality, NULL::text AS document_type,
+         NULL::text AS canonical_requirement_code, '{}'::jsonb AS metadata_json, r.updated_at
     FROM requirement_rules r WHERE r.status = 'needs_review'
   UNION ALL
   SELECT 'document'::text, d.id, d.document_title, d.status, NULL::numeric,
-         NULL::text, d.source_url, d.updated_at
-    FROM requirement_documents d WHERE d.status = 'needs_review'
+         NULL::text, d.source_url, d.source_file_url, r.agency_name, r.municipality, d.document_type,
+         d.canonical_requirement_code, d.metadata_json, d.updated_at
+    FROM requirement_documents d LEFT JOIN requirement_rules r ON r.id = d.requirement_rule_id
+   WHERE d.status = 'needs_review'
   UNION ALL
   SELECT 'template'::text, t.id, t.template_name, t.status, NULL::numeric,
-         NULL::text, NULL::text, t.updated_at
-    FROM form_templates t WHERE t.status IN ('draft','needs_review')
+         NULL::text, d.source_url, d.source_file_url, r.agency_name, r.municipality, d.document_type,
+         d.canonical_requirement_code, jsonb_build_object('render_mode', t.render_mode, 'template_version', t.template_version), t.updated_at
+    FROM form_templates t
+    LEFT JOIN requirement_documents d ON d.id = t.requirement_document_id
+    LEFT JOIN requirement_rules r ON r.id = d.requirement_rule_id
+   WHERE t.status IN ('draft','needs_review')
   UNION ALL
   SELECT 'change_event'::text, e.id, e.summary, e.status, NULL::numeric,
-         NULL::text, NULL::text, e.created_at
-    FROM requirement_change_events e WHERE e.status = 'open';
+         NULL::text, COALESCE(d.source_url, r.official_source_url), d.source_file_url, r.agency_name, r.municipality, d.document_type,
+         d.canonical_requirement_code, jsonb_build_object('old_value', e.old_value, 'new_value', e.new_value, 'change_type', e.change_type, 'severity', e.severity), e.created_at
+    FROM requirement_change_events e
+    LEFT JOIN requirement_documents d ON d.id = e.document_id
+    LEFT JOIN requirement_rules r ON r.id = e.rule_id
+   WHERE e.status = 'open';
 `;
 
 // Applied once per process; cleared on failure so the next request can retry.
