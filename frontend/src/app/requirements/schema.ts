@@ -242,20 +242,31 @@ CREATE INDEX IF NOT EXISTS idx_docmonitor_document ON document_monitoring (docum
 CREATE OR REPLACE VIEW v_admin_review_queue AS
   SELECT 'rule'::text AS item_kind, r.id AS item_id, r.requirement_name AS title,
          r.status, r.confidence_score, r.source_domain, r.official_source_url AS source_url,
-         r.updated_at
+         NULL::text AS source_file_url, r.agency_name, r.municipality, NULL::text AS document_type,
+         NULL::text AS canonical_requirement_code, '{}'::jsonb AS metadata_json, r.updated_at
     FROM requirement_rules r WHERE r.status = 'needs_review'
   UNION ALL
   SELECT 'document'::text, d.id, d.document_title, d.status, NULL::numeric,
-         NULL::text, d.source_url, d.updated_at
-    FROM requirement_documents d WHERE d.status = 'needs_review'
+         NULL::text, d.source_url, d.source_file_url, r.agency_name, r.municipality, d.document_type,
+         d.canonical_requirement_code, d.metadata_json, d.updated_at
+    FROM requirement_documents d LEFT JOIN requirement_rules r ON r.id = d.requirement_rule_id
+   WHERE d.status = 'needs_review'
   UNION ALL
   SELECT 'template'::text, t.id, t.template_name, t.status, NULL::numeric,
-         NULL::text, NULL::text, t.updated_at
-    FROM form_templates t WHERE t.status IN ('draft','needs_review')
+         NULL::text, d.source_url, d.source_file_url, r.agency_name, r.municipality, d.document_type,
+         d.canonical_requirement_code, jsonb_build_object('render_mode', t.render_mode, 'template_version', t.template_version), t.updated_at
+    FROM form_templates t
+    LEFT JOIN requirement_documents d ON d.id = t.requirement_document_id
+    LEFT JOIN requirement_rules r ON r.id = d.requirement_rule_id
+   WHERE t.status IN ('draft','needs_review')
   UNION ALL
   SELECT 'change_event'::text, e.id, e.summary, e.status, NULL::numeric,
-         NULL::text, NULL::text, e.created_at
-    FROM requirement_change_events e WHERE e.status = 'open';
+         NULL::text, COALESCE(d.source_url, r.official_source_url), d.source_file_url, r.agency_name, r.municipality, d.document_type,
+         d.canonical_requirement_code, jsonb_build_object('old_value', e.old_value, 'new_value', e.new_value, 'change_type', e.change_type, 'severity', e.severity), e.created_at
+    FROM requirement_change_events e
+    LEFT JOIN requirement_documents d ON d.id = e.document_id
+    LEFT JOIN requirement_rules r ON r.id = e.rule_id
+   WHERE e.status = 'open';
 `;
 
 // Applied once per process; cleared on failure so the next request can retry.

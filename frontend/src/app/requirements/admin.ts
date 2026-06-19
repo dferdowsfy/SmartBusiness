@@ -19,6 +19,12 @@ export interface AdminReviewItem {
   confidence_score: number | null;
   source_domain: string | null;
   source_url: string | null;
+  source_file_url: string | null;
+  agency_name: string | null;
+  municipality: string | null;
+  document_type: string | null;
+  canonical_requirement_code: string | null;
+  metadata_json: Record<string, unknown> | null;
   updated_at: string;
 }
 
@@ -35,6 +41,8 @@ export async function listAdminReviewQueue(): Promise<AdminReviewItem[]> {
 export type AdminAction =
   | "approve_rule"
   | "reject_rule"
+  | "approve_document"
+  | "reject_document"
   | "approve_template"
   | "reject_template"
   | "accept_change"
@@ -58,6 +66,12 @@ export async function applyAdminAction(input: {
     case "reject_rule":
       await pool.query(`UPDATE requirement_rules SET status='deprecated', updated_at=now() WHERE id=$1`, [itemId]);
       return { ok: true, message: "Rule rejected (deprecated)." };
+    case "approve_document":
+      await pool.query(`UPDATE requirement_documents SET status='active', updated_at=now() WHERE id=$1`, [itemId]);
+      return { ok: true, message: "Document approved. It can now be linked to active forms and requirement packages." };
+    case "reject_document":
+      await pool.query(`UPDATE requirement_documents SET status='deprecated', updated_at=now() WHERE id=$1`, [itemId]);
+      return { ok: true, message: "Document rejected (deprecated)." };
     case "approve_template": {
       // Supersede any currently-active version for the same document, then
       // publish this one. History is preserved (status='superseded').
