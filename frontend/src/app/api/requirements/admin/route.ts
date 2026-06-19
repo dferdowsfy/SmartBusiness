@@ -10,26 +10,42 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
-  if (!isEnabled()) return Response.json({ items: [] });
-  const items = await listAdminReviewQueue();
-  return Response.json({ items });
+  try {
+    if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
+    if (!isEnabled()) return Response.json({ items: [] });
+    const items = await listAdminReviewQueue();
+    return Response.json({ items });
+  } catch (err) {
+    console.error("[requirements/admin] GET failed:", err);
+    return Response.json(
+      { error: "admin_queue_failed", message: (err as Error).message },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
-  const user = await getCurrentUser();
-  if (!user || !(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
-  if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
-
-  let body: { action?: AdminAction; itemId?: string };
   try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "invalid_body" }, { status: 400 });
+    const user = await getCurrentUser();
+    if (!user || !(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
+    if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
+
+    let body: { action?: AdminAction; itemId?: string };
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ error: "invalid_body" }, { status: 400 });
+    }
+    if (!body.action || !body.itemId) {
+      return Response.json({ error: "action and itemId are required" }, { status: 400 });
+    }
+    const result = await applyAdminAction({ action: body.action, itemId: body.itemId, adminUserId: user.id });
+    return Response.json(result);
+  } catch (err) {
+    console.error("[requirements/admin] POST failed:", err);
+    return Response.json(
+      { error: "admin_action_failed", message: (err as Error).message },
+      { status: 500 }
+    );
   }
-  if (!body.action || !body.itemId) {
-    return Response.json({ error: "action and itemId are required" }, { status: 400 });
-  }
-  const result = await applyAdminAction({ action: body.action, itemId: body.itemId, adminUserId: user.id });
-  return Response.json(result);
 }

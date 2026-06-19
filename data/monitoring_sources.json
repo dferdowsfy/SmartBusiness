@@ -1,0 +1,195 @@
+{
+  "metadata": {
+    "jurisdiction": "Puerto Rico",
+    "purpose": "Reliable websites for monitoring agents to discover, extract, and upload current business compliance forms, applications, requirements, and instructions.",
+    "source_count": 18,
+    "last_researched": "2026-06-18",
+    "reliability_policy": [
+      "Prefer official Puerto Rico government .pr.gov, gobierno.pr, or agency-owned domains for extraction.",
+      "Use trusted nonprofit/legal-help sites only as secondary discovery or explanation sources; do not treat them as authoritative form sources unless they link back to an official agency page.",
+      "For portals requiring authentication, monitor public help pages and metadata, but only extract forms or requirements that are publicly accessible and legally reusable."
+    ]
+  },
+  "sources": [
+    {
+      "id": "SRC_PR_OGPE_PERMISOS",
+      "name": "Oficina de Gerencia de Permisos (OGPe)",
+      "agency": "OGPe / DDEC",
+      "url": "https://www.permisos.pr.gov/",
+      "type": "official_government",
+      "monitor_for": ["Permiso Único", "permits", "licenses", "inspections", "certifications", "operating authorizations"],
+      "applies_to": ["all_industries", "all_municipalities"],
+      "extraction_notes": "Primary public OGPe landing page. Use it to discover public instructions and route authenticated or transactional permit workflows to SBP when appropriate."
+    },
+    {
+      "id": "SRC_PR_SBP",
+      "name": "Single Business Portal",
+      "agency": "DDEC / OGPe",
+      "url": "https://www.sbp.pr.gov/",
+      "type": "official_government_portal",
+      "monitor_for": ["business permit workflows", "online applications", "licenses", "certifications", "renewals"],
+      "applies_to": ["all_industries", "all_municipalities"],
+      "extraction_notes": "Portal is likely authentication-gated. Monitor public login/help text, public workflow labels, and linked guidance; do not scrape private account data."
+    },
+    {
+      "id": "SRC_PR_HACIENDA_FORMS",
+      "name": "Departamento de Hacienda - Planillas, Formularios y Anejos",
+      "agency": "Departamento de Hacienda",
+      "url": "https://hacienda.pr.gov/planillas-formularios-y-anejos",
+      "type": "official_government",
+      "monitor_for": ["merchant registration", "tax forms", "withholding forms", "IVU", "employer forms", "certifications"],
+      "applies_to": ["all_industries", "all_municipalities"],
+      "extraction_notes": "High-value source for downloadable forms and tax-related instructions. Preserve form numbers, tax year, revision date, and PDF/download URLs."
+    },
+    {
+      "id": "SRC_PR_HACIENDA_MERCHANTS",
+      "name": "Departamento de Hacienda - Comerciantes",
+      "agency": "Departamento de Hacienda",
+      "url": "https://hacienda.pr.gov/comerciantes",
+      "type": "official_government",
+      "monitor_for": ["merchant requirements", "business tax registrations", "employer obligations", "tax calendars"],
+      "applies_to": ["all_industries", "all_municipalities"],
+      "extraction_notes": "Use as a topical entry point for business-facing Hacienda requirements and links into specific forms."
+    },
+    {
+      "id": "SRC_PR_ESTADO_CORPORATIONS",
+      "name": "Departamento de Estado - Registro de Corporaciones y Entidades",
+      "agency": "Departamento de Estado",
+      "url": "https://www.estado.pr.gov/corporaciones",
+      "type": "official_government",
+      "monitor_for": ["corporation registration", "annual reports", "good standing", "entity compliance", "regulations"],
+      "applies_to": ["corporations", "llcs", "nonprofits", "professional_services"],
+      "extraction_notes": "Monitor for filing instructions, annual report requirements, corporation forms, and links to the official electronic registry."
+    },
+    {
+      "id": "SRC_PR_SALUD",
+      "name": "Departamento de Salud",
+      "agency": "Departamento de Salud",
+      "url": "https://www.salud.pr.gov/",
+      "type": "official_government",
+      "monitor_for": ["health permits", "public health notices", "sanitary requirements", "health facility requirements"],
+      "applies_to": ["healthcare", "food_beverage", "beauty_personal_care", "education", "events"],
+      "extraction_notes": "Use as the main official health-agency domain and discover downloadable CMS documents, requirements, and program pages."
+    },
+    {
+      "id": "SRC_PR_SALUD_DIGITAL",
+      "name": "Salud Digital",
+      "agency": "Departamento de Salud",
+      "url": "https://saluddigital.salud.pr.gov/",
+      "type": "official_government_portal",
+      "monitor_for": ["health licenses", "health permits", "certifications", "document filings", "environmental complaints"],
+      "applies_to": ["healthcare", "food_beverage", "beauty_personal_care", "events"],
+      "extraction_notes": "Authentication-gated portal; monitor public service descriptions and help content, then route users rather than scraping account-only records."
+    },
+    {
+      "id": "SRC_PR_ORCPS",
+      "name": "Oficina de Reglamentación y Certificación de Profesionales de la Salud",
+      "agency": "Departamento de Salud / ORCPS",
+      "url": "https://orcps.salud.pr.gov/",
+      "type": "official_government_portal",
+      "monitor_for": ["professional health licenses", "renewals", "health professional registry"],
+      "applies_to": ["healthcare", "professional_services"],
+      "extraction_notes": "Monitor public licensing categories and renewal guidance for health professionals."
+    },
+    {
+      "id": "SRC_PR_BOMBEROS_FORMS",
+      "name": "Cuerpo de Bomberos - Formularios",
+      "agency": "Cuerpo de Bomberos de Puerto Rico",
+      "url": "https://agencias.pr.gov/agencias/bomberos/formularios/Pages/default.aspx",
+      "type": "official_government",
+      "monitor_for": ["fire certifications", "inspection requests", "construction plan review", "inflatable owner registration", "extinguisher company lists"],
+      "applies_to": ["food_beverage", "retail", "construction", "manufacturing", "tourism", "events", "all_physical_locations"],
+      "extraction_notes": "Good source for PDFs and required-document sheets. Preserve document titles, publication/revision dates, and direct PDF URLs."
+    },
+    {
+      "id": "SRC_PR_DRNA_FORMS",
+      "name": "DRNA - Formularios",
+      "agency": "Departamento de Recursos Naturales y Ambientales",
+      "url": "https://www.drna.pr.gov/cat/documentos/formularios/",
+      "type": "official_government",
+      "monitor_for": ["environmental permits", "solid waste permits", "water permits", "coastal zone forms", "air quality forms"],
+      "applies_to": ["manufacturing", "construction", "agriculture", "energy", "tourism", "coastal_municipalities"],
+      "extraction_notes": "Monitor category pages and paginated archives for new or revised environmental forms."
+    },
+    {
+      "id": "SRC_PR_DRNA_PERMITS",
+      "name": "DRNA - Permisos",
+      "agency": "Departamento de Recursos Naturales y Ambientales",
+      "url": "https://www.drna.pr.gov/cat/documentos/formularios/perm/",
+      "type": "official_government",
+      "monitor_for": ["permit forms", "environmental applications", "permit instructions"],
+      "applies_to": ["manufacturing", "construction", "agriculture", "energy", "waste_management", "coastal_municipalities"],
+      "extraction_notes": "Specific permit-form category; prioritize over broader DRNA archive when extracting form candidates."
+    },
+    {
+      "id": "SRC_PR_DRNA_AIR_PERMITS",
+      "name": "DRNA - Área Calidad de Aire / Permisos",
+      "agency": "Departamento de Recursos Naturales y Ambientales",
+      "url": "https://www.drna.pr.gov/acai/permisos/",
+      "type": "official_government",
+      "monitor_for": ["air quality permits", "Rule 141 forms", "emissions permits"],
+      "applies_to": ["manufacturing", "energy", "industrial_port_municipalities", "automotive"],
+      "extraction_notes": "Target for air-emissions requirements; capture email-only instructions separately from downloadable forms."
+    },
+    {
+      "id": "SRC_PR_TOURISM",
+      "name": "Puerto Rico Tourism Company",
+      "agency": "Compañía de Turismo de Puerto Rico",
+      "url": "https://tourism.pr.gov/home-en/",
+      "type": "official_government_corporation",
+      "monitor_for": ["tourism registrations", "room tax", "tour guides", "travel agencies", "hotel development", "tourism regulations"],
+      "applies_to": ["tourism", "short_term_rentals", "transport", "arts_entertainment"],
+      "extraction_notes": "Monitor business, room-tax, program, laws, and regulations pages for tourism-sector obligations."
+    },
+    {
+      "id": "SRC_PR_TOURISM_DOING_BUSINESS",
+      "name": "Puerto Rico Tourism Company - Doing Business",
+      "agency": "Compañía de Turismo de Puerto Rico",
+      "url": "https://tourism.pr.gov/doing-business/",
+      "type": "official_government_corporation",
+      "monitor_for": ["tourism business planning", "tour guides", "travel agencies", "hotel development programs"],
+      "applies_to": ["tourism", "short_term_rentals", "transport"],
+      "extraction_notes": "Use as a business-facing landing page for tourism-related compliance and program links."
+    },
+    {
+      "id": "SRC_PR_CRIM360",
+      "name": "CRIM 360",
+      "agency": "Centro de Recaudaciones de Ingresos Municipales",
+      "url": "https://portal.crim360.com/",
+      "type": "official_government_portal",
+      "monitor_for": ["property tax certifications", "debt certifications", "municipal revenue documents", "personal property filings"],
+      "applies_to": ["all_industries", "property_owners", "real_estate", "retail", "manufacturing"],
+      "extraction_notes": "Portal content may be account-gated. Monitor public service descriptions and certification types; do not scrape taxpayer accounts."
+    },
+    {
+      "id": "SRC_PR_CFSE",
+      "name": "Corporación del Fondo del Seguro del Estado",
+      "agency": "CFSE",
+      "url": "https://www.cfse.pr.gov/",
+      "type": "official_government_corporation",
+      "monitor_for": ["workers compensation policy", "debt certifications", "policy validity certifications", "payroll declarations"],
+      "applies_to": ["employers", "construction", "all_industries_with_employees"],
+      "extraction_notes": "Monitor employer transaction pages and certificate guidance for workers-compensation proof documents."
+    },
+    {
+      "id": "SRC_PR_ASUME_CERTIFICATION",
+      "name": "ASUME - Solicitud de Certificación de Cumplimiento Patronal",
+      "agency": "Administración para el Sustento de Menores / Departamento de la Familia",
+      "url": "https://app.asume.pr.gov/Patronal",
+      "type": "official_government_portal",
+      "monitor_for": ["employer compliance certification", "ASUME patronal certification"],
+      "applies_to": ["employers", "government_contractors", "nonprofits"],
+      "extraction_notes": "Public form page for employer compliance certification. Capture field requirements and submission instructions where publicly visible."
+    },
+    {
+      "id": "SRC_PR_GOV_DIGITAL",
+      "name": "PR.gov Gobierno Digital",
+      "agency": "Puerto Rico Innovation and Technology Service / PR.gov",
+      "url": "https://www.pr.gov/gobierno-digital",
+      "type": "official_government_directory",
+      "monitor_for": ["digital services", "business certifications", "agency portals", "service directory updates"],
+      "applies_to": ["all_industries", "all_municipalities"],
+      "extraction_notes": "Use as a discovery index to identify official service portals; verify extracted requirements against the destination agency site."
+    }
+  ]
+}

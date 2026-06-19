@@ -19,10 +19,12 @@
 
 import { createHash } from "crypto";
 import { randomUUID } from "crypto";
+import { existsSync, readFileSync } from "fs";
+import { join } from "path";
 import { getPool } from "../graph/db";
 import { ensureRequirementsSchema } from "./schema";
 import { crawlSource } from "./crawler";
-import { sourcesFor } from "./sources";
+import { OFFICIAL_SOURCES, sourcesFor, type OfficialSource } from "./sources";
 import type { DocumentType, FormSchema, RequirementRule } from "./types";
 
 const FETCH_TIMEOUT_MS = 12_000;
@@ -31,11 +33,64 @@ const FETCH_TIMEOUT_MS = 12_000;
 // are rejected by omission.
 const OFFICIAL_SUFFIXES = [".gov", ".pr.gov", ".gov.pr"];
 
+interface MonitoringSourceFile {
+  sources: {
+    name: string;
+    agency: string;
+    url: string;
+    applies_to?: string[];
+  }[];
+}
+
+let monitoringSourcesCache: OfficialSource[] | null = null;
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function monitoringSourcesFromData(): OfficialSource[] {
+  if (monitoringSourcesCache) return monitoringSourcesCache;
+  const candidates = [
+    join(process.cwd(), "..", "data", "monitoring_sources.json"),
+    join(process.cwd(), "data", "monitoring_sources.json"),
+  ];
+  const filePath = candidates.find((candidate) => existsSync(candidate));
+  if (!filePath) {
+    monitoringSourcesCache = [];
+    return monitoringSourcesCache;
+  }
+  const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as MonitoringSourceFile;
+  monitoringSourcesCache = parsed.sources.flatMap((source) => {
+    const host = hostOf(source.url);
+    if (!host) return [];
+    return [
+      {
+        seedUrl: source.url,
+        agencyName: source.name || source.agency,
+        stateOrTerritory: "PR",
+        officialHosts: [host],
+      },
+    ];
+  });
+  return monitoringSourcesCache;
+}
+
+function officialHostsFromRegistry(): string[] {
+  return [...OFFICIAL_SOURCES, ...monitoringSourcesFromData()].flatMap((source) => source.officialHosts);
+}
+
 export function isOfficialSource(url: string | null | undefined): boolean {
   if (!url) return false;
   try {
     const host = new URL(url).hostname.toLowerCase();
-    return OFFICIAL_SUFFIXES.some((s) => host.endsWith(s) || host.includes(s));
+    return (
+      OFFICIAL_SUFFIXES.some((s) => host.endsWith(s) || host.includes(s)) ||
+      officialHostsFromRegistry().some((officialHost) => host === officialHost || host.endsWith("." + officialHost))
+    );
   } catch {
     return false;
   }
@@ -205,18 +260,20 @@ export async function discoverRequirementRules(input: DiscoverInput): Promise<Di
   };
 
   const pool = getPool();
-  if (!pool) {
-    result.errors.push("no_database");
-    return result;
-  }
-  await ensureRequirementsSchema();
+  if (pool) await ensureRequirementsSchema();
+  else result.errors.push("no_database: crawled sources but did not save discovered rules/documents/templates.");
 
   // Build the set of seeds to crawl: registry matches + any explicit seed.
-  const seeds = sourcesFor(input.stateOrTerritory, input.municipality);
+  const registeredSources = sourcesFor(input.stateOrTerritory, input.municipality);
+  const monitoringSources = input.stateOrTerritory.toUpperCase() === "PR" ? monitoringSourcesFromData() : [];
   const adminSeed = input.seedUrl
     ? [{ seedUrl: input.seedUrl, agencyName: "Admin-supplied source", stateOrTerritory: input.stateOrTerritory, municipality: input.municipality, officialHosts: [] as string[] }]
     : [];
-  const allSeeds = [...adminSeed, ...seeds];
+  const seedMap = new Map<string, OfficialSource>();
+  for (const source of [...adminSeed, ...registeredSources, ...monitoringSources]) {
+    seedMap.set(source.seedUrl, source);
+  }
+  const allSeeds = [...seedMap.values()];
   if (allSeeds.length === 0) {
     result.errors.push(`No official source registered for ${input.stateOrTerritory}${input.municipality ? "/" + input.municipality : ""}. Provide a seedUrl.`);
     return result;
@@ -239,6 +296,8 @@ export async function discoverRequirementRules(input: DiscoverInput): Promise<Di
     });
 
     for (const docItem of crawl.documents) {
+      if (!pool) continue;
+
       // De-dup: skip if a document with this checksum already exists.
       const dup = await pool.query(`SELECT 1 FROM requirement_documents WHERE checksum = $1 LIMIT 1`, [docItem.checksum]);
       if (dup.rows.length > 0) continue;
