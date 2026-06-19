@@ -38,6 +38,7 @@ interface MonitoringSourceFile {
     name: string;
     agency: string;
     url: string;
+    official_hosts?: string[];
     applies_to?: string[];
   }[];
 }
@@ -72,7 +73,7 @@ function monitoringSourcesFromData(): OfficialSource[] {
         seedUrl: source.url,
         agencyName: source.name || source.agency,
         stateOrTerritory: "PR",
-        officialHosts: [host],
+        officialHosts: source.official_hosts?.length ? source.official_hosts : [host],
       },
     ];
   });

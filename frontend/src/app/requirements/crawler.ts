@@ -58,7 +58,8 @@ const TYPE_KEYWORDS: { type: DocumentType; words: RegExp }[] = [
 ];
 
 // Anchors worth following / capturing must look requirement-related.
-const RELEVANT = /\b(permiso|licencia|patente|solicitud|formulario|planilla|certificado|requisitos|arancel|tarifa|inspecci[óo]n|zonificaci[óo]n|uso|permit|license|application|form|checklist|fee|inspection|zoning|certificate)\b/i;
+const RELEVANT = /\b(permiso|licencia|patente|solicitud|formulario|planilla|certificado|requisitos|arancel|tarifa|inspecci[óo]n|zonificaci[óo]n|uso|download|descargar|permit|license|application|form|checklist|fee|inspection|zoning|certificate)\b/i;
+const DOWNLOAD_LINK = /\b(download|descargar)\b/i;
 
 const FEE_RE = /(?:\$|US\$)\s?\d[\d,]*(?:\.\d{2})?/g;
 
@@ -85,6 +86,14 @@ function classify(text: string, url: string): DocumentType {
 function fileTypeOf(url: string): string | null {
   const m = url.toLowerCase().match(/\.(pdf|docx?|xlsx?|html?)(?:$|\?)/);
   return m ? m[1].replace("htm", "html") : null;
+}
+
+function inferredFileType(url: string, text: string): string | null {
+  const explicit = fileTypeOf(url);
+  if (explicit) return explicit;
+  const host = new URL(url).hostname.toLowerCase();
+  if (DOWNLOAD_LINK.test(text) && (host === "docs.pr.gov" || host.endsWith(".sharepoint.com"))) return "pdf";
+  return null;
 }
 
 function langOf(text: string): string | null {
@@ -191,19 +200,21 @@ export async function crawlSource(seedUrl: string, opts: CrawlOptions = {}): Pro
       const abs = normalizeUrl(href, url);
       if (!abs || !isOfficialHost(abs, officialHosts)) return;
 
-      const ft = fileTypeOf(abs);
+      const rowText = ($(el).closest("tr").text() || $(el).parent().text() || text).replace(/\s+/g, " ").trim();
+      const title = rowText && rowText.length > text.length ? rowText : text;
+      const ft = inferredFileType(abs, title);
       const isDownloadable = ft && ft !== "html";
-      const looksRelevant = RELEVANT.test(text) || RELEVANT.test(abs);
+      const looksRelevant = RELEVANT.test(title) || RELEVANT.test(abs);
 
       // Capture downloadable forms / relevant documents.
       if ((isDownloadable || looksRelevant) && !seenDocs.has(abs)) {
         seenDocs.add(abs);
         result.documents.push({
-          title: text || abs.split("/").pop() || abs,
+          title: title || abs.split("/").pop() || abs,
           url: abs,
-          documentType: classify(text, abs),
+          documentType: classify(title, abs),
           fileType: ft,
-          language: langOf(text || pageText.slice(0, 200)),
+          language: langOf(title || pageText.slice(0, 200)),
           checksum: checksumUrl(abs),
         });
       }

@@ -4,7 +4,7 @@
     "municipality_count": 78,
     "industry_count": 20,
     "business_type_count": 140,
-    "monitoring_source_count": 18,
+    "monitoring_source_count": 19,
     "source_files": [
       "data/municipalities.json",
       "data/industries.json",
@@ -1443,17 +1443,24 @@
       "extraction_notes": "Use as a topical entry point for business-facing Hacienda requirements and links into specific forms."
     },
     {
-      "id": "SRC_PR_ESTADO_CORPORATIONS",
-      "name": "Departamento de Estado - Registro de Corporaciones y Entidades",
+      "id": "SRC_PR_ESTADO_CORPORATION_FORMS",
+      "name": "Departamento de Estado - Forms for Corporation",
       "agency": "Departamento de Estado",
-      "url": "https://www.estado.pr.gov/corporaciones",
-      "type": "official_government",
+      "url": "https://www.statedepartment.pr.gov/forms-for-corporation",
+      "type": "official_government_download_page",
+      "official_hosts": [
+        "www.statedepartment.pr.gov",
+        "statedepartment.pr.gov",
+        "docs.pr.gov",
+        "pritspr.sharepoint.com"
+      ],
       "monitor_for": [
-        "corporation registration",
+        "corporation forms",
+        "LLC forms",
         "annual reports",
-        "good standing",
-        "entity compliance",
-        "regulations"
+        "amendments",
+        "dissolutions",
+        "downloadable PDFs"
       ],
       "applies_to": [
         "corporations",
@@ -1461,7 +1468,36 @@
         "nonprofits",
         "professional_services"
       ],
-      "extraction_notes": "Monitor for filing instructions, annual report requirements, corporation forms, and links to the official electronic registry."
+      "extraction_notes": "High-priority download page. Trigger/capture each Download link in the Cost/Description/Download tables and store the direct file URL with the row description and cost."
+    },
+    {
+      "id": "SRC_PR_ESTADO_CORPORATION_SERVICES",
+      "name": "Departamento de Estado - Registry of Corporations and Entities",
+      "agency": "Departamento de Estado",
+      "url": "https://www.statedepartment.pr.gov/services-coporations",
+      "type": "official_government_download_page",
+      "official_hosts": [
+        "www.statedepartment.pr.gov",
+        "statedepartment.pr.gov",
+        "docs.pr.gov",
+        "app.estado.gobierno.pr",
+        "rcp.estado.pr.gov",
+        "pr.gov"
+      ],
+      "monitor_for": [
+        "corporation registry requirements",
+        "annual report orders",
+        "circular letters",
+        "regulations",
+        "downloadable PDFs"
+      ],
+      "applies_to": [
+        "corporations",
+        "llcs",
+        "nonprofits",
+        "professional_services"
+      ],
+      "extraction_notes": "High-priority service page. Capture administrative-order Download links and registry guidance URLs as source documents for retrieval."
     },
     {
       "id": "SRC_PR_SALUD",
