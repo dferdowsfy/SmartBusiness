@@ -19,8 +19,8 @@ import { isOfficialHost } from "./sources";
 import type { DocumentType } from "./types";
 
 const FETCH_TIMEOUT_MS = 12_000;
-const DEFAULT_MAX_PAGES = 20;
-const DEFAULT_MAX_DEPTH = 2;
+const DEFAULT_MAX_PAGES = 75;
+const DEFAULT_MAX_DEPTH = 3;
 
 export interface ExtractedDocument {
   title: string;
@@ -28,7 +28,10 @@ export interface ExtractedDocument {
   documentType: DocumentType;
   fileType: string | null; // 'pdf' | 'html' | ...
   language: string | null;
-  checksum: string; // sha256 of the normalized URL (stable de-dup key)
+  checksum: string; // sha256 of downloaded bytes when available, otherwise normalized URL
+  sourceUrl: string;
+  lastModified: string | null;
+  contentLength: number | null;
 }
 
 export interface CrawlResult {
@@ -47,10 +50,21 @@ export interface CrawlOptions {
 
 // Keyword → document_type classification (English + Spanish / PR terms).
 const TYPE_KEYWORDS: { type: DocumentType; words: RegExp }[] = [
-  { type: "application_form", words: /\b(application|solicitud|formulario|planilla|permiso[ -]?[úu]nico|patente)\b/i },
+  { type: "affidavit", words: /\b(affidavit|declaraci[óo]n jurada)\b/i },
   { type: "checklist", words: /\b(checklist|lista|requisitos|requirements)\b/i },
-  { type: "fee_schedule", words: /\b(fee|fees|arancel|aranceles|tarifa|costo|derechos)\b/i },
   { type: "instructions", words: /\b(instructions|instrucciones|gu[íi]a|guide|how to|c[óo]mo)\b/i },
+  { type: "guide", words: /\b(gu[íi]a|guide|orientaci[óo]n)\b/i },
+  { type: "manual", words: /\b(manual)\b/i },
+  { type: "renewal_form", words: /\b(renewal|renovaci[óo]n)\b/i },
+  { type: "permit_form", words: /\b(permiso|permit|permiso[ -]?[úu]nico)\b/i },
+  { type: "license_form", words: /\b(license|licencia|patente)\b/i },
+  { type: "inspection_request", words: /\b(inspection|inspecci[óo]n|bomberos|salud|sanitaria)\b/i },
+  { type: "certification_request", words: /\b(certification|certificaci[óo]n|certificado)\b/i },
+  { type: "regulation", words: /\b(regulation|reglamento|reglamentaci[óo]n)\b/i },
+  { type: "circular_letter", words: /\b(circular letter|carta circular)\b/i },
+  { type: "administrative_order", words: /\b(administrative order|orden administrativa)\b/i },
+  { type: "policy", words: /\b(policy|pol[íi]tica)\b/i },
+  { type: "application", words: /\b(application|solicitud|formulario|planilla)\b/i },
   { type: "zoning_document", words: /\b(zoning|zonificaci[óo]n|uso de terreno)\b/i },
   { type: "tax_registration", words: /\b(tax|hacienda|registro|iva|ivu|contribuci[óo]n)\b/i },
   { type: "license_requirement", words: /\b(license|licencia|certificado de uso|certificate of use)\b/i },
@@ -58,7 +72,7 @@ const TYPE_KEYWORDS: { type: DocumentType; words: RegExp }[] = [
 ];
 
 // Anchors worth following / capturing must look requirement-related.
-const RELEVANT = /\b(permiso|licencia|patente|solicitud|formulario|planilla|certificado|requisitos|arancel|tarifa|inspecci[óo]n|zonificaci[óo]n|uso|permit|license|application|form|checklist|fee|inspection|zoning|certificate)\b/i;
+const RELEVANT = /\b(formularios?|forms?|documentos?|downloads?|permisos?|solicitudes?|aplicaciones?|manuales?|gu[ií]as?|certificaciones?|licencias?|inspecciones?|pdf|permiso|licencia|patente|planilla|certificado|requisitos|arancel|tarifa|inspecci[óo]n|zonificaci[óo]n|uso|permit|license|application|form|checklist|fee|inspection|zoning|certificate)\b/i;
 
 const FEE_RE = /(?:\$|US\$)\s?\d[\d,]*(?:\.\d{2})?/g;
 
@@ -76,6 +90,29 @@ function checksumUrl(url: string): string {
   return createHash("sha256").update(url.trim().toLowerCase()).digest("hex");
 }
 
+async function downloadMetadata(url: string): Promise<{ checksum: string; lastModified: string | null; contentLength: number | null }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: "follow",
+      headers: { "User-Agent": "SmartPR-DocumentDiscovery/1.0 (readiness; non-commercial)" },
+    });
+    if (!res.ok) throw new Error(`download_failed_${res.status}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    return {
+      checksum: createHash("sha256").update(bytes).digest("hex"),
+      lastModified: res.headers.get("last-modified"),
+      contentLength: Number(res.headers.get("content-length") || bytes.length) || null,
+    };
+  } catch {
+    return { checksum: checksumUrl(url), lastModified: null, contentLength: null };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function classify(text: string, url: string): DocumentType {
   const hay = `${text} ${url}`;
   for (const { type, words } of TYPE_KEYWORDS) if (words.test(hay)) return type;
@@ -83,7 +120,7 @@ function classify(text: string, url: string): DocumentType {
 }
 
 function fileTypeOf(url: string): string | null {
-  const m = url.toLowerCase().match(/\.(pdf|docx?|xlsx?|html?)(?:$|\?)/);
+  const m = url.toLowerCase().match(/\.(pdf|docx?|xlsx?|zip|rtf|odt|ods|html?)(?:$|\?)/);
   return m ? m[1].replace("htm", "html") : null;
 }
 
@@ -121,7 +158,8 @@ async function playwrightFetch(url: string): Promise<string | null> {
     // Non-literal specifier so TS does not require 'playwright' to be installed;
     // it's an optional runtime enhancement only.
     const specifier = "playwright";
-    const mod = (await import(specifier).catch(() => null)) as
+    const dynamicImport = new Function("specifier", "return import(specifier)") as (specifier: string) => Promise<unknown>;
+    const mod = (await dynamicImport(specifier).catch(() => null)) as
       | { chromium: { launch: (o?: unknown) => Promise<unknown> } }
       | null;
     if (!mod?.chromium) return null;
@@ -185,6 +223,7 @@ export async function crawlSource(seedUrl: string, opts: CrawlOptions = {}): Pro
       if (!result.feeReferences.includes(m)) result.feeReferences.push(m);
     }
 
+    const candidates: { abs: string; text: string; ft: string | null; isDownloadable: boolean }[] = [];
     $("a[href]").each((_, el) => {
       const href = $(el).attr("href") || "";
       const text = ($(el).text() || "").replace(/\s+/g, " ").trim();
@@ -198,14 +237,7 @@ export async function crawlSource(seedUrl: string, opts: CrawlOptions = {}): Pro
       // Capture downloadable forms / relevant documents.
       if ((isDownloadable || looksRelevant) && !seenDocs.has(abs)) {
         seenDocs.add(abs);
-        result.documents.push({
-          title: text || abs.split("/").pop() || abs,
-          url: abs,
-          documentType: classify(text, abs),
-          fileType: ft,
-          language: langOf(text || pageText.slice(0, 200)),
-          checksum: checksumUrl(abs),
-        });
+        candidates.push({ abs, text, ft, isDownloadable: Boolean(isDownloadable) });
       }
 
       // Follow relevant same-source HTML pages for another level.
@@ -213,6 +245,21 @@ export async function crawlSource(seedUrl: string, opts: CrawlOptions = {}): Pro
         queue.push({ url: abs, depth: depth + 1 });
       }
     });
+
+    for (const c of candidates) {
+      const meta = c.isDownloadable ? await downloadMetadata(c.abs) : { checksum: checksumUrl(c.abs), lastModified: null, contentLength: null };
+      result.documents.push({
+        title: c.text || c.abs.split("/").pop() || c.abs,
+        url: c.abs,
+        documentType: classify(c.text, c.abs),
+        fileType: c.ft,
+        language: langOf(c.text || pageText.slice(0, 200)),
+        checksum: meta.checksum,
+        sourceUrl: url,
+        lastModified: meta.lastModified,
+        contentLength: meta.contentLength,
+      });
+    }
   }
 
   return result;

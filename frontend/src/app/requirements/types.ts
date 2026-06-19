@@ -30,10 +30,26 @@ export type ChangeSeverity = "low" | "medium" | "high";
 export type RenderMode = "native_ui" | "pdf_overlay" | "hybrid" | "external_only";
 
 export type DocumentType =
-  | "application_form"
+  | "application"
+  | "permit_form"
+  | "license_form"
+  | "inspection_request"
+  | "certification_request"
+  | "affidavit"
   | "checklist"
-  | "fee_schedule"
+  | "guide"
+  | "manual"
   | "instructions"
+  | "renewal_form"
+  | "supporting_document"
+  | "regulation"
+  | "circular_letter"
+  | "administrative_order"
+  | "policy"
+  | "reference_material"
+  // Legacy values kept for compatibility with previously seeded data.
+  | "application_form"
+  | "fee_schedule"
   | "zoning_document"
   | "tax_registration"
   | "license_requirement"
@@ -43,6 +59,10 @@ export type DocumentType =
   | "other";
 
 export type ChangeType =
+  | "document_update"
+  | "document_removed"
+  | "document_replaced"
+  | "new_form_discovered"
   | "new_requirement"
   | "removed_requirement"
   | "form_updated"
@@ -171,12 +191,19 @@ export interface RequirementDocument {
   source_url: string | null;
   source_file_url: string | null;
   storage_path: string | null;
+  extracted_text_path: string | null;
+  generated_schema_path: string | null;
+  rendered_template_path: string | null;
   checksum: string | null;
   file_type: string | null;
   language: string | null;
   version_label: string | null;
   detected_effective_date: string | null;
   detected_last_updated_date: string | null;
+  last_modified: string | null;
+  scope: "statewide" | "municipality_specific" | null;
+  canonical_requirement_code: string | null;
+  metadata_json: Record<string, unknown> | null;
   status: DocumentStatus;
   created_at: string;
   updated_at: string;

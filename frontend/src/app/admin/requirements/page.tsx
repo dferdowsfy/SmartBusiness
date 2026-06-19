@@ -1,15 +1,18 @@
 "use client";
 
 // ============================================================================
-// PR 10 UI: Admin review queue.
+// Admin review queue + agent controls.
 //
-// Lists everything needing human attention (newly discovered/changed rules,
-// draft templates, open change events) and lets an admin approve/reject. Also
-// provides manual triggers for the discovery and monitoring agents.
+// This page intentionally explains what each agent does, displays exactly what
+// the last run returned, links admins to the original sourced documents, and
+// constrains discovery inputs to dropdowns instead of free-form agent prompts.
 // ============================================================================
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { TopNav } from "../../history/ui";
+import businessTypes from "../../../kb/business_types.json";
+import municipalities from "../../../kb/municipalities.json";
+import { OFFICIAL_SOURCES } from "../../requirements/sources";
 
 interface ReviewItem {
   item_kind: "rule" | "document" | "template" | "change_event";
@@ -19,8 +22,37 @@ interface ReviewItem {
   confidence_score: number | null;
   source_domain: string | null;
   source_url: string | null;
+  source_file_url: string | null;
+  agency_name: string | null;
+  municipality: string | null;
+  document_type: string | null;
+  canonical_requirement_code: string | null;
+  metadata_json: Record<string, unknown> | null;
   updated_at: string;
 }
+
+interface DiscoveryRunResult {
+  sourcesCrawled?: { seedUrl: string; agency: string; pagesVisited: number; documentsFound: number }[];
+  rulesCreated?: number;
+  documentsCreated?: number;
+  draftTemplatesCreated?: number;
+  feeReferences?: string[];
+  errors?: string[];
+  note?: string;
+  error?: string;
+  message?: string;
+}
+
+interface MonitoringRunResult {
+  results?: { runId: string | null; ruleId: string; status: string; changeDetected: boolean; summary: string }[];
+  error?: string;
+  message?: string;
+}
+
+type LastRun =
+  | { kind: "discovery"; data: DiscoveryRunResult }
+  | { kind: "monitoring"; data: MonitoringRunResult }
+  | null;
 
 const KIND_LABEL: Record<ReviewItem["item_kind"], string> = {
   rule: "Requirement rule",
@@ -29,35 +61,85 @@ const KIND_LABEL: Record<ReviewItem["item_kind"], string> = {
   change_event: "Change event",
 };
 
-// Which admin actions apply to each item kind.
-const ACTIONS: Record<ReviewItem["item_kind"], { action: string; label: string; primary?: boolean }[]> = {
+const ACTIONS: Record<ReviewItem["item_kind"], { action: string; label: string; primary?: boolean; help: string }[]> = {
   rule: [
-    { action: "approve_rule", label: "Approve", primary: true },
-    { action: "reject_rule", label: "Reject" },
-    { action: "mark_source_stale", label: "Mark stale" },
+    { action: "approve_rule", label: "Approve rule", primary: true, help: "Makes the discovered requirement active." },
+    { action: "reject_rule", label: "Reject", help: "Deprecates the proposed requirement." },
+    { action: "mark_source_stale", label: "Mark stale", help: "Keeps it in needs_review for follow-up." },
+  ],
+  document: [
+    { action: "approve_document", label: "Approve document", primary: true, help: "Marks the sourced file as trusted for requirement packages." },
+    { action: "reject_document", label: "Reject", help: "Deprecates the sourced file." },
   ],
   template: [
-    { action: "approve_template", label: "Publish", primary: true },
-    { action: "reject_template", label: "Reject" },
+    { action: "approve_template", label: "Publish template", primary: true, help: "Publishes the fillable schema; prior active template is deprecated." },
+    { action: "reject_template", label: "Reject", help: "Deprecates the draft template." },
   ],
   change_event: [
-    { action: "accept_change", label: "Accept", primary: true },
-    { action: "reject_change", label: "Reject" },
+    { action: "accept_change", label: "Accept observation", primary: true, help: "Closes the monitoring observation as accepted; it does not overwrite forms." },
+    { action: "reject_change", label: "Reject observation", help: "Closes the monitoring observation as rejected." },
   ],
-  document: [],
 };
+
+const BUSINESS_TYPE_OPTIONS = (businessTypes as { id: string; name: string }[]).map((bt) => ({
+  value: bt.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, ""),
+  label: bt.name,
+}));
+
+const MUNICIPALITY_OPTIONS = [
+  { value: "", label: "Statewide / all municipalities" },
+  ...(municipalities as { name: string }[]).map((m) => ({ value: m.name, label: m.name })),
+];
+
+const SOURCE_OPTIONS = [
+  { label: "All curated official sources", value: "" },
+  ...OFFICIAL_SOURCES.map((source) => ({
+    label: source.municipality ? `${source.agencyName} — ${source.municipality}` : source.agencyName,
+    value: source.seedUrl,
+  })),
+];
+
+async function readJsonResponse<T>(res: Response): Promise<T & { error?: string; message?: string }> {
+  const text = await res.text();
+  if (!text.trim()) return { error: `http_${res.status}`, message: res.statusText } as T & { error?: string; message?: string };
+  try {
+    return JSON.parse(text) as T & { error?: string; message?: string };
+  } catch {
+    return { error: `http_${res.status}`, message: text.slice(0, 240) } as T & { error?: string; message?: string };
+  }
+}
+
+function formatMeta(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+}
 
 export default function AdminRequirementsPage() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null); // null = checking
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [lastRun, setLastRun] = useState<LastRun>(null);
+  const [disc, setDisc] = useState({ stateOrTerritory: "PR", municipality: "", businessType: "restaurant", seedUrl: "", usePlaywright: true });
+
+  const queueStats = useMemo(() => {
+    return items.reduce<Record<ReviewItem["item_kind"], number>>(
+      (acc, item) => ({ ...acc, [item.item_kind]: acc[item.item_kind] + 1 }),
+      { rule: 0, document: 0, template: 0, change_event: 0 }
+    );
+  }, [items]);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/requirements/admin");
-    const data = await res.json();
-    setItems(data.items ?? []);
+    const data = await readJsonResponse<{ items?: ReviewItem[] }>(res);
+    if (data.error) {
+      setToast(`Admin queue failed: ${data.message || data.error}`);
+      setItems([]);
+    } else {
+      setItems(data.items ?? []);
+    }
     setLoading(false);
   }, []);
 
@@ -85,15 +167,13 @@ export default function AdminRequirementsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, itemId: item.item_id }),
       });
-      const data = await res.json();
+      const data = await readJsonResponse<{ ok?: boolean; message?: string }>(res);
       setToast(data.message ?? (data.ok ? "Done." : "Failed."));
       await load();
     } finally {
       setBusy(null);
     }
   };
-
-  const [disc, setDisc] = useState({ stateOrTerritory: "PR", municipality: "", businessType: "restaurant", seedUrl: "" });
 
   const runDiscovery = async () => {
     setBusy("discover");
@@ -106,19 +186,12 @@ export default function AdminRequirementsPage() {
           municipality: disc.municipality || undefined,
           businessType: disc.businessType,
           seedUrl: disc.seedUrl || undefined,
+          usePlaywright: disc.usePlaywright,
         }),
       });
-      const data = await res.json();
-      if (data.error) {
-        setToast(`Discovery failed: ${data.message || data.error}`);
-      } else {
-        setToast(
-          `Discovery complete: crawled ${data.sourcesCrawled?.length ?? 0} source(s), ` +
-            `created ${data.rulesCreated} rule(s), ${data.documentsCreated} document(s), ` +
-            `${data.draftTemplatesCreated} draft template(s).` +
-            (data.errors?.length ? ` (${data.errors.length} warning(s))` : "")
-        );
-      }
+      const data = await readJsonResponse<DiscoveryRunResult>(res);
+      setLastRun({ kind: "discovery", data });
+      setToast(data.error ? `Discovery failed: ${data.message || data.error}` : "Discovery finished. Review the run output below.");
       await load();
     } finally {
       setBusy(null);
@@ -129,9 +202,10 @@ export default function AdminRequirementsPage() {
     setBusy("monitor");
     try {
       const res = await fetch("/api/requirements/monitor", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      const data = await res.json();
-      const changed = (data.results ?? []).filter((r: { changeDetected: boolean }) => r.changeDetected).length;
-      setToast(`Monitoring run complete: ${(data.results ?? []).length} source(s) checked, ${changed} change(s) detected.`);
+      const data = await readJsonResponse<MonitoringRunResult>(res);
+      setLastRun({ kind: "monitoring", data });
+      const changed = (data.results ?? []).filter((r) => r.changeDetected).length;
+      setToast(data.error ? `Monitoring failed: ${data.message || data.error}` : `Monitoring finished: ${changed} change(s) detected.`);
       await load();
     } finally {
       setBusy(null);
@@ -142,124 +216,148 @@ export default function AdminRequirementsPage() {
     <div className="min-h-screen bg-slate-50">
       <TopNav active="admin" />
       {isAdmin === false ? (
-        <div className="max-w-5xl mx-auto px-5 py-8">
-          <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center">
+        <div className="mx-auto max-w-5xl px-5 py-8">
+          <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
             <h1 className="text-xl font-bold text-[#0A2540]">Not authorized</h1>
             <p className="mt-2 text-sm text-[#0A2540]/60">
-              This area is restricted to administrators. Ask an administrator to add your account
-              to <code className="rounded bg-slate-100 px-1">ADMIN_EMAILS</code>.
+              This area is restricted to administrators. Ask an administrator to add your account to <code className="rounded bg-slate-100 px-1">ADMIN_EMAILS</code>.
             </p>
           </div>
         </div>
       ) : isAdmin === null ? (
         <div className="p-10 text-center text-[#0A2540]/50">Checking access…</div>
       ) : (
-      <div className="max-w-5xl mx-auto px-5 py-8">
-        <div className="flex items-end justify-between mb-2">
-          <div>
-            <h1 className="text-2xl font-bold text-[#0A2540]">Admin Review Queue</h1>
-            <p className="text-sm text-[#0A2540]/60">
-              Approve discovered/changed requirements and publish form templates. New versions
-              never overwrite active ones until published here.
-            </p>
+        <div className="mx-auto max-w-6xl px-5 py-8">
+          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-[#0A2540]">Document Discovery Review</h1>
+              <p className="text-sm text-[#0A2540]/60">
+                Discovery creates reviewable rules, source documents, versions, monitoring records, and draft schemas. Approval is explicit and never overwrites active forms.
+              </p>
+            </div>
+            <button onClick={runMonitor} disabled={busy === "monitor"} className="rounded-full bg-[#0A2540] px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+              {busy === "monitor" ? "Checking sources…" : "Run monitoring now"}
+            </button>
           </div>
-          <button
-            onClick={runMonitor}
-            disabled={busy === "monitor"}
-            className="bg-[#0A2540] text-white rounded-full px-5 py-2 text-sm font-medium disabled:opacity-50"
-          >
-            {busy === "monitor" ? "Running…" : "Run monitoring now"}
-          </button>
-        </div>
 
-        {toast && <div className="my-3 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{toast}</div>}
+          {toast && <div className="my-3 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{toast}</div>}
 
-        <div className="my-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm font-bold text-[#0A2540]">Discover requirements from official sources</div>
-          <p className="mb-3 text-xs text-[#0A2540]/60">
-            Crawls curated government portals (OGPe + municipalities) or an official seed URL you
-            provide, extracts forms/checklists/fees, and files them as needs_review.
-          </p>
-          <div className="grid gap-2 sm:grid-cols-4">
-            <input
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder="State/Territory (e.g. PR)"
-              value={disc.stateOrTerritory}
-              onChange={(e) => setDisc((d) => ({ ...d, stateOrTerritory: e.target.value }))}
-            />
-            <input
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder="Municipality (optional)"
-              value={disc.municipality}
-              onChange={(e) => setDisc((d) => ({ ...d, municipality: e.target.value }))}
-            />
-            <input
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder="Business type"
-              value={disc.businessType}
-              onChange={(e) => setDisc((d) => ({ ...d, businessType: e.target.value }))}
-            />
-            <input
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder="Official seed URL (optional)"
-              value={disc.seedUrl}
-              onChange={(e) => setDisc((d) => ({ ...d, seedUrl: e.target.value }))}
-            />
+          <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-bold text-[#0A2540]">Run discovery from official sources</div>
+              <p className="mb-3 text-xs text-[#0A2540]/60">
+                Choose a predefined business category and optional source. The agent crawls official pages, extracts downloadable files, checksums assets, and returns counts/errors below.
+              </p>
+              <div className="grid gap-2 md:grid-cols-4">
+                <select className="rounded border border-slate-300 px-2 py-1.5 text-sm" value={disc.stateOrTerritory} onChange={(e) => setDisc((d) => ({ ...d, stateOrTerritory: e.target.value }))}>
+                  <option value="PR">Puerto Rico</option>
+                </select>
+                <select className="rounded border border-slate-300 px-2 py-1.5 text-sm" value={disc.municipality} onChange={(e) => setDisc((d) => ({ ...d, municipality: e.target.value }))}>
+                  {MUNICIPALITY_OPTIONS.map((m) => <option key={m.value || "all"} value={m.value}>{m.label}</option>)}
+                </select>
+                <select className="rounded border border-slate-300 px-2 py-1.5 text-sm" value={disc.businessType} onChange={(e) => setDisc((d) => ({ ...d, businessType: e.target.value }))}>
+                  {BUSINESS_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <select className="rounded border border-slate-300 px-2 py-1.5 text-sm" value={disc.seedUrl} onChange={(e) => setDisc((d) => ({ ...d, seedUrl: e.target.value }))}>
+                  {SOURCE_OPTIONS.map((o) => <option key={o.label} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <label className="mt-3 flex items-center gap-2 text-xs text-[#0A2540]/65">
+                <input type="checkbox" checked={disc.usePlaywright} onChange={(e) => setDisc((d) => ({ ...d, usePlaywright: e.target.checked }))} />
+                Use browser rendering fallback for JavaScript-heavy government pages when available.
+              </label>
+              <button onClick={runDiscovery} disabled={busy === "discover"} className="mt-3 rounded-full bg-[#0D9488] px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+                {busy === "discover" ? "Crawling…" : "Run discovery"}
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="text-sm font-bold text-[#0A2540]">What approval does</div>
+              <ul className="mt-2 space-y-1 text-xs text-[#0A2540]/65">
+                <li><b>Approve rule:</b> activates a discovered requirement.</li>
+                <li><b>Approve document:</b> marks a sourced file trusted and viewable for packages.</li>
+                <li><b>Publish template:</b> activates the fillable schema and deprecates older active versions.</li>
+                <li><b>Accept observation:</b> closes a monitoring alert; it does not overwrite content.</li>
+              </ul>
+              <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
+                <div className="rounded bg-slate-50 p-2"><b>{queueStats.rule}</b><br />Rules</div>
+                <div className="rounded bg-slate-50 p-2"><b>{queueStats.document}</b><br />Docs</div>
+                <div className="rounded bg-slate-50 p-2"><b>{queueStats.template}</b><br />Templates</div>
+                <div className="rounded bg-slate-50 p-2"><b>{queueStats.change_event}</b><br />Alerts</div>
+              </div>
+            </div>
           </div>
-          <button
-            onClick={runDiscovery}
-            disabled={busy === "discover"}
-            className="mt-3 rounded-full bg-[#0D9488] px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
-            {busy === "discover" ? "Crawling…" : "Run discovery"}
-          </button>
-        </div>
 
-        {loading ? (
-          <div className="p-10 text-center text-[#0A2540]/50">Loading…</div>
-        ) : items.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-[#0A2540]/50">
-            Nothing needs review. 🎉
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {items.map((item) => (
-              <div key={item.item_kind + item.item_id} className="bg-white border border-slate-200 rounded-2xl p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                      {KIND_LABEL[item.item_kind]}
-                    </span>
-                    <div className="mt-1 font-semibold text-[#0A2540]">{item.title || "(untitled)"}</div>
-                    <div className="mt-1 flex flex-wrap gap-3 text-xs text-[#0A2540]/50">
-                      <span>Status: {item.status}</span>
-                      {item.confidence_score != null && <span>Confidence: {Math.round(Number(item.confidence_score) * 100)}%</span>}
-                      {item.source_domain && <span>Source: {item.source_domain}</span>}
-                      <span>Updated: {new Date(item.updated_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    {ACTIONS[item.item_kind].map((a) => (
-                      <button
-                        key={a.action}
-                        onClick={() => act(item, a.action)}
-                        disabled={busy === item.item_id + a.action}
-                        className={`rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-50 ${
-                          a.primary
-                            ? "bg-[#0D9488] text-white"
-                            : "border border-slate-300 text-[#0A2540]"
-                        }`}
-                      >
-                        {a.label}
-                      </button>
+          {lastRun && (
+            <div className="my-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="mb-2 text-sm font-bold text-[#0A2540]">Last {lastRun.kind} run returned</div>
+              {lastRun.kind === "discovery" ? (
+                <div className="space-y-2 text-xs text-[#0A2540]/70">
+                  <div>Rules: {lastRun.data.rulesCreated ?? 0} · Documents: {lastRun.data.documentsCreated ?? 0} · Draft templates: {lastRun.data.draftTemplatesCreated ?? 0}</div>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {(lastRun.data.sourcesCrawled ?? []).map((s) => (
+                      <div key={s.seedUrl} className="rounded border border-slate-100 p-2">
+                        <b>{s.agency}</b><br />Visited {s.pagesVisited} page(s), found {s.documentsFound} document(s).<br />
+                        <a className="text-[#0D9488] underline" href={s.seedUrl} target="_blank" rel="noreferrer">Open seed</a>
+                      </div>
                     ))}
                   </div>
+                  {(lastRun.data.errors ?? []).length > 0 && <div className="rounded bg-amber-50 p-2 text-amber-800">Warnings: {lastRun.data.errors?.slice(0, 5).join(" | ")}</div>}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {(lastRun.data.results ?? []).map((r) => (
+                    <div key={r.runId || r.ruleId} className="rounded border border-slate-100 p-2 text-xs text-[#0A2540]/70">
+                      <b>{r.status}</b> · {r.changeDetected ? "Change detected" : "No change"}<br />{r.summary}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="p-10 text-center text-[#0A2540]/50">Loading…</div>
+          ) : items.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-[#0A2540]/50">Nothing needs review. 🎉</div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {items.map((item) => {
+                const downloadUrl = item.source_file_url || formatMeta(item.metadata_json?.download_url);
+                return (
+                  <div key={item.item_kind + item.item_id} className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{KIND_LABEL[item.item_kind]}</span>
+                        <div className="mt-1 font-semibold text-[#0A2540]">{item.title || "(untitled)"}</div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-[#0A2540]/55">
+                          <span>Status: {item.status}</span>
+                          {item.document_type && <span>Type: {item.document_type}</span>}
+                          {item.canonical_requirement_code && <span>Requirement: {item.canonical_requirement_code}</span>}
+                          {item.agency_name && <span>Agency: {item.agency_name}</span>}
+                          {item.municipality && <span>Municipality: {item.municipality}</span>}
+                          {item.confidence_score != null && <span>Confidence: {Math.round(Number(item.confidence_score) * 100)}%</span>}
+                          <span>Updated: {new Date(item.updated_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                          {item.source_url && <a className="rounded-full border border-slate-300 px-3 py-1 text-[#0A2540]" href={item.source_url} target="_blank" rel="noreferrer">View source page</a>}
+                          {downloadUrl && <a className="rounded-full border border-[#0D9488] px-3 py-1 text-[#0D9488]" href={downloadUrl} target="_blank" rel="noreferrer">View sourced file</a>}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+                        {ACTIONS[item.item_kind].map((a) => (
+                          <button key={a.action} title={a.help} onClick={() => act(item, a.action)} disabled={busy === item.item_id + a.action} className={`rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-50 ${a.primary ? "bg-[#0D9488] text-white" : "border border-slate-300 text-[#0A2540]"}`}>
+                            {a.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
