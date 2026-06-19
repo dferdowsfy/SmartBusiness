@@ -13,30 +13,29 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
-  if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
-  if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
-
-  let body: {
-    stateOrTerritory?: string;
-    municipality?: string;
-    county?: string;
-    businessType?: string;
-    activityType?: string;
-    seedUrl?: string;
-    usePlaywright?: boolean;
-    maxPages?: number;
-    maxDepth?: number;
-  };
   try {
-    body = await request.json();
-  } catch {
-    return Response.json({ error: "invalid_body" }, { status: 400 });
-  }
-  if (!body.stateOrTerritory || !body.businessType) {
-    return Response.json({ error: "stateOrTerritory and businessType are required" }, { status: 400 });
-  }
+    if (!(await isCurrentUserAdmin())) return Response.json({ error: "forbidden" }, { status: 403 });
 
-  try {
+    let body: {
+      stateOrTerritory?: string;
+      municipality?: string;
+      county?: string;
+      businessType?: string;
+      activityType?: string;
+      seedUrl?: string;
+      usePlaywright?: boolean;
+      maxPages?: number;
+      maxDepth?: number;
+    };
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ error: "invalid_body" }, { status: 400 });
+    }
+    if (!body.stateOrTerritory || !body.businessType) {
+      return Response.json({ error: "stateOrTerritory and businessType are required" }, { status: 400 });
+    }
+
     const result = await discoverRequirementRules({
       stateOrTerritory: body.stateOrTerritory,
       municipality: body.municipality,
@@ -48,9 +47,12 @@ export async function POST(request: Request) {
       maxPages: body.maxPages,
       maxDepth: body.maxDepth,
     });
-    return Response.json(result);
+    return Response.json({
+      ...result,
+      persisted: isEnabled(),
+    });
   } catch (err) {
-    console.error("[requirements/discover] failed:", (err as Error).message);
+    console.error("[requirements/discover] failed:", err);
     return Response.json({ error: "discover_failed", message: (err as Error).message }, { status: 500 });
   }
 }
