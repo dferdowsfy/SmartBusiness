@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { L } from './i18n';
-import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, KB } from './kb';
+import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, KB, initKbFromServer, discoveryQuestionsForBusinessType, readinessWeightFor } from './kb';
 import { ACTIVE_JURISDICTION } from './jurisdictions';
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
@@ -261,7 +261,16 @@ const BUSINESS_TYPES: Record<string, string[]> = {
   ]
 };
 
+// Snapshot-first: when a published knowledge-base snapshot defines discovery
+// questions for this business type, they win; the hardcoded lists below are
+// the fallback (and the only source until the first snapshot is published).
 function getQuestionsForBusinessType(businessType: string): { id: string; text: string }[] {
+  const fromSnapshot = discoveryQuestionsForBusinessType(businessType);
+  if (fromSnapshot) return fromSnapshot;
+  return hardcodedQuestionsForBusinessType(businessType);
+}
+
+function hardcodedQuestionsForBusinessType(businessType: string): { id: string; text: string }[] {
   const bt = businessType.toLowerCase().trim();
 
   if (["restaurant", "fast food restaurant", "bakery", "cafe", "coffee shop", "bar", "nightclub", "food truck", "catering business", "commercial kitchen", "ice cream shop", "juice bar", "grocery store", "supermarket", "liquor store"].some(k => bt.includes(k))) {
@@ -709,7 +718,8 @@ const LOCATION_TYPES = [
 
 // Geographic subdivisions come from the active jurisdiction's knowledge base.
 // No hardcoded town/county lists live in the UI anymore.
-const MUNICIPALITIES = KB.municipalities.map((m) => m.name);
+// Municipality options are derived inside the component (via kbReady) so a
+// published snapshot can change them without a rebuild.
 
 // ====================================================================
 // GEO FLAG LOOKUP
@@ -1011,6 +1021,14 @@ export default function SmartPR() {
     if (bizId) businessIdRef.current = bizId;
   }, []);
 
+  // Load the published knowledge-base snapshot (admin-controlled rules); the
+  // bundled static KB is the fallback, so failures are harmless.
+  const [kbReady, setKbReady] = useState(false);
+  useEffect(() => {
+    initKbFromServer().finally(() => setKbReady(true));
+  }, []);
+  const municipalityOptions = useMemo(() => KB.municipalities.map((m) => m.name), [kbReady]);
+
   // Resume a prior submission from History (?resume=<submissionId>): restore
   // the core profile and jump back to the requirements step.
   useEffect(() => {
@@ -1228,7 +1246,7 @@ export default function SmartPR() {
       setQuestionList([]);
       setCurrentQuestionIndex(0);
     }
-  }, [profile.business_type, profile.location_type]);
+  }, [profile.business_type, profile.location_type, kbReady]);
 
   const handleQuestionAnswer = (yes: boolean) => {
     const q = questionList[currentQuestionIndex];
@@ -1515,13 +1533,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // Stages: 0 (uploaded only), 25% (identified), 50% (fields extracted), 100% (verified)
     // Penalties applied for issues
     const mandatoryReqs = updatedReqs.filter(r => r.mandatory);
-    const totalMand = mandatoryReqs.length || 1;
-    const weight = 100 / totalMand;
+    // Per-document weights from the published snapshot (equal weights when
+    // none are set — identical to the legacy 100/totalMandatory formula).
+    const weightFor = readinessWeightFor(mandatoryReqs);
 
     let score = 0;
     let penalties = 0;
 
     mandatoryReqs.forEach(req => {
+      const weight = weightFor(req);
       const doc = newUploaded.find(d => d.requirement_code === req.code);
       if (!doc || !doc.ai_analysis) {
         return; // 0 for not yet verified
@@ -1786,13 +1806,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     // Score calculation (weight 100/total_mandatory, stages, penalties) - from verified only
     const mandatoryReqs = updatedReqs.filter(r => r.mandatory);
-    const totalMand = mandatoryReqs.length || 1;
-    const weight = 100 / totalMand;
+    // Per-document weights from the published snapshot (equal weights when
+    // none are set — identical to the legacy 100/totalMandatory formula).
+    const weightFor = readinessWeightFor(mandatoryReqs);
 
     let score = 0;
     let penalties = 0;
 
     mandatoryReqs.forEach(req => {
+      const weight = weightFor(req);
       const doc = newUploaded.find(d => d.requirement_code === req.code);
       if (!doc || !doc.ai_analysis) return;
       const a = doc.ai_analysis;
@@ -2813,7 +2835,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       <label>{t('municipality')}</label>
                       <select value={profile.municipality} onChange={e => setProfile({ ...profile, municipality: e.target.value })}>
                         <option value="">{t('selectMunicipality')}</option>
-                        {MUNICIPALITIES.map(m => <option key={m} value={m}>{m}</option>)}
+                        {municipalityOptions.map((m: string) => <option key={m} value={m}>{m}</option>)}
                       </select>
                     </div>
                     <div className="vfield">

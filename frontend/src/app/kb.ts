@@ -43,14 +43,138 @@ interface ProfileLike {
   [key: string]: unknown;
 }
 
-// Jurisdiction-specific document mappings come from the active pack.
+// Jurisdiction-specific document mappings come from the active pack — but the
+// published knowledge-base snapshot (admin-controlled) can override them, so
+// they live in mutable module state. Static pack values are the fallback.
 const LEGACY_CODE: Record<string, string> = ACTIVE_JURISDICTION.docMappings.legacyCode;
-const RECOMMENDED = new Set(ACTIVE_JURISDICTION.docMappings.recommended);
-const DOC_ORDER = ACTIVE_JURISDICTION.docMappings.order;
-const orderIndex = (id: string) => {
-  const i = DOC_ORDER.indexOf(id);
-  return i === -1 ? DOC_ORDER.length + 1 : i;
+
+interface KbMeta {
+  source: "static" | "snapshot";
+  version: number;
+  recommended: Set<string>;
+  order: string[];
+  weights: Record<string, number>;
+  legacyCode: Record<string, string>;
+  btq: { business_type_id: string; question_id: string }[];
+}
+
+export const kbMeta: KbMeta = {
+  source: "static",
+  version: 0,
+  recommended: new Set(ACTIVE_JURISDICTION.docMappings.recommended),
+  order: ACTIVE_JURISDICTION.docMappings.order,
+  weights: {},
+  legacyCode: { ...LEGACY_CODE },
+  btq: [],
 };
+
+const orderIndex = (id: string) => {
+  const i = kbMeta.order.indexOf(id);
+  return i === -1 ? kbMeta.order.length + 1 : i;
+};
+
+// Shape of the compiled snapshot served by GET /api/kb (superset of the
+// engine's KnowledgeBase — extra keys are ignored by the engine).
+interface KbSnapshot {
+  municipalities: unknown[];
+  businessTypes: unknown[];
+  questions: unknown[];
+  documents: unknown[];
+  rules: unknown[];
+  businessTypeQuestions?: { business_type_id: string; question_id: string }[];
+  docMeta?: {
+    recommended?: string[];
+    order?: string[];
+    weights?: Record<string, number>;
+    legacyCode?: Record<string, string>;
+  };
+  meta?: { version?: number };
+}
+
+/**
+ * Swap the published snapshot into the live KB IN PLACE. `KB` is a const
+ * binding with mutable properties, and every consumer dereferences its arrays
+ * per call, so the swap propagates without changing any call sites.
+ */
+export function applyKbSnapshot(snap: KbSnapshot): boolean {
+  if (
+    !Array.isArray(snap?.municipalities) || snap.municipalities.length === 0 ||
+    !Array.isArray(snap.businessTypes) || snap.businessTypes.length === 0 ||
+    !Array.isArray(snap.documents) || snap.documents.length === 0 ||
+    !Array.isArray(snap.rules) || snap.rules.length === 0 ||
+    !Array.isArray(snap.questions)
+  ) {
+    return false;
+  }
+  KB.municipalities = snap.municipalities as KnowledgeBase["municipalities"];
+  KB.businessTypes = snap.businessTypes as KnowledgeBase["businessTypes"];
+  KB.questions = snap.questions as KnowledgeBase["questions"];
+  KB.documents = snap.documents as KnowledgeBase["documents"];
+  KB.rules = snap.rules as KnowledgeBase["rules"];
+  kbMeta.source = "snapshot";
+  kbMeta.version = snap.meta?.version ?? 0;
+  if (snap.docMeta?.recommended) kbMeta.recommended = new Set(snap.docMeta.recommended);
+  if (snap.docMeta?.order?.length) kbMeta.order = snap.docMeta.order;
+  kbMeta.weights = snap.docMeta?.weights ?? {};
+  kbMeta.legacyCode = { ...LEGACY_CODE, ...(snap.docMeta?.legacyCode ?? {}) };
+  kbMeta.btq = snap.businessTypeQuestions ?? [];
+  return true;
+}
+
+/**
+ * Fetch the published snapshot (if any) and apply it. Errors are swallowed —
+ * the bundled static KB is always a correct fallback.
+ */
+export async function initKbFromServer(): Promise<boolean> {
+  try {
+    const res = await fetch("/api/kb");
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data?.source !== "snapshot" || !data.kb) return false;
+    return applyKbSnapshot(data.kb as KbSnapshot);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Discovery questions for a business type from the SNAPSHOT (admin-controlled).
+ * Returns null when no snapshot / no mapping — callers fall back to the
+ * hardcoded lists. `ui_key` keeps legacy answer keys working; new questions
+ * use their KB id, which buildEngineInput passes straight to the engine.
+ */
+export function discoveryQuestionsForBusinessType(businessTypeName?: string): { id: string; text: string }[] | null {
+  if (kbMeta.source !== "snapshot" || kbMeta.btq.length === 0 || !businessTypeName) return null;
+  const resolved = resolveBusinessTypeName(businessTypeName);
+  const bt = resolved ? KB.businessTypes.find((b) => b.name.toLowerCase() === resolved.toLowerCase()) : null;
+  if (!bt) return null;
+  const qById = new Map(KB.questions.map((q) => [q.id, q]));
+  const out: { id: string; text: string }[] = [];
+  for (const link of kbMeta.btq) {
+    if (link.business_type_id !== bt.id) continue;
+    const q = qById.get(link.question_id) as (KnowledgeBase["questions"][number] & { stage?: string; ui_key?: string }) | undefined;
+    if (!q || q.stage === "profile") continue;
+    out.push({ id: q.ui_key ?? q.id, text: q.question });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/**
+ * Per-document readiness weights (admin-controlled via the snapshot).
+ * Returns a weight function normalized so all mandatory docs sum to 100.
+ * Without snapshot weights every doc has weight 1 → identical to the legacy
+ * equal-weight formula (100 / totalMandatory).
+ */
+export function readinessWeightFor(
+  mandatoryReqs: { document_id?: string }[]
+): (req: { document_id?: string }) => number {
+  const raw = (r: { document_id?: string }) => {
+    const w = r.document_id ? kbMeta.weights[r.document_id] : undefined;
+    return typeof w === "number" && isFinite(w) && w > 0 ? w : 1;
+  };
+  const sum = mandatoryReqs.reduce((s, r) => s + raw(r), 0) || 1;
+  return (r) => (100 * raw(r)) / sum;
+}
 
 // Resolve the app's free-text business type to a KB business type (exact match
 // first, then a forgiving contains-match for aliases like "Airbnb").
@@ -115,6 +239,16 @@ export function buildEngineInput(
     Q_VEHICLE_REPAIR: on("vehicles_repaired", "vehicle_repair"),
   };
 
+  // Pass through direct KB-question answers (admin-created questions are
+  // stored by the wizard under their KB id) without overriding the legacy
+  // profile-derived translations above.
+  for (const q of KB.questions) {
+    const direct = da[q.id];
+    if (direct !== undefined && a[q.id] === undefined) {
+      a[q.id] = direct as boolean | string;
+    }
+  }
+
   return {
     municipalityName: (p.municipality as string) || null,
     businessTypeName: resolveBusinessTypeName(p.business_type as string),
@@ -137,9 +271,9 @@ export function computeRequirementsFromKB(
   const { requirements } = runRulesEngineForProfile(profile, answers);
   return requirements
     .map((r) => ({
-      code: LEGACY_CODE[r.document_id] || r.document_id.toLowerCase(),
+      code: kbMeta.legacyCode[r.document_id] || r.document_id.toLowerCase(),
       name: r.document_name,
-      mandatory: !RECOMMENDED.has(r.document_id),
+      mandatory: !kbMeta.recommended.has(r.document_id),
       status: "pending" as const,
       agency: r.agency,
       reason: r.reason,

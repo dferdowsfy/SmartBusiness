@@ -21,6 +21,7 @@ import { SourcesTab } from "./tabs/SourcesTab";
 import { ProposalsTab } from "./tabs/ProposalsTab";
 import { PublicationsTab } from "./tabs/PublicationsTab";
 import { AuditTab } from "./tabs/AuditTab";
+import { ImpactTab } from "./tabs/ImpactTab";
 
 const TABS = [
   { id: "graph", label: "Graph" },
@@ -177,7 +178,7 @@ export default function KnowledgeBaseShell() {
         {tab === "forms" && <Placeholder title="Forms" phase="Form template editing (fields, signatures, attachments, validation rules, versions) arrives with the Forms milestone." />}
         {tab === "sources" && <SourcesTab enabled={graph.enabled} onProposals={() => setTab("proposals")} />}
         {tab === "proposals" && <ProposalsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}
-        {tab === "impact" && <Placeholder title="Impact Analysis" phase="Impact preview + test mode (e.g. Restaurant · San Juan, before vs after) — arrives with the impact milestone." />}
+        {tab === "impact" && <ImpactTab enabled={graph.enabled} />}
         {tab === "publications" && <PublicationsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}
         {tab === "audit" && <AuditTab enabled={graph.enabled} />}
       </div>
