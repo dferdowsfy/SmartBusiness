@@ -18,6 +18,7 @@ import { GraphView } from "./graph/GraphView";
 import { DetailPanel } from "./graph/DetailPanel";
 import { RequirementsTab } from "./tabs/RequirementsTab";
 import { SourcesTab } from "./tabs/SourcesTab";
+import { ProposalsTab } from "./tabs/ProposalsTab";
 
 const TABS = [
   { id: "graph", label: "Graph" },
@@ -173,7 +174,7 @@ export default function KnowledgeBaseShell() {
         {tab === "requirements" && <RequirementsTab graph={graph} onSaved={saved} />}
         {tab === "forms" && <Placeholder title="Forms" phase="Form template editing (fields, signatures, attachments, validation rules, versions) arrives with the Forms milestone." />}
         {tab === "sources" && <SourcesTab enabled={graph.enabled} onProposals={() => setTab("proposals")} />}
-        {tab === "proposals" && <Placeholder title="Proposed Changes" phase="Review queue with side-by-side diffs, confidence, citations, and accept / edit / reject / defer / legal-review / merge — arrives with the review milestone." />}
+        {tab === "proposals" && <ProposalsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}
         {tab === "impact" && <Placeholder title="Impact Analysis" phase="Impact preview + test mode (e.g. Restaurant · San Juan, before vs after) — arrives with the impact milestone." />}
         {tab === "publications" && <Placeholder title="Publications" phase="Approve → schedule → publish → rollback with full version history — arrives with the publication milestone." />}
         {tab === "audit" && <Placeholder title="Audit Log" phase="Complete change history with actor, timestamps, and before/after — arrives with the publication milestone." />}

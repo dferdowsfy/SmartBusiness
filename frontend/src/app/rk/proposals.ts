@@ -153,6 +153,118 @@ export async function listProposals(
   return (await pool.query(sql, vals)).rows as ChangeProposalRow[];
 }
 
+// ---------------------------------------------------------------------------
+// Review actions
+// ---------------------------------------------------------------------------
+
+export type ReviewAction = "accept" | "edit_accept" | "reject" | "defer" | "legal_review" | "merge" | "reopen";
+
+const ACTION_STATUS: Record<Exclude<ReviewAction, "merge">, ProposalStatus> = {
+  accept: "accepted",
+  edit_accept: "accepted",
+  reject: "rejected",
+  defer: "deferred",
+  legal_review: "legal_review",
+  reopen: "under_review",
+};
+
+export interface ReviewInput {
+  id: string;
+  action: ReviewAction;
+  reviewedJson?: Record<string, unknown> | null;
+  mergeIntoId?: string | null;
+  note?: string | null;
+  actor?: string | null;
+}
+
+export async function reviewProposal(input: ReviewInput): Promise<{ ok: boolean; proposal?: ChangeProposalRow; message?: string }> {
+  const pool = getPool();
+  if (!pool) return { ok: false, message: "no_database" };
+  await ensureRkReady();
+
+  const proposal =
+    ((await pool.query(`SELECT * FROM rk_change_proposals WHERE id = $1`, [input.id])).rows[0] as
+      | ChangeProposalRow
+      | undefined) ?? null;
+  if (!proposal) return { ok: false, message: "proposal not found" };
+  if (proposal.status === "published") return { ok: false, message: "already published — roll back the batch instead" };
+  if (proposal.status === "merged") return { ok: false, message: "already merged into another proposal" };
+
+  let reviewedJson: Record<string, unknown> | null = null;
+  let mergedIntoId: string | null = null;
+  let status: ProposalStatus;
+
+  if (input.action === "merge") {
+    if (!input.mergeIntoId) return { ok: false, message: "mergeIntoId is required" };
+    const target =
+      ((await pool.query(`SELECT id, status FROM rk_change_proposals WHERE id = $1`, [input.mergeIntoId])).rows[0] as
+        | { id: string; status: ProposalStatus }
+        | undefined) ?? null;
+    if (!target) return { ok: false, message: "merge target not found" };
+    if (["rejected", "merged", "published"].includes(target.status)) {
+      return { ok: false, message: `merge target is ${target.status}` };
+    }
+    status = "merged";
+    mergedIntoId = target.id;
+  } else {
+    status = ACTION_STATUS[input.action];
+    if (!status) return { ok: false, message: `unknown action ${input.action}` };
+
+    if (input.action === "accept" || input.action === "edit_accept") {
+      // Optimistic-concurrency check: the base row must still be active.
+      if (proposal.base_row_id) {
+        const base = (
+          await pool.query(`SELECT status FROM rk_nodes WHERE id = $1`, [proposal.base_row_id])
+        ).rows[0] as { status: string } | undefined;
+        if (!base || base.status !== "active") {
+          await pool.query(
+            `UPDATE rk_change_proposals SET status = 'conflict', updated_at = now() WHERE id = $1`,
+            [input.id]
+          );
+          return { ok: false, message: "conflict: the underlying entity changed since this proposal was created — re-review it" };
+        }
+      }
+      reviewedJson = input.action === "edit_accept" ? (input.reviewedJson ?? null) : null;
+      // Accepted content must be structurally valid (AI drafts get validated here).
+      if (proposal.change_kind !== "archive_node") {
+        const finalData = (reviewedJson ?? proposal.reviewed_json ?? proposal.proposed_json) as Record<string, unknown> | null;
+        if (!finalData) return { ok: false, message: "no proposed data to accept" };
+        const problems = validateNodeData(proposal.node_type, finalData);
+        if (problems.length) {
+          return { ok: false, message: `cannot accept — fix these first: ${problems.join(" ")}` };
+        }
+      }
+    }
+  }
+
+  const res = await pool.query(
+    `UPDATE rk_change_proposals
+        SET status = $2,
+            reviewed_json = coalesce($3, reviewed_json),
+            merged_into_id = coalesce($4, merged_into_id),
+            reviewed_by = $5,
+            reviewed_at = now(),
+            review_note = coalesce($6, review_note),
+            updated_at = now()
+      WHERE id = $1
+      RETURNING *`,
+    [input.id, status, reviewedJson ? JSON.stringify(reviewedJson) : null, mergedIntoId, input.actor ?? null, input.note ?? null]
+  );
+  const updated = res.rows[0] as ChangeProposalRow;
+
+  await writeAudit({
+    actor: input.actor,
+    action: `proposal_${input.action}`,
+    entityKind: updated.node_type,
+    entityId: updated.entity_id,
+    before: { status: proposal.status },
+    after: { status: updated.status, note: input.note ?? null, mergedInto: mergedIntoId },
+    proposalId: updated.id,
+  });
+
+  return { ok: true, proposal: updated };
+}
+
 /** Suggest a unique entity id for a new node (server-side check included). */
 export async function uniqueEntityId(nodeType: NodeType, base: string): Promise<string> {
   const pool = getPool();
