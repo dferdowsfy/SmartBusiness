@@ -22,6 +22,7 @@ import { ProposalsTab } from "./tabs/ProposalsTab";
 import { PublicationsTab } from "./tabs/PublicationsTab";
 import { AuditTab } from "./tabs/AuditTab";
 import { ImpactTab } from "./tabs/ImpactTab";
+import { FormsTab } from "./tabs/FormsTab";
 
 const TABS = [
   { id: "graph", label: "Graph" },
@@ -40,15 +41,6 @@ const MODES: { id: GraphMode; label: string; hint: string }[] = [
   { id: "draft", label: "Draft Changes", hint: "Live + open manual/enacted proposals" },
   { id: "proposed", label: "Proposed Bill Preview", hint: "Future state from unenacted bills (e.g. PS 1173) — never affects live users" },
 ];
-
-function Placeholder({ title, phase }: { title: string; phase: string }) {
-  return (
-    <div style={{ color: COLORS.faint, padding: "60px 20px", textAlign: "center", border: `1px dashed ${COLORS.border}`, borderRadius: 12 }}>
-      <div style={{ color: COLORS.dim, fontWeight: 700, marginBottom: 6 }}>{title}</div>
-      {phase}
-    </div>
-  );
-}
 
 export default function KnowledgeBaseShell() {
   const [tab, setTab] = useState<TabId>("graph");
@@ -175,7 +167,7 @@ export default function KnowledgeBaseShell() {
         )}
 
         {tab === "requirements" && <RequirementsTab graph={graph} onSaved={saved} />}
-        {tab === "forms" && <Placeholder title="Forms" phase="Form template editing (fields, signatures, attachments, validation rules, versions) arrives with the Forms milestone." />}
+        {tab === "forms" && <FormsTab enabled={graph.enabled} />}
         {tab === "sources" && <SourcesTab enabled={graph.enabled} onProposals={() => setTab("proposals")} />}
         {tab === "proposals" && <ProposalsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}
         {tab === "impact" && <ImpactTab enabled={graph.enabled} />}

@@ -2777,7 +2777,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <RefreshCw className="tab-icon" /> {L('History', language)}
             </a>
             {me?.isAdmin && (
-              <a className="nav-tab" href="/admin/requirements">
+              <a className="nav-tab" href="/admin/knowledge-base">
                 <ShieldCheck className="tab-icon" /> {L('Admin', language)}
               </a>
             )}
@@ -2796,7 +2796,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="uemail">{me?.email || L('Not signed in', language)}</div>
               </div>
               {me === null && <a className="uitem" href="/auth/login"><ExternalLink className="i" /> {L('Sign in', language)}</a>}
-              {me?.isAdmin && <a className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
+              {me?.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
+              {me?.isAdmin && <a className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> {L('Admin Review', language)}</a>}
               {me && <button type="button" className="uitem" onClick={handleSignOut}><ExternalLink className="i" /> {L('Sign out', language)}</button>}
             </div>
           </div>

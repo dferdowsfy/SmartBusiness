@@ -27,6 +27,7 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "histo
     { key: "dashboard", label: "Dashboard", href: "/dashboard", Icon: Building2 },
     { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
     { key: "history", label: "History", href: "/history", Icon: RefreshCw },
+    { key: "graph", label: "Knowledge Graph", href: "/admin/knowledge-base", Icon: ShieldCheck },
     { key: "admin", label: "Admin Review", href: "/admin/requirements", Icon: ShieldCheck },
   ];
   const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
