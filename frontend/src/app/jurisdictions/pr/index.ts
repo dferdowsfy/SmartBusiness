@@ -190,6 +190,52 @@ export const puertoRicoPack: JurisdictionPack = {
     },
   },
 
+  intakeCompat: {
+    // Reverse of buildEngineInput()'s translation table: the wizard answer key
+    // each KB question corresponds to. Kept 1:1 so snapshot-driven discovery
+    // questions keep writing the same profile fields the engine already reads.
+    uiKeyByQuestionId: {
+      Q_FOOD_PREPARED: "food_prepared_on_site",
+      Q_FOOD_SOLD: "food_sold",
+      Q_FOOD_SERVED: "food_served",
+      Q_ALCOHOL_SOLD: "alcohol_sold",
+      Q_ALCOHOL_SERVED: "alcohol_served",
+      Q_HEALTHCARE_SERVICES: "healthcare_services",
+      Q_CONTROLLED_SUBSTANCES: "controlled_substances",
+      Q_MEDICAL_WASTE: "medical_waste",
+      Q_BIOHAZARD_WASTE: "biohazard_waste",
+      Q_EMPLOYEES_HIRED: "employees_work_on_site",
+      Q_COMMERCIAL_VEHICLES: "commercial_vehicles",
+      Q_HAZARDOUS_MATERIALS: "hazardous_materials",
+      Q_HAZARDOUS_FLUIDS: "hazardous_fluids",
+      Q_CHEMICALS_USED: "chemicals_used",
+      Q_PRODUCTS_MANUFACTURED: "products_manufactured",
+      Q_IMPORT_EXPORT: "import_export",
+      Q_PROFESSIONAL_LICENSES: "professional_licenses_required",
+      Q_COMMERCIAL_SIGNAGE: "commercial_signage",
+      Q_OUTDOOR_SEATING: "outdoor_seating",
+      Q_LIVE_ENTERTAINMENT: "live_entertainment",
+      Q_SHORT_TERM_RENTAL: "short_term_rental",
+      Q_TOURISM_ACTIVITY: "tourism_activity",
+      Q_OWNS_PROPERTY: "owns_property",
+      Q_EXISTING_LEASE: "existing_lease",
+      Q_CHILDREN_PRESENT: "children_present",
+      Q_PESTICIDES: "pesticides",
+      Q_AGRICULTURE_PRODUCTION: "agriculture_production",
+      Q_FIREARMS_SOLD: "firearms_sold",
+      Q_NONPROFIT_STATUS: "nonprofit_status",
+      Q_RENOVATIONS: "renovations",
+      Q_VEHICLE_REPAIR: "vehicles_repaired",
+    },
+    profileStageQuestionIds: [
+      "Q_BUSINESS_STRUCTURE",
+      "Q_PHYSICAL_LOCATION",
+      "Q_HOME_BASED",
+      "Q_ONLINE_ONLY",
+      "Q_LOCATION_TYPE",
+    ],
+  },
+
   documentIntelligence: {
     analystSubject: "Puerto Rico business licensing",
     documentClasses: [

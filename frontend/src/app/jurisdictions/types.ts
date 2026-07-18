@@ -70,4 +70,17 @@ export interface JurisdictionPack {
     documentClasses: string[]; // allowed document_type classification values
     extractionHints: ExtractionHint[];
   };
+
+  // Compatibility metadata between KB questions and the legacy intake wizard
+  // (used by the regulatory-knowledge-graph seed so admin-driven questions can
+  // replace the hardcoded discovery lists without breaking stored answers).
+  intakeCompat?: {
+    // KB question id -> the answer key the intake wizard stores (e.g.
+    // Q_ALCOHOL_SOLD -> "alcohol_sold"). Questions without an entry are new
+    // and use their KB id directly.
+    uiKeyByQuestionId: Record<string, string>;
+    // KB question ids derived from the business-basics profile (never asked
+    // as discovery questions).
+    profileStageQuestionIds: string[];
+  };
 }
