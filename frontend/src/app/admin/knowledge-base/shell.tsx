@@ -19,6 +19,8 @@ import { DetailPanel } from "./graph/DetailPanel";
 import { RequirementsTab } from "./tabs/RequirementsTab";
 import { SourcesTab } from "./tabs/SourcesTab";
 import { ProposalsTab } from "./tabs/ProposalsTab";
+import { PublicationsTab } from "./tabs/PublicationsTab";
+import { AuditTab } from "./tabs/AuditTab";
 
 const TABS = [
   { id: "graph", label: "Graph" },
@@ -176,8 +178,8 @@ export default function KnowledgeBaseShell() {
         {tab === "sources" && <SourcesTab enabled={graph.enabled} onProposals={() => setTab("proposals")} />}
         {tab === "proposals" && <ProposalsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}
         {tab === "impact" && <Placeholder title="Impact Analysis" phase="Impact preview + test mode (e.g. Restaurant · San Juan, before vs after) — arrives with the impact milestone." />}
-        {tab === "publications" && <Placeholder title="Publications" phase="Approve → schedule → publish → rollback with full version history — arrives with the publication milestone." />}
-        {tab === "audit" && <Placeholder title="Audit Log" phase="Complete change history with actor, timestamps, and before/after — arrives with the publication milestone." />}
+        {tab === "publications" && <PublicationsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}
+        {tab === "audit" && <AuditTab enabled={graph.enabled} />}
       </div>
     </div>
   );
