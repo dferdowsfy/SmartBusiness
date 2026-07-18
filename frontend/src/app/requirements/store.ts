@@ -18,6 +18,7 @@ import { prefillFromIntake, type IntakeData } from "./autofill";
 import { validateFormInstance } from "./validation";
 import type {
   FormTemplate,
+  RequirementDocument,
   RequirementRule,
   UserFormInstance,
   ValidationResult,
@@ -52,7 +53,11 @@ export interface ResolvedForm {
   > | null;
   template: Pick<
     FormTemplate,
-    "id" | "template_name" | "render_mode" | "template_version"
+    "id" | "template_name" | "render_mode" | "template_version" | "output_pdf_template_path"
+  > | null;
+  sourceDocument: Pick<
+    RequirementDocument,
+    "id" | "document_title" | "document_type" | "source_url" | "source_file_url" | "file_type" | "language" | "status"
   > | null;
   validation: ValidationResult | null;
 }
@@ -97,6 +102,14 @@ export async function resolveRequirements(input: ResolveInput): Promise<Resolved
       [rule.id]
     );
     const template = tpls[0] ?? null;
+    const { rows: docs } = await pool.query<RequirementDocument>(
+      `SELECT d.* FROM requirement_documents d
+        WHERE d.requirement_rule_id = $1 AND d.status IN ('active','needs_review')
+        ORDER BY CASE WHEN d.id = $2::uuid THEN 0 ELSE 1 END, d.status, d.document_type, d.document_title
+        LIMIT 1`,
+      [rule.id, template?.requirement_document_id ?? null]
+    );
+    const sourceDocument = docs[0] ?? null;
     if (!template) {
       // Rule with no fillable template yet — still surface it to the user.
       resolved.push({
@@ -104,6 +117,7 @@ export async function resolveRequirements(input: ResolveInput): Promise<Resolved
         status: "not_started",
         rule: ruleSummary(rule),
         template: null,
+        sourceDocument: sourceDocumentSummary(sourceDocument),
         validation: null,
       });
       continue;
@@ -143,7 +157,9 @@ export async function resolveRequirements(input: ResolveInput): Promise<Resolved
         template_name: template.template_name,
         render_mode: template.render_mode,
         template_version: template.template_version,
+        output_pdf_template_path: template.output_pdf_template_path,
       },
+      sourceDocument: sourceDocumentSummary(sourceDocument),
       validation: instance.validation_result_json,
     });
   }
@@ -166,6 +182,20 @@ function ruleSummary(r: RequirementRule): ResolvedForm["rule"] {
   };
 }
 
+function sourceDocumentSummary(d: RequirementDocument | null): ResolvedForm["sourceDocument"] {
+  if (!d) return null;
+  return {
+    id: d.id,
+    document_title: d.document_title,
+    document_type: d.document_type,
+    source_url: d.source_url,
+    source_file_url: d.source_file_url,
+    file_type: d.file_type,
+    language: d.language,
+    status: d.status,
+  };
+}
+
 export async function listRequiredForms(targetId: string): Promise<ResolvedForm[]> {
   const pool = getPool();
   if (!pool) return [];
@@ -175,10 +205,13 @@ export async function listRequiredForms(targetId: string): Promise<ResolvedForm[
             r.id AS rule_id, r.requirement_name, r.agency_name, r.requirement_category,
             r.official_source_url, r.source_domain, r.confidence_score, r.status AS rule_status,
             r.last_checked_at, r.last_changed_at,
-            t.id AS template_id, t.template_name, t.render_mode, t.template_version
+            t.id AS template_id, t.template_name, t.render_mode, t.template_version, t.output_pdf_template_path,
+            d.id AS document_id, d.document_title, d.document_type, d.source_url AS document_source_url,
+            d.source_file_url, d.file_type, d.language, d.status AS document_status
        FROM user_form_instances i
        LEFT JOIN requirement_rules r ON r.id = i.requirement_rule_id
        LEFT JOIN form_templates t ON t.id = i.form_template_id
+       LEFT JOIN requirement_documents d ON d.id = t.requirement_document_id
       WHERE i.target_id = $1
       ORDER BY r.requirement_category, r.requirement_name`,
     [targetId]
@@ -206,6 +239,19 @@ export async function listRequiredForms(targetId: string): Promise<ResolvedForm[
           template_name: row.template_name,
           render_mode: row.render_mode,
           template_version: row.template_version,
+          output_pdf_template_path: row.output_pdf_template_path,
+        }
+      : null,
+    sourceDocument: row.document_id
+      ? {
+          id: row.document_id,
+          document_title: row.document_title,
+          document_type: row.document_type,
+          source_url: row.document_source_url,
+          source_file_url: row.source_file_url,
+          file_type: row.file_type,
+          language: row.language,
+          status: row.document_status,
         }
       : null,
     validation: row.validation_result_json,
