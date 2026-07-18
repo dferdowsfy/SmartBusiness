@@ -53,9 +53,13 @@ export async function createProposal(input: CreateProposalInput): Promise<{ ok: 
   let entityId = input.entityId?.trim() || "";
   let baseRow: RkNodeRow | null = null;
 
+  // Manual proposals must be structurally valid up front; AI extractions may
+  // be incomplete (they're re-validated at accept time in the review screen).
+  const strict = input.origin === "manual";
+
   if (input.changeKind === "create_node") {
     if (!input.data) return { ok: false, message: "data is required for create_node" };
-    const problems = validateNodeData(input.nodeType, input.data);
+    const problems = strict ? validateNodeData(input.nodeType, input.data) : [];
     if (problems.length) return { ok: false, message: problems.join(" ") };
     if (!entityId) {
       entityId = String(input.data.id ?? "").trim();
@@ -74,7 +78,7 @@ export async function createProposal(input: CreateProposalInput): Promise<{ ok: 
     if (!baseRow) return { ok: false, message: `no active node for ${entityId}` };
     if (input.changeKind === "update_node") {
       if (!input.data) return { ok: false, message: "data is required for update_node" };
-      const problems = validateNodeData(input.nodeType, input.data);
+      const problems = strict ? validateNodeData(input.nodeType, input.data) : [];
       if (problems.length) return { ok: false, message: problems.join(" ") };
     }
   }
