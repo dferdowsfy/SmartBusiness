@@ -216,7 +216,7 @@ export async function publishBatch(batchId: string, actor?: string | null): Prom
         await client.query(
           `SELECT p.*, s.legal_status AS source_legal_status
              FROM rk_change_proposals p LEFT JOIN rk_regulatory_sources s ON s.id = p.source_id
-            WHERE p.id = $1 FOR UPDATE`,
+            WHERE p.id = $1 FOR UPDATE OF p`,
           [item.proposal_id]
         )
       ).rows[0] as ChangeProposalRow;
