@@ -2596,14 +2596,19 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     liveReqs.filter(r => re.test(r.category || '') || re.test(r.document_name)).length;
   const liveLicenses = obligationCount(/licen/i);
   const livePermits = obligationCount(/permi/i);
-  const liveCerts = obligationCount(/certif/i);
-  const liveRegs = obligationCount(/regist/i);
 
   // Intake completion: 5 core profile fields + the dynamic question flow.
   const intakeFieldsDone = [profile.name, profile.municipality, profile.industry, profile.business_type, profile.location_type].filter(Boolean).length;
   const intakeTotal = 5 + questionList.length;
   const intakeDone = intakeFieldsDone + Math.min(currentQuestionIndex, questionList.length);
   const intakePct = Math.round((intakeDone / Math.max(1, intakeTotal)) * 100);
+  const baseProfileReady = Boolean(profile.name && profile.municipality && profile.industry && profile.business_type && profile.location_type);
+  const intakeDisplayTotal = Math.max(7, intakeTotal);
+  const intakeDisplayDone = intakeDone + (
+    baseProfileReady && currentQuestionIndex >= questionList.length
+      ? Math.max(0, intakeDisplayTotal - intakeTotal)
+      : 0
+  );
 
   const missingCount = requirements.filter(r => r.mandatory && r.status === 'pending').length;
   const reviewCount = requirements.filter(r => r.mandatory && r.status === 'warning').length;
@@ -2729,7 +2734,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const deliverablesReady = totalMandatory > 0 && completedMandatory === totalMandatory;
 
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div className={view === 'intake' ? 'spr-page' : undefined} style={{ minHeight: '100vh' }}>
       {/* Upload result toast (LLM document analysis feedback) */}
       {uploadNotice && (
         <div className="submit-toast show" role="status" style={{ maxWidth: 480 }}>
@@ -2748,7 +2753,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       )}
 
       {/* ====================== APP BAR ====================== */}
-      <header className="appbar">
+      {view !== 'intake' && <header className="appbar">
         <div className="appbar-inner">
           <div className="appbar-left">
             <div className="brand">
@@ -2764,7 +2769,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           </div>
 
           <nav className="nav-tabs" aria-label="Sections">
-            <button className={`nav-tab ${view === 'intake' ? 'active' : ''}`} onClick={() => goTo('intake')}>
+            <button className="nav-tab" onClick={() => goTo('intake')}>
               <FileText className="tab-icon" /> {L('Intake', language)}
             </button>
             <button className={`nav-tab ${view === 'requirements' ? 'active' : ''}`} disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
@@ -2802,271 +2807,204 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
           </div>
         </div>
-      </header>
+      </header>}
 
       {/* ====================== INTAKE ====================== */}
       {view === 'intake' && (
-        <main className="shell">
-          <div className="vgrid">
-            <section>
-              <div className="qcard">
-                <div className="qcard-body">
-                  <div className="pretitle">
-                    <span className="chip">
-                      {currentQuestion
-                        ? `${L('Question', language)} ${currentQuestionIndex + 1} ${L('of', language)} ${questionList.length}`
-                        : L('Business profile', language)}
-                    </span>
-                    <span>{L('Discovery', language)} · {profile.business_type || L('Business basics', language)}</span>
-                  </div>
-                  <h1 className="qtitle">{t('title')}</h1>
-                  <p className="qhelper">{t('subtitle')}</p>
-
-                  <div className="vform">
-                    <div className="vfield full">
-                      <label>{t('businessName')}</label>
-                      <input
-                        placeholder="Your Business Name"
-                        value={profile.name}
-                        onChange={e => setProfile({ ...profile, name: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="vfield">
-                      <label>{t('municipality')}</label>
-                      <select value={profile.municipality} onChange={e => setProfile({ ...profile, municipality: e.target.value })}>
-                        <option value="">{t('selectMunicipality')}</option>
-                        {municipalityOptions.map((m: string) => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
-                    <div className="vfield">
-                      <label>{t('industry')}</label>
-                      <select
-                        value={profile.industry}
-                        onChange={e => setProfile({ ...profile, industry: e.target.value, business_type: '' })}
-                      >
-                        <option value="">{t('selectIndustry')}</option>
-                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
-                      </select>
-                    </div>
-                    <div className="vfield">
-                      <label>{t('businessType')}</label>
-                      <select
-                        key={profile.industry || 'none'}
-                        value={profile.business_type}
-                        onChange={e => {
-                          const newBt = e.target.value;
-                          const allowed = LOCATION_TYPES_BY_BUSINESS_TYPE[newBt] || LOCATION_TYPES;
-                          const newLoc = allowed.includes(profile.location_type || '') ? profile.location_type : '';
-                          setProfile({ ...profile, business_type: newBt, location_type: newLoc });
-                        }}
-                      >
-                        <option value="">{t('selectBusinessType')}</option>
-                        {(BUSINESS_TYPES[profile.industry] || [profile.industry || 'Other']).map(bt => (
-                          <option key={bt} value={bt}>{bt}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="vfield">
-                      <label>{t('locationType')}</label>
-                      <select value={profile.location_type} onChange={e => setProfile({ ...profile, location_type: e.target.value })}>
-                        <option value="">{t('selectLocationType')}</option>
-                        {(LOCATION_TYPES_BY_BUSINESS_TYPE[profile.business_type] || LOCATION_TYPES).map(lt => (
-                          <option key={lt} value={lt}>{lt}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="vfield">
-                      <label>{t('businessStructure')}</label>
-                      <select value={profile.business_structure} onChange={e => setProfile({ ...profile, business_structure: e.target.value })}>
-                        <option value="llc">LLC</option>
-                        <option value="corporation">Corporation</option>
-                        <option value="sole_proprietorship">Sole Proprietorship</option>
-                        <option value="partnership">Partnership</option>
-                        <option value="professional_corporation">Professional Corporation</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div className="vfield">
-                      <label>{t('numEmployees')}</label>
-                      <div className="range-row">
-                        <input
-                          type="range" min="0" max="100" step="1"
-                          value={profile.number_of_employees ?? 0}
-                          onChange={e => setProfile({ ...profile, number_of_employees: parseInt(e.target.value) || 0 })}
-                        />
-                        <div className="range-val">{profile.number_of_employees ?? 0}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dynamic question flow — one at a time, Validador answer cards */}
-                  {currentQuestion && (
-                    <div style={{ marginTop: 28, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-                      <div className="pretitle">
-                        <span className="chip">{L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {questionList.length}</span>
-                      </div>
-                      <h2 className="qtitle" style={{ fontSize: 24 }}>{L(currentQuestion.text, language)}</h2>
-                      <div className="answers">
-                        <button className="answer answer-reveal" onClick={() => handleQuestionAnswer(true)}>
-                          <div className="answer-icon answer-icon-yes"><CheckCircle className="i" style={{ width: 22, height: 22 }} /></div>
-                          <div>
-                            <div className="answer-title">{t('yes')}</div>
-                            <div className="answer-sub">{L('This applies to my business', language)}</div>
-                          </div>
-                        </button>
-                        <button className="answer answer-reveal" style={{ animationDelay: '30ms' }} onClick={() => handleQuestionAnswer(false)}>
-                          <div className="answer-icon answer-icon-no"><XCircle className="i" style={{ width: 22, height: 22 }} /></div>
-                          <div>
-                            <div className="answer-title">{t('no')}</div>
-                            <div className="answer-sub">{L('This does not apply', language)}</div>
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {questionList.length > 0 && currentQuestionIndex >= questionList.length && (
-                    <div className="iq-chip" style={{ marginTop: 20 }}>
-                      <div className="swatch" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>✓</div>
-                      {L('All relevant questions answered for this business type.', language)}
-                    </div>
-                  )}
-
-                  <div className="qfooter">
-                    <div className="qfooter-left">
-                      <span>{intakeDone}/{intakeTotal} {L('completed', language)}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {currentQuestion && currentQuestionIndex > 0 && (
-                        <button className="btn btn-secondary" onClick={() => setCurrentQuestionIndex(i => Math.max(0, i - 1))}>
-                          {L('Back', language)}
-                        </button>
-                      )}
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleStartDiscovery}
-                        disabled={!profile.name || !profile.industry || (questionList.length > 0 && currentQuestionIndex < questionList.length) || isLoading}
-                      >
-                        {L('See my requirements', language)}
-                        {isLoading ? <RefreshCw className="i" style={{ width: 14, height: 14, animation: 'vspin .7s linear infinite' }} /> : <ArrowRight className="i" style={{ width: 14, height: 14 }} />}
-                      </button>
-                    </div>
-                  </div>
+        <main className="spr-workspace">
+          <aside className="spr-sidebar">
+            <div className="spr-brand">
+              <div>
+                <div className="spr-brand-name" aria-label="SmartPR">
+                  <span className="spr-brand-smart">Smart</span><span className="spr-brand-pr">PR</span>
                 </div>
+                <div className="spr-brand-place">PUERTO RICO</div>
               </div>
+            </div>
 
-              {/* Sub-progress row */}
-              <div className="progress-row">
-                <div className="pstat">
-                  <div className="pstat-label">{L('Questions completed', language)}</div>
-                  <div className="pstat-value">{intakePct}%</div>
-                  <div className="barline"><span style={{ width: `${intakePct}%` }} /></div>
-                </div>
-                <div className="pstat">
-                  <div className="pstat-label">{L('Agencies identified', language)}</div>
-                  <div className="pstat-value">{liveAgencies.length}</div>
-                </div>
-                <div className="pstat">
-                  <div className="pstat-label">{L('Requirements discovered', language)}</div>
-                  <div className="pstat-value">{liveReqs.length}</div>
-                </div>
-                <div className="pstat">
-                  <div className="pstat-label">{L('Licenses detected', language)}</div>
-                  <div className="pstat-value">{liveLicenses}</div>
-                </div>
+            <nav className="spr-steps" aria-label={L('Sections', language)}>
+              <button className="spr-step active" onClick={() => goTo('intake')}>
+                <span className="spr-step-number">1</span>
+                <span>{L('Intake', language)}</span>
+              </button>
+              <button className="spr-step" disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
+                <span className="spr-step-number">2</span>
+                <span>{L('Requirements', language)}</span>
+              </button>
+              <button className="spr-step" disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
+                <span className="spr-step-number">3</span>
+                <span>{L('Documents', language)}</span>
+              </button>
+              <button className="spr-step" disabled={requirements.length === 0} onClick={() => goTo('deliverables')}>
+                <span className="spr-step-number">4</span>
+                <span>{L('Deliverables', language)}</span>
+              </button>
+            </nav>
+
+            <div className="spr-language" aria-label={L('Language', language)}>
+              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
+              <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
+            </div>
+          </aside>
+
+          <section className="spr-intake-panel">
+            <div className="spr-intake-scroll">
+              <div className="spr-kicker">
+                <span>{L('Business profile', language)}</span>
+                <span aria-hidden="true">·</span>
+                <span>{L('Discovery', language)}</span>
               </div>
+              <h1>{language === 'en' ? 'Tell us about your business' : t('title')}</h1>
+              <p className="spr-subtitle">
+                {language === 'en'
+                  ? 'Answer a few questions and we determine every Puerto Rico license, permit, certification and document you need.'
+                  : t('subtitle')}
+              </p>
 
-              <div className="helpbar">
-                <div className="help-ic"><Lightbulb className="i-lg i" /></div>
-                <div className="help-text">
-                  <b>{L("You don't need to know everything yet.", language)}</b>
-                  <small>{L('Anything missing is flagged later — you will always know what is next.', language)}</small>
-                </div>
-                {requirements.length > 0 && (
-                  <button className="btn btn-secondary help-cta" onClick={() => void saveProgress()}>
-                    {saveState === 'saving' ? L('Saving…', language) : L('Save Progress', language)}
-                  </button>
-                )}
-              </div>
-            </section>
-
-            {/* Right: Regulatory intelligence panel */}
-            <aside>
-              <div className="iqpanel">
-                <div className="iq-head">
-                  <div className="iq-head-top">
-                    <span className="iq-pulse" />
-                    <span className="iq-live">{L('Reviewing live', language)}</span>
-                  </div>
-                  <div className="iq-title">{L('Regulatory intelligence', language)}</div>
-                  <div className="iq-sub">{L('Updating as you answer — like a senior compliance reviewer over your shoulder.', language)}</div>
+              <div className="spr-form">
+                <div className="spr-field full">
+                  <label htmlFor="spr-business-name">{t('businessName')}</label>
+                  <input
+                    id="spr-business-name"
+                    placeholder={L('Your business name', language)}
+                    value={profile.name}
+                    onChange={e => setProfile({ ...profile, name: e.target.value })}
+                    required
+                  />
                 </div>
 
-                <div className="iq-section">
-                  <div className="iq-section-title">{L('Business profile', language)}</div>
-                  <div className="iq-kv"><span className="k">{t('businessType')}</span><span className="v">{profile.business_type || '—'}</span></div>
-                  <div className="iq-kv"><span className="k">{t('industry')}</span><span className="v">{profile.industry || '—'}</span></div>
-                  <div className="iq-kv"><span className="k">{t('municipality')}</span><span className="v">{profile.municipality || '—'}</span></div>
-                  <div className="iq-kv"><span className="k">{t('locationType')}</span><span className="v">{profile.location_type || '—'}</span></div>
-                  <div className="iq-kv"><span className="k">{t('numEmployees')}</span><span className="v">{profile.number_of_employees ?? '—'}</span></div>
+                <div className="spr-field">
+                  <label htmlFor="spr-municipality">{t('municipality')}</label>
+                  <select id="spr-municipality" value={profile.municipality} onChange={e => setProfile({ ...profile, municipality: e.target.value })}>
+                    <option value="">{t('selectMunicipality')}</option>
+                    {municipalityOptions.map((m: string) => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+                <div className="spr-field">
+                  <label htmlFor="spr-industry">{t('industry')}</label>
+                  <select
+                    id="spr-industry"
+                    value={profile.industry}
+                    onChange={e => setProfile({ ...profile, industry: e.target.value, business_type: '' })}
+                  >
+                    <option value="">{t('selectIndustry')}</option>
+                    {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
                 </div>
 
-                <div className="iq-section">
-                  <div className="iq-section-title">{L('Launch readiness', language)}</div>
-                  <div className="ring-wrap">
-                    <div className="ring" style={{ ['--p' as string]: intakePct }}><span>{intakePct}%</span></div>
-                    <div className="ring-meta">
-                      <div className="label">{L('Estimated', language)}</div>
-                      <div className="val">
-                        {intakePct < 35 ? L('Early discovery', language) : intakePct < 70 ? L('Mid discovery', language) : intakePct < 100 ? L('Late discovery', language) : L('Discovery complete', language)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="iq-section">
-                  <div className="iq-section-title">{L('Agencies involved', language)} · {liveAgencies.length}</div>
-                  <div className="iq-list">
-                    {liveAgencies.slice(0, 7).map(a => (
-                      <div key={a} className="iq-chip">
-                        <div className="swatch">{a.replace(/[^A-Za-z ]/g, '').split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()}</div>
-                        {a}
-                      </div>
+                <div className="spr-field">
+                  <label htmlFor="spr-business-type">{t('businessType')}</label>
+                  <select
+                    id="spr-business-type"
+                    key={profile.industry || 'none'}
+                    value={profile.business_type}
+                    onChange={e => {
+                      const newBt = e.target.value;
+                      const allowed = LOCATION_TYPES_BY_BUSINESS_TYPE[newBt] || LOCATION_TYPES;
+                      const newLoc = allowed.includes(profile.location_type || '') ? profile.location_type : '';
+                      setProfile({ ...profile, business_type: newBt, location_type: newLoc });
+                    }}
+                  >
+                    <option value="">{t('selectBusinessType')}</option>
+                    {(BUSINESS_TYPES[profile.industry] || [profile.industry || 'Other']).map(bt => (
+                      <option key={bt} value={bt}>{bt}</option>
                     ))}
-                    {liveAgencies.length === 0 && <div className="iq-sub">{L('Select a municipality and business type to begin.', language)}</div>}
-                  </div>
+                  </select>
+                </div>
+                <div className="spr-field">
+                  <label htmlFor="spr-location-type">{t('locationType')}</label>
+                  <select id="spr-location-type" value={profile.location_type} onChange={e => setProfile({ ...profile, location_type: e.target.value })}>
+                    <option value="">{t('selectLocationType')}</option>
+                    {(LOCATION_TYPES_BY_BUSINESS_TYPE[profile.business_type] || LOCATION_TYPES).map(lt => (
+                      <option key={lt} value={lt}>{lt}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <div className="iq-section">
-                  <div className="iq-section-title">{L('Potential obligations', language)}</div>
-                  <div className="iq-kv"><span className="k">{L('Licenses', language)}</span><span className="v">{liveLicenses} {L('detected', language)}</span></div>
-                  <div className="iq-kv"><span className="k">{L('Permits', language)}</span><span className="v">{livePermits} {L('detected', language)}</span></div>
-                  <div className="iq-kv"><span className="k">{L('Certifications', language)}</span><span className="v">{liveCerts} {L('detected', language)}</span></div>
-                  <div className="iq-kv"><span className="k">{L('Registrations', language)}</span><span className="v">{liveRegs} {L('detected', language)}</span></div>
+                <div className="spr-field spr-field-static">
+                  <label htmlFor="spr-structure">{t('businessStructure')}</label>
+                  <select id="spr-structure" value={profile.business_structure} onChange={e => setProfile({ ...profile, business_structure: e.target.value })}>
+                    <option value="llc">LLC</option>
+                    <option value="corporation">Corporation</option>
+                    <option value="sole_proprietorship">Sole Proprietorship</option>
+                    <option value="partnership">Partnership</option>
+                    <option value="professional_corporation">Professional Corporation</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
-
-                <div className="iq-section">
-                  <div className="iq-section-title">{L('Live recommendations', language)}</div>
-                  {municipalNotices.map((n, i) => (
-                    <div key={`n-${i}`} className="reco">
-                      <div className="reco-ic zone"><Landmark className="i" /></div>
-                      <div className="reco-text"><b>{profile.municipality}</b><small>{L(n, language)}</small></div>
-                    </div>
-                  ))}
-                  {potentialItems.slice(0, 3).map(p => (
-                    <div key={p.flag} className="reco">
-                      <div className="reco-ic health"><Lightbulb className="i" /></div>
-                      <div className="reco-text"><b>{p.document}</b><small>{L(p.why, language)}</small></div>
-                    </div>
-                  ))}
-                  {municipalNotices.length === 0 && potentialItems.length === 0 && (
-                    <div className="iq-sub">{L('Recommendations appear as your profile takes shape.', language)}</div>
-                  )}
+                <div className="spr-field">
+                  <label htmlFor="spr-employees">{t('numEmployees')}</label>
+                  <input
+                    id="spr-employees"
+                    type="number"
+                    min="0"
+                    max="10000"
+                    value={profile.number_of_employees ?? 0}
+                    onChange={e => setProfile({ ...profile, number_of_employees: Math.max(0, parseInt(e.target.value) || 0) })}
+                  />
                 </div>
               </div>
-            </aside>
-          </div>
+
+              {currentQuestion && (
+                <div className="spr-follow-up">
+                  <div className="spr-kicker">{L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {questionList.length}</div>
+                  <h2>{L(currentQuestion.text, language)}</h2>
+                  <div className="spr-answer-row">
+                    <button onClick={() => handleQuestionAnswer(true)}><CheckCircle className="i" /> {t('yes')}</button>
+                    <button onClick={() => handleQuestionAnswer(false)}><XCircle className="i" /> {t('no')}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="spr-form-footer">
+              <span>{intakeDisplayDone}/{intakeDisplayTotal} {L('completed', language)}</span>
+              <div className="spr-form-actions">
+                {currentQuestion && currentQuestionIndex > 0 && (
+                  <button className="spr-back" onClick={() => setCurrentQuestionIndex(i => Math.max(0, i - 1))}>{L('Back', language)}</button>
+                )}
+                <button
+                  className="spr-primary"
+                  onClick={handleStartDiscovery}
+                  disabled={!baseProfileReady || (questionList.length > 0 && currentQuestionIndex < questionList.length) || isLoading}
+                >
+                  {L('See my requirements', language)}
+                  {isLoading ? <RefreshCw className="i spr-spin" /> : <ArrowRight className="i" />}
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <aside className="spr-review-panel">
+            <div className="spr-live"><span className="spr-live-dot" />{L('Reviewing live', language)}</div>
+            <div className="spr-readiness-row">
+              <span>{L('Launch readiness', language)}</span>
+              <strong>{intakePct}%</strong>
+            </div>
+            <div className="spr-progress"><span style={{ width: `${intakePct}%` }} /></div>
+
+            <div className="spr-metrics">
+              <div className="spr-metric highlighted"><strong>{liveAgencies.length}</strong><span>{L('Agencies', language)}</span></div>
+              <div className="spr-metric highlighted"><strong>{liveReqs.length}</strong><span>{L('Requirements', language)}</span></div>
+              <div className="spr-metric"><strong>{liveLicenses}</strong><span>{L('Licenses', language)}</span></div>
+              <div className="spr-metric"><strong>{livePermits}</strong><span>{L('Permits', language)}</span></div>
+            </div>
+
+            <div className="spr-review-section">
+              <h2>{L('Agencies involved', language)}</h2>
+              <div className="spr-agency-list">
+                {liveAgencies.slice(0, 6).map(a => <span key={a}>{a}</span>)}
+              </div>
+            </div>
+
+            <div className="spr-review-section">
+              <h2>{L('Live recommendations', language)}</h2>
+              <div className="spr-recommendations">
+                {municipalNotices.map((n, i) => <p key={`n-${i}`}>{L(n, language)}</p>)}
+                {potentialItems.slice(0, 3).map(p => <p key={p.flag}><strong>{p.document}</strong><span>{L(p.why, language)}</span></p>)}
+              </div>
+            </div>
+          </aside>
         </main>
       )}
 
