@@ -669,6 +669,15 @@ button { font-family: inherit; }
 }
 .req-action.primary:active { transform: translateY(0); box-shadow: inset 0 2px 4px rgba(15,23,42,.35); }
 .req-action.primary:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(99, 102, 241, .45); }
+.req-actions-stack { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.req-actions-stack .req-action { justify-content: center; white-space: nowrap; margin-top: 0; }
+.issued-document-guidance {
+  display: flex; align-items: flex-start; gap: 7px;
+  max-width: 76ch; margin-top: 9px; padding: 8px 10px;
+  border-radius: 8px; background: #eff6ff; color: #1e3a8a;
+  font-size: 12px; line-height: 1.45;
+}
+.issued-document-guidance .i { flex: 0 0 auto; margin-top: 2px; }
 
 /* Decision buttons for "potentially required" items */
 .decide-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -746,6 +755,9 @@ button { font-family: inherit; }
 .pkg-item.missing { color: var(--ink-2); }
 .pkg-item.missing .ic { color: var(--warn); }
 .pkg-item .miss-label { margin-left: auto; font-size: 11.5px; color: var(--warn); font-weight: 600;}
+.prepared-application-item > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; }
+.prepared-application-item small { color: var(--muted); font-size: 11px; }
+.prepared-application-item .btn { margin-left: auto; padding: 5px 9px; font-size: 11.5px; }
 
 .pkg-foot {
   display: flex; align-items: center; justify-content: space-between;
@@ -1296,6 +1308,20 @@ button { font-family: inherit; }
     min-height: 44px;
     margin-top: 10px;
   }
+  .req-actions-stack { grid-column: 2 / 3; width: 100%; margin-top: 10px; }
+  .req-actions-stack .req-action { margin-top: 0; }
+
+  .sample-form-overlay { padding: 0; place-items: stretch; }
+  .sample-form-modal { width: 100%; max-height: 100vh; min-height: 100vh; border-radius: 0; }
+  .sample-form-head { padding: 18px 18px 14px; }
+  .sample-form-head h2 { font-size: 20px; }
+  .sample-form-warning { margin: 12px 18px 0; }
+  .sample-form-body { padding: 18px; }
+  .sample-form-grid { grid-template-columns: 1fr; }
+  .sample-form-field.wide { grid-column: auto; }
+  .sample-form-foot { padding: 14px 18px; align-items: stretch; flex-direction: column; }
+  .sample-form-actions { width: 100%; margin-left: 0; }
+  .sample-form-actions .btn { flex: 1; justify-content: center; }
 
   /* ---- Requirement group / banner headings tighten up ---- */
   .req-banner { padding: 14px; }
@@ -1307,6 +1333,72 @@ button { font-family: inherit; }
   /* ---- Decide buttons (potentially-required) become full-width stacks ---- */
   .decide-row .btn { flex: 1 1 calc(50% - 4px); justify-content: center; min-height: 40px; }
 }
+
+.sample-form-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: grid; place-items: center;
+  padding: 28px;
+  background: rgba(15, 35, 50, .58);
+  backdrop-filter: blur(4px);
+}
+.sample-form-modal {
+  width: min(920px, 100%); max-height: calc(100vh - 56px);
+  display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px; box-shadow: 0 24px 80px rgba(15, 35, 50, .28);
+  overflow: hidden;
+}
+.sample-form-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 18px;
+  padding: 24px 28px 18px; border-bottom: 1px solid var(--border);
+}
+.sample-form-head h2 { margin: 7px 0 5px; font-size: 24px; color: var(--ink); }
+.sample-form-head p { margin: 0; max-width: 74ch; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.sample-form-close {
+  width: 34px; height: 34px; flex: 0 0 auto;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface); color: var(--muted); cursor: pointer;
+  font-size: 24px; line-height: 1;
+}
+.sample-form-close:hover { background: var(--bg-tint); color: var(--ink); }
+.sample-form-warning {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 16px 28px 0; padding: 12px 14px;
+  border: 1px solid #fdba74; border-radius: 10px;
+  background: #fff7ed; color: #9a3412; font-size: 12.5px; line-height: 1.5;
+}
+.sample-form-warning .i { flex: 0 0 auto; margin-top: 1px; }
+.sample-form-warning span { display: block; }
+.sample-form-warning strong { display: block; }
+.sample-form-body { overflow: auto; padding: 20px 28px 26px; }
+.sample-form-section { border: 0; padding: 0; margin: 0 0 24px; }
+.sample-form-section:last-child { margin-bottom: 0; }
+.sample-form-section legend { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 12px; }
+.sample-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.sample-form-field { display: flex; flex-direction: column; gap: 6px; color: var(--ink-2); font-size: 12px; font-weight: 600; }
+.sample-form-field.wide { grid-column: 1 / -1; }
+.sample-form-field b { color: var(--danger); }
+.sample-form-field input:not([type="checkbox"]),
+.sample-form-field select,
+.sample-form-field textarea {
+  width: 100%; border: 1px solid var(--border-strong); border-radius: 9px;
+  background: var(--surface); color: var(--ink); font: inherit; font-weight: 500;
+  padding: 10px 11px; outline: none;
+}
+.sample-form-field input:not([type="checkbox"]), .sample-form-field select { min-height: 42px; }
+.sample-form-field textarea { min-height: 82px; resize: vertical; }
+.sample-form-field input:focus, .sample-form-field select:focus, .sample-form-field textarea:focus {
+  border-color: var(--brand-2); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+.sample-form-field.error input, .sample-form-field.error select, .sample-form-field.error textarea { border-color: var(--danger); }
+.sample-form-field small { color: var(--muted); font-weight: 500; }
+.sample-form-field .field-error { color: var(--danger); }
+.sample-form-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 16px 28px; border-top: 1px solid var(--border); background: var(--bg-tint);
+}
+.sample-form-feedback { color: var(--warn); font-size: 12px; line-height: 1.4; }
+.sample-form-actions { display: flex; gap: 8px; margin-left: auto; }
 
 @media (max-width: 1400px) {
   .spr-page { padding-inline: 12px; }

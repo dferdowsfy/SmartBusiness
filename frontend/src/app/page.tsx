@@ -14,6 +14,16 @@ import {
   type PotentialDef,
 } from './potentialRequirements';
 import { buildExtraction, type ExtractionResult } from './documentFields';
+import {
+  ISSUED_DOCUMENT_GUIDANCE,
+  generateSampleApplicationPdf,
+  getSampleApplication,
+  missingRequiredSampleFields,
+  prefillSampleApplication,
+  type PreparedSampleApplication,
+  type SampleFormData,
+  type SampleFormValue,
+} from './sampleApplicationForms';
 import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
@@ -1001,6 +1011,11 @@ export default function SmartPR() {
   const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, any>>({});
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [uploadedDocs, setUploadedDocs] = useState<any[]>([]);
+  const [sampleFormDrafts, setSampleFormDrafts] = useState<Record<string, SampleFormData>>({});
+  const [preparedSampleApplications, setPreparedSampleApplications] = useState<Record<string, PreparedSampleApplication>>({});
+  const [activeSampleFormCode, setActiveSampleFormCode] = useState<string | null>(null);
+  const [sampleFormErrors, setSampleFormErrors] = useState<string[]>([]);
+  const [sampleFormNotice, setSampleFormNotice] = useState<string | null>(null);
   const [readinessScore, setReadinessScore] = useState<number | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1019,6 +1034,23 @@ export default function SmartPR() {
   const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
   // User decisions on flag-derived "Potentially Required" items.
   const [potentialDecisions, setPotentialDecisions] = useState<Record<string, PotentialDecision>>({});
+
+  const sampleFormsStorageKey = useMemo(() => {
+    const business = (profile.name || 'business').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const municipality = (profile.municipality || 'pr').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    return `smartpr-sample-forms-${business}-${municipality}`;
+  }, [profile.name, profile.municipality]);
+
+  useEffect(() => {
+    if (!profile.name || !profile.municipality) return;
+    try {
+      const saved = localStorage.getItem(sampleFormsStorageKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      setSampleFormDrafts((current) => Object.keys(current).length ? current : (parsed.drafts || {}));
+      setPreparedSampleApplications((current) => Object.keys(current).length ? current : (parsed.prepared || {}));
+    } catch { /* browser storage is best-effort */ }
+  }, [sampleFormsStorageKey, profile.name, profile.municipality]);
 
   // Explainability: confidence + weighted "why required" reasons per document.
   // Additive only — does not change which requirements are produced.
@@ -1069,6 +1101,8 @@ export default function SmartPR() {
           if (st.discoveryAnswers) setDiscoveryAnswers(st.discoveryAnswers);
           if (Array.isArray(st.requirements) && st.requirements.length) setRequirements(st.requirements);
           if (st.potentialDecisions) setPotentialDecisions(st.potentialDecisions);
+          if (st.sampleFormDrafts) setSampleFormDrafts(st.sampleFormDrafts);
+          if (st.preparedSampleApplications) setPreparedSampleApplications(st.preparedSampleApplications);
           if (typeof st.readinessScore === 'number') setReadinessScore(st.readinessScore);
           if (typeof st.currentStep === 'number') setCurrentStep(st.currentStep);
           if (snap.business_id) businessIdRef.current = snap.business_id;
@@ -1450,6 +1484,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             state: {
               profile, discoveryAnswers,
               requirements, potentialDecisions,
+              sampleFormDrafts, preparedSampleApplications,
               currentStep, readinessScore,
             },
           }),
@@ -2288,6 +2323,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       });
     }
 
+    const preparedApplications = Object.values(preparedSampleApplications);
+    sectionHeading(tr('PREPARED APPLICATION WORKSHEETS'));
+    if (preparedApplications.length === 0) {
+      writeText(tr('No application worksheets prepared yet.'), MARGIN + 2, { color: slate });
+    } else {
+      preparedApplications.forEach((application, index) => {
+        writeText(`${index + 1}.  ${application.title} — ${tr('Draft; official agency output still required')}`, MARGIN + 2, { gap: 0.6 });
+      });
+    }
+
     // ---- Missing / pending ----
     const missing = requirements.filter(r => r.mandatory && r.status === 'pending');
     sectionHeading(tr('MISSING / PENDING DOCUMENTS'));
@@ -2381,6 +2426,86 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     } catch { /* observational */ }
   };
 
+  const persistSampleForms = (
+    drafts: Record<string, SampleFormData>,
+    prepared: Record<string, PreparedSampleApplication>
+  ) => {
+    try {
+      localStorage.setItem(sampleFormsStorageKey, JSON.stringify({ drafts, prepared }));
+    } catch { /* browser storage is best-effort */ }
+  };
+
+  const openSampleApplication = (requirementCode: string) => {
+    const definition = getSampleApplication(requirementCode);
+    if (!definition) return;
+    const nextData = prefillSampleApplication(
+      definition,
+      profile,
+      sampleFormDrafts[requirementCode] || preparedSampleApplications[requirementCode]?.data || {}
+    );
+    setSampleFormDrafts((current) => ({ ...current, [requirementCode]: nextData }));
+    setSampleFormErrors([]);
+    setSampleFormNotice(null);
+    setActiveSampleFormCode(requirementCode);
+  };
+
+  const updateSampleFormField = (key: string, value: SampleFormValue) => {
+    if (!activeSampleFormCode) return;
+    setSampleFormDrafts((current) => ({
+      ...current,
+      [activeSampleFormCode]: {
+        ...(current[activeSampleFormCode] || {}),
+        [key]: value,
+      },
+    }));
+    setSampleFormErrors([]);
+  };
+
+  const saveSampleFormDraft = () => {
+    if (!activeSampleFormCode) return;
+    const nextDrafts = { ...sampleFormDrafts };
+    persistSampleForms(nextDrafts, preparedSampleApplications);
+    setSampleFormNotice('Draft saved on this device. It does not complete the requirement.');
+  };
+
+  const addSampleFormToDeliverables = () => {
+    if (!activeSampleFormCode) return;
+    const definition = getSampleApplication(activeSampleFormCode);
+    if (!definition) return;
+    const data = sampleFormDrafts[activeSampleFormCode] || {};
+    const missing = missingRequiredSampleFields(definition, data);
+    if (missing.length > 0) {
+      setSampleFormErrors(missing);
+      setSampleFormNotice(null);
+      return;
+    }
+
+    const prepared: PreparedSampleApplication = {
+      requirementCode: activeSampleFormCode,
+      title: definition.title,
+      filename: definition.filename,
+      preparedAt: new Date().toISOString(),
+      data,
+    };
+    const nextPrepared = { ...preparedSampleApplications, [activeSampleFormCode]: prepared };
+    setPreparedSampleApplications(nextPrepared);
+    persistSampleForms(sampleFormDrafts, nextPrepared);
+    setSampleFormNotice('Application worksheet added to deliverables. Upload the agency-issued document separately after approval.');
+    setSampleFormErrors([]);
+  };
+
+  const downloadPreparedSampleApplication = (prepared: PreparedSampleApplication) => {
+    const definition = getSampleApplication(prepared.requirementCode);
+    if (!definition) return;
+    const blob = generateSampleApplicationPdf(definition, prepared.data);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = prepared.filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   const downloadReadinessReport = async () => {
     try {
       setIsLoading(true);
@@ -2407,6 +2532,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       // Add the professional PDF report
       const pdfBlob = await generateReadinessReportPDF();
       zip.file('00_SmartPR_Readiness_Report.pdf', pdfBlob);
+
+      // Add user-prepared sample application worksheets. These are clearly
+      // labeled drafts and never substitute for agency-issued evidence.
+      for (const prepared of Object.values(preparedSampleApplications)) {
+        const definition = getSampleApplication(prepared.requirementCode);
+        if (!definition) continue;
+        zip.file(`Prepared_Applications/${prepared.filename}`, generateSampleApplicationPdf(definition, prepared.data));
+      }
 
       // Collect validated docs that have real file blobs, sorted by submission priority
       const validatedWithFiles = uploadedDocs
@@ -2464,6 +2597,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         type: d.ai_analysis?.document_type || 'Document',
         status: d.ai_analysis?.overall_status || 'Uploaded',
         req: d.requirement_code,
+      })),
+      preparedApplications: Object.values(preparedSampleApplications).map((application) => ({
+        title: application.title,
+        filename: application.filename,
+        preparedAt: application.preparedAt,
+        status: 'Draft — official agency output still required',
       })),
       requirements: requirements.map(r => ({
         name: r.name,
@@ -2648,6 +2787,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
     const checkCls = state === 'done' ? 'done' : state === 'review' ? 'progress' : 'missing';
     const promoted = req.code.startsWith('potential_');
+    const sampleDefinition = getSampleApplication(req.code);
+    const issuedDocumentGuidance = ISSUED_DOCUMENT_GUIDANCE[req.code];
     return (
       <div id={`req-row-${req.code}`} key={req.code} className="req-row">
         <div className={`req-check ${checkCls}`}>
@@ -2669,6 +2810,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
             )}
           </details>
+          {issuedDocumentGuidance && (
+            <div className="issued-document-guidance">
+              <Info className="i" style={{ width: 13, height: 13 }} />
+              <span>{issuedDocumentGuidance}</span>
+            </div>
+          )}
           {ext && analysis && (
             <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
           )}
@@ -2679,9 +2826,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
           </span>
         </div>
-        <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
-          <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload' : 'Upload', language)}
-        </button>
+        <div className="req-actions-stack">
+          {sampleDefinition && (
+            <button className="req-action" onClick={() => openSampleApplication(req.code)}>
+              <FileText className="i" style={{ width: 13, height: 13 }} />
+              {preparedSampleApplications[req.code] ? L('Edit application', language) : L('Prepare application', language)}
+            </button>
+          )}
+          <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
+            <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload official' : 'Upload official', language)}
+          </button>
+        </div>
 
         {/* Multi-stage processing (visible inside card) */}
         {processingStates[req.code] && (
@@ -2759,6 +2914,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
+  const preparedSampleList = Object.values(preparedSampleApplications);
+  const packageAssetCount = zipReadyDocs.length + preparedSampleList.length;
+  const activeSampleDefinition = activeSampleFormCode ? getSampleApplication(activeSampleFormCode) : null;
+  const activeSampleData = activeSampleFormCode ? (sampleFormDrafts[activeSampleFormCode] || {}) : {};
   const deliverablesReady = totalMandatory > 0 && completedMandatory === totalMandatory;
 
   return (
@@ -3334,7 +3493,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
             <div className="banner-stat">
               <div className="lab">{L('Documents', language)}</div>
-              <div className="val">{uploadedDocs.length}</div>
+              <div className="val">{uploadedDocs.length + preparedSampleList.length}</div>
             </div>
           </div>
 
@@ -3362,7 +3521,41 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </div>
             </div>
 
-            {/* 2. Submission Package ZIP */}
+            {/* 2. Prepared sample applications */}
+            <div className="pkg purple">
+              <div className="pkg-head">
+                <div className="pkg-ic"><FileText className="i-lg i" /></div>
+                <div>
+                  <div className="pkg-title">{L('Prepared Application Worksheets', language)}</div>
+                  <div className="pkg-sub">{L('Fillable preparation drafts. Official agency-issued documents are still required.', language)}</div>
+                </div>
+                <span className={`pkg-status-pill ${preparedSampleList.length > 0 ? 'ready' : 'missing'}`}>
+                  {preparedSampleList.length > 0 ? `${preparedSampleList.length} ${L('Prepared', language)}` : L('None prepared', language)}
+                </span>
+              </div>
+              <div className="pkg-list">
+                {preparedSampleList.length === 0 ? (
+                  <div className="pkg-item missing">
+                    <span className="ic"><AlertTriangle className="i" style={{ width: 13, height: 13 }} /></span>
+                    {L('Return to the checklist and choose Prepare application.', language)}
+                  </div>
+                ) : preparedSampleList.map((application) => (
+                  <div key={application.requirementCode} className="pkg-item ok prepared-application-item">
+                    <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
+                    <span>{application.title}<small>{L('Draft — official output still required', language)}</small></span>
+                    <button className="btn btn-secondary" onClick={() => downloadPreparedSampleApplication(application)}>
+                      <Download className="i" style={{ width: 13, height: 13 }} /> {L('PDF', language)}
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="pkg-foot">
+                <span className="pkg-sub">{L('Included in the Submission Package ZIP', language)}</span>
+                <button className="btn btn-secondary" onClick={() => goTo('requirements')}>{L('Prepare another', language)}</button>
+              </div>
+            </div>
+
+            {/* 3. Submission Package ZIP */}
             <div className="pkg green">
               <div className="pkg-head">
                 <div className="pkg-ic"><Archive className="i-lg i" /></div>
@@ -3370,8 +3563,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="pkg-title">{L('Submission Package (ZIP)', language)}</div>
                   <div className="pkg-sub">{L('Report + validated documents, renamed and sorted in submission order.', language)}</div>
                 </div>
-                <span className={`pkg-status-pill ${zipReadyDocs.length > 0 ? 'ready' : 'missing'}`}>
-                  {zipReadyDocs.length > 0 ? L('Ready', language) : L('Waiting', language)}
+                <span className={`pkg-status-pill ${packageAssetCount > 0 ? 'ready' : 'missing'}`}>
+                  {packageAssetCount > 0 ? L('Ready', language) : L('Waiting', language)}
                 </span>
               </div>
               <div>
@@ -3382,6 +3575,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="pkg-bar"><span style={{ width: `${checklistProgress}%` }} /></div>
               </div>
               <div className="pkg-list">
+                {preparedSampleList.slice(0, 3).map((application) => (
+                  <div key={application.requirementCode} className="pkg-item ok">
+                    <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
+                    {application.title}
+                  </div>
+                ))}
                 {zipReadyDocs.slice(0, 4).map((d, i) => (
                   <div key={i} className="pkg-item ok">
                     <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
@@ -3397,14 +3596,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 ))}
               </div>
               <div className="pkg-foot">
-                <span className="pkg-sub">{zipReadyDocs.length} {L('documents', language)}</span>
-                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={downloadSubmissionPackage} disabled={isLoading || zipReadyDocs.length === 0}>
+                <span className="pkg-sub">{packageAssetCount} {L('files', language)}</span>
+                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={downloadSubmissionPackage} disabled={isLoading || packageAssetCount === 0}>
                   <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download ZIP Package', language)}
                 </button>
               </div>
             </div>
 
-            {/* 3. Workspace */}
+            {/* 4. Workspace */}
             <div className="pkg purple">
               <div className="pkg-head">
                 <div className="pkg-ic"><Building2 className="i-lg i" /></div>
@@ -3452,6 +3651,90 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
           </div>
         </main>
+      )}
+
+      {activeSampleDefinition && activeSampleFormCode && (
+        <div className="sample-form-overlay" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setActiveSampleFormCode(null);
+        }}>
+          <section className="sample-form-modal" role="dialog" aria-modal="true" aria-labelledby="sample-form-title">
+            <div className="sample-form-head">
+              <div>
+                <div className="spr-kicker">{L('Preparation worksheet', language)} · {activeSampleDefinition.agency}</div>
+                <h2 id="sample-form-title">{activeSampleDefinition.title}</h2>
+                <p>{activeSampleDefinition.description}</p>
+              </div>
+              <button className="sample-form-close" onClick={() => setActiveSampleFormCode(null)} aria-label={L('Close form', language)}>×</button>
+            </div>
+
+            <div className="sample-form-warning">
+              <AlertTriangle className="i" style={{ width: 17, height: 17 }} />
+              <span>
+                <strong>{L('This is a sample preparation worksheet, not an official filing.', language)}</strong>
+                {L('The requirement remains incomplete until you upload:', language)} {activeSampleDefinition.officialOutput}.
+              </span>
+            </div>
+
+            <div className="sample-form-body">
+              {activeSampleDefinition.sections.map((section) => (
+                <fieldset key={section.title} className="sample-form-section">
+                  <legend>{section.title}</legend>
+                  <div className="sample-form-grid">
+                    {section.fields.map((field) => {
+                      const value = activeSampleData[field.key] ?? (field.type === 'checkbox' ? false : '');
+                      const hasError = sampleFormErrors.includes(field.label);
+                      return (
+                        <label key={field.key} className={`sample-form-field ${field.type === 'textarea' ? 'wide' : ''} ${hasError ? 'error' : ''}`}>
+                          <span>{field.label}{field.required && <b aria-hidden="true"> *</b>}</span>
+                          {field.type === 'textarea' ? (
+                            <textarea
+                              value={String(value)}
+                              placeholder={field.placeholder}
+                              onChange={(event) => updateSampleFormField(field.key, event.target.value)}
+                            />
+                          ) : field.type === 'select' ? (
+                            <select value={String(value)} onChange={(event) => updateSampleFormField(field.key, event.target.value)}>
+                              <option value="">{L('Select an option', language)}</option>
+                              {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                            </select>
+                          ) : field.type === 'checkbox' ? (
+                            <input
+                              type="checkbox"
+                              checked={Boolean(value)}
+                              onChange={(event) => updateSampleFormField(field.key, event.target.checked)}
+                            />
+                          ) : (
+                            <input
+                              type={field.type}
+                              value={String(value)}
+                              placeholder={field.placeholder}
+                              onChange={(event) => updateSampleFormField(field.key, event.target.value)}
+                            />
+                          )}
+                          {field.help && <small>{field.help}</small>}
+                          {hasError && <small className="field-error">{L('Required field', language)}</small>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+
+            <div className="sample-form-foot">
+              <div className="sample-form-feedback" role="status">
+                {sampleFormErrors.length > 0 && `${sampleFormErrors.length} ${L('required fields are missing.', language)}`}
+                {sampleFormNotice}
+              </div>
+              <div className="sample-form-actions">
+                <button className="btn btn-secondary" onClick={saveSampleFormDraft}>{L('Save draft', language)}</button>
+                <button className="btn btn-primary" onClick={addSampleFormToDeliverables}>
+                  <Archive className="i" style={{ width: 14, height: 14 }} /> {L('Add PDF to deliverables', language)}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
       )}
 
       {/* Hidden file input: powers the Upload buttons (LLM document workflow) */}
