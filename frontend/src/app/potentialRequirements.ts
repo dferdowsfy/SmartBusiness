@@ -15,6 +15,18 @@ import { ACTIVE_JURISDICTION, type FlagAdvisory } from "./jurisdictions";
 
 // Re-exported under the historical name so existing imports keep working.
 export type PotentialDef = FlagAdvisory;
+export type PotentialDecision = "applies" | "not_applies" | "not_sure";
+
+export interface PotentialRequirement {
+  code: string;
+  name: string;
+  mandatory: boolean;
+  status: "pending";
+  agency: string;
+  reason: string;
+  category: string;
+  source_rule: string;
+}
 
 export const POTENTIAL_BY_FLAG: Record<string, PotentialDef> =
   ACTIVE_JURISDICTION.flagAdvisories.byFlag;
@@ -24,4 +36,36 @@ export function potentialItemsForFlags(flags: string[]): PotentialDef[] {
   return ACTIVE_JURISDICTION.flagAdvisories.order
     .filter((f) => flags.includes(f) && POTENTIAL_BY_FLAG[f])
     .map((f) => POTENTIAL_BY_FLAG[f]);
+}
+
+// Add the municipality-driven items the user confirmed during intake. Keeping
+// this merge pure makes the Step 1 answers the single source of truth for the
+// checklist and prevents the requirements screen from mutating its own result.
+export function confirmedPotentialRequirements(
+  definitions: PotentialDef[],
+  decisions: Record<string, PotentialDecision>
+): PotentialRequirement[] {
+  return definitions
+    .filter((definition) => decisions[definition.flag] === "applies")
+    .map((definition) => ({
+      code: `potential_${definition.flag}`,
+      name: definition.document,
+      mandatory: true,
+      status: "pending" as const,
+      agency: definition.agency,
+      reason: definition.why,
+      category: "Potentially Required",
+      source_rule: `flag:${definition.flag}`,
+    }));
+}
+
+export function mergeConfirmedPotentialRequirements<T extends { code: string }>(
+  requirements: T[],
+  definitions: PotentialDef[],
+  decisions: Record<string, PotentialDecision>
+): Array<T | PotentialRequirement> {
+  const existingCodes = new Set(requirements.map((requirement) => requirement.code));
+  const confirmed = confirmedPotentialRequirements(definitions, decisions)
+    .filter((requirement) => !existingCodes.has(requirement.code));
+  return [...requirements, ...confirmed];
 }

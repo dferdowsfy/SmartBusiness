@@ -7,7 +7,12 @@ import { ACTIVE_JURISDICTION } from './jurisdictions';
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
-import { potentialItemsForFlags, type PotentialDef } from './potentialRequirements';
+import {
+  mergeConfirmedPotentialRequirements,
+  potentialItemsForFlags,
+  type PotentialDecision,
+  type PotentialDef,
+} from './potentialRequirements';
 import { buildExtraction, type ExtractionResult } from './documentFields';
 import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client';
 import JSZip from 'jszip';
@@ -67,6 +72,23 @@ interface Requirement {
   document_id?: string;
   category?: string;
   source_rule?: string;
+}
+
+function potentialItemsForProfile(
+  profile: Pick<BusinessProfile, 'municipality'>,
+  baseRequirements: Requirement[]
+): PotentialDef[] {
+  const municipality = KB.municipalities.find(
+    (item) => item.name.toLowerCase() === (profile.municipality || '').toLowerCase()
+  );
+  const mandatoryNames = new Set(
+    baseRequirements
+      .filter((requirement) => requirement.mandatory)
+      .map((requirement) => requirement.name.toLowerCase())
+  );
+
+  return potentialItemsForFlags(municipality ? (municipality.flags as string[]) : [])
+    .filter((item) => !mandatoryNames.has(item.document.toLowerCase()));
 }
 
 const INDUSTRIES = [
@@ -996,7 +1018,7 @@ export default function SmartPR() {
   // Advisory historical recommendations (never mandatory; rules stay authoritative).
   const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
   // User decisions on flag-derived "Potentially Required" items.
-  const [potentialDecisions, setPotentialDecisions] = useState<Record<string, 'applies' | 'not_applies' | 'not_sure'>>({});
+  const [potentialDecisions, setPotentialDecisions] = useState<Record<string, PotentialDecision>>({});
 
   // Explainability: confidence + weighted "why required" reasons per document.
   // Additive only — does not change which requirements are produced.
@@ -1197,14 +1219,6 @@ export default function SmartPR() {
     return L(req.reason, language);
   };
 
-  // Recompute requirements whenever profile or answers change (demo of the rules engine)
-  const updateRequirements = (newProfile?: BusinessProfile, newAnswers?: Record<string, any>) => {
-    const p = newProfile || profile;
-    const a = newAnswers || discoveryAnswers;
-    const computed = computeRequirements(p, a);
-    setRequirements(computed);
-  };
-
   // Dynamic follow-up questions / flags based on the new Step 1 fields
   const getFollowUpQuestions = (ind?: string) => {
     const industry = ind || profile.industry;
@@ -1295,14 +1309,12 @@ export default function SmartPR() {
     setCurrentQuestionIndex(prev => prev + 1);
   };
 
-  // Auto-recompute when key profile fields change
-  useEffect(() => {
-    if (currentStep >= 2) {
-      const newAnswers = { ...discoveryAnswers, ...getFollowUpQuestions() };
-      setDiscoveryAnswers(newAnswers);
-      updateRequirements(profile, newAnswers);
-    }
-  }, [profile.industry, profile.municipality, profile.location_type, profile.food_prepared_or_sold, profile.alcohol_sold, profile.professional_licenses_required, profile.business_type, currentStep]);
+  const handlePotentialAnswer = (definition: PotentialDef, decision: PotentialDecision) => {
+    setPotentialDecisions((previous) => ({
+      ...previous,
+      [definition.flag]: decision,
+    }));
+  };
 
   const progress = Math.round(((currentStep - 1) / 8) * 100);
 
@@ -1350,7 +1362,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // Discovery + requirements are computed entirely client-side.
     setBusinessId('local-' + Date.now());
     setDiscoveryAnswers(answers);
-    const computed = computeRequirements(profile, answers);
+    const baseRequirements = computeRequirements(profile, answers);
+    const computed = mergeConfirmedPotentialRequirements(
+      baseRequirements,
+      potentialItemsForProfile(profile, baseRequirements),
+      potentialDecisions
+    ) as Requirement[];
     setRequirements(computed);
 
     // --- Knowledge-graph capture (observational, fire-and-forget) ---
@@ -2500,40 +2517,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const totalMandatory = requirements.filter(r => r.mandatory).length;
   const checklistProgress = totalMandatory > 0 ? Math.round((completedMandatory / totalMandatory) * 100) : 0;
 
-  // --- Potentially Required items (knowledge-graph / municipality flags) ---
-  const municipalityFlags: string[] = (() => {
-    const m = KB.municipalities.find(x => x.name.toLowerCase() === (profile.municipality || '').toLowerCase());
-    return m ? (m.flags as string[]) : [];
-  })();
-  const mandatoryNames = new Set(requirements.filter(r => r.mandatory).map(r => r.name.toLowerCase()));
-  // Show a potential item only if its document isn't already a mandatory rule output.
-  const potentialItems: PotentialDef[] = requirements.length
-    ? potentialItemsForFlags(municipalityFlags).filter(p => !mandatoryNames.has(p.document.toLowerCase()))
-    : [];
-
-  // Apply a user's decision; "Applies" promotes the item into the real
-  // requirements list (mandatory, uploadable, counts toward completion).
-  const decidePotential = (def: PotentialDef, decision: 'applies' | 'not_applies' | 'not_sure') => {
-    setPotentialDecisions(prev => ({ ...prev, [def.flag]: decision }));
-    const code = 'potential_' + def.flag;
-    setRequirements(prev => {
-      const exists = prev.some(r => r.code === code);
-      if (decision === 'applies' && !exists) {
-        return [...prev, {
-          code, name: def.document, mandatory: true, status: 'pending' as const,
-          agency: def.agency, reason: def.why, category: 'Potentially Required',
-          source_rule: 'flag:' + def.flag,
-        }];
-      }
-      if (decision !== 'applies' && exists) return prev.filter(r => r.code !== code);
-      return prev;
-    });
-    // Persist the decision to the backend so it survives reload. saveProgress
-    // PUTs the workflow snapshot (signed-in users) and emits a capture event
-    // (anonymous + signed-in). The header pill shows "Saving…" -> "Saved" as
-    // visible confirmation that the choice was written to the DB.
-    void saveProgress();
-  };
+  // Municipality-driven conditional questions are answered during intake.
+  // Compare them with the deterministic rules output so we never ask about a
+  // document that is already required for the selected business profile.
+  const potentialItems = potentialItemsForProfile(
+    profile,
+    computeRequirements(profile, discoveryAnswers)
+  );
 
   // Render one requirement row (shared by Mandatory + Recommended sections).
   // Pick a contextual document icon based on the requirement name/agency.
@@ -2588,24 +2578,33 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
   }, [profile, discoveryAnswers]);
 
-  const liveAgencies = React.useMemo(
-    () => Array.from(new Set(liveReqs.map(r => r.agency).filter(Boolean))),
-    [liveReqs]
+  const liveConfirmedPotentialItems = potentialItems.filter(
+    (item) => potentialDecisions[item.flag] === 'applies'
   );
+
+  const liveAgencies = Array.from(new Set([
+    ...liveReqs.map((requirement) => requirement.agency),
+    ...liveConfirmedPotentialItems.map((item) => item.agency),
+  ].filter(Boolean)));
   const obligationCount = (re: RegExp) =>
     liveReqs.filter(r => re.test(r.category || '') || re.test(r.document_name)).length;
   const liveLicenses = obligationCount(/licen/i);
   const livePermits = obligationCount(/permi/i);
 
-  // Intake completion: 5 core profile fields + the dynamic question flow.
+  // Intake completion: 5 core profile fields + business and municipality
+  // questions. All answers are collected before the checklist is generated.
   const intakeFieldsDone = [profile.name, profile.municipality, profile.industry, profile.business_type, profile.location_type].filter(Boolean).length;
-  const intakeTotal = 5 + questionList.length;
-  const intakeDone = intakeFieldsDone + Math.min(currentQuestionIndex, questionList.length);
+  const answeredPotentialCount = potentialItems.filter((item) => potentialDecisions[item.flag]).length;
+  const intakeQuestionTotal = questionList.length + potentialItems.length;
+  const intakeTotal = 5 + intakeQuestionTotal;
+  const intakeDone = intakeFieldsDone
+    + Math.min(currentQuestionIndex, questionList.length)
+    + answeredPotentialCount;
   const intakePct = Math.round((intakeDone / Math.max(1, intakeTotal)) * 100);
   const baseProfileReady = Boolean(profile.name && profile.municipality && profile.industry && profile.business_type && profile.location_type);
   const intakeDisplayTotal = Math.max(7, intakeTotal);
   const intakeDisplayDone = intakeDone + (
-    baseProfileReady && currentQuestionIndex >= questionList.length
+    baseProfileReady && intakeDone === intakeTotal
       ? Math.max(0, intakeDisplayTotal - intakeTotal)
       : 0
   );
@@ -2729,6 +2728,35 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const currentQuestion = questionList.length > 0 && currentQuestionIndex < questionList.length
     ? questionList[currentQuestionIndex]
     : null;
+  const currentPotentialQuestion = !baseProfileReady || currentQuestion
+    ? null
+    : potentialItems.find((item) => !potentialDecisions[item.flag]) ?? null;
+  const currentPotentialQuestionIndex = currentPotentialQuestion
+    ? potentialItems.findIndex((item) => item.flag === currentPotentialQuestion.flag)
+    : -1;
+  const intakeQuestionsComplete = currentQuestionIndex >= questionList.length
+    && answeredPotentialCount === potentialItems.length;
+  const canGoBackInIntake = currentQuestionIndex > 0 || answeredPotentialCount > 0;
+  const handleIntakeBack = () => {
+    if (currentQuestionIndex < questionList.length) {
+      setCurrentQuestionIndex((index) => Math.max(0, index - 1));
+      return;
+    }
+
+    const lastAnsweredPotential = [...potentialItems]
+      .reverse()
+      .find((item) => potentialDecisions[item.flag]);
+    if (lastAnsweredPotential) {
+      setPotentialDecisions((previous) => {
+        const next = { ...previous };
+        delete next[lastAnsweredPotential.flag];
+        return next;
+      });
+      return;
+    }
+
+    setCurrentQuestionIndex(Math.max(0, questionList.length - 1));
+  };
 
   const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
   const deliverablesReady = totalMandatory > 0 && completedMandatory === totalMandatory;
@@ -2875,7 +2903,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
                 <div className="spr-field">
                   <label htmlFor="spr-municipality">{t('municipality')}</label>
-                  <select id="spr-municipality" value={profile.municipality} onChange={e => setProfile({ ...profile, municipality: e.target.value })}>
+                  <select
+                    id="spr-municipality"
+                    value={profile.municipality}
+                    onChange={e => {
+                      setProfile({ ...profile, municipality: e.target.value });
+                      setPotentialDecisions({});
+                    }}
+                  >
                     <option value="">{t('selectMunicipality')}</option>
                     {municipalityOptions.map((m: string) => <option key={m} value={m}>{m}</option>)}
                   </select>
@@ -2947,11 +2982,35 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
               {currentQuestion && (
                 <div className="spr-follow-up">
-                  <div className="spr-kicker">{L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {questionList.length}</div>
+                  <div className="spr-kicker">{L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}</div>
                   <h2>{L(currentQuestion.text, language)}</h2>
                   <div className="spr-answer-row">
                     <button onClick={() => handleQuestionAnswer(true)}><CheckCircle className="i" /> {t('yes')}</button>
                     <button onClick={() => handleQuestionAnswer(false)}><XCircle className="i" /> {t('no')}</button>
+                  </div>
+                </div>
+              )}
+
+              {currentPotentialQuestion && (
+                <div className="spr-follow-up">
+                  <div className="spr-kicker">
+                    {L('Question', language)} {questionList.length + currentPotentialQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}
+                  </div>
+                  <h2>{L(currentPotentialQuestion.followUp, language)}</h2>
+                  <p className="spr-question-context">
+                    <strong>{L(currentPotentialQuestion.document, language)}</strong>
+                    <span>{L(currentPotentialQuestion.why, language)}</span>
+                  </p>
+                  <div className="spr-answer-row spr-answer-row-three">
+                    <button onClick={() => handlePotentialAnswer(currentPotentialQuestion, 'applies')}>
+                      <CheckCircle className="i" /> {L('Applies', language)}
+                    </button>
+                    <button onClick={() => handlePotentialAnswer(currentPotentialQuestion, 'not_applies')}>
+                      <XCircle className="i" /> {L('Does Not Apply', language)}
+                    </button>
+                    <button onClick={() => handlePotentialAnswer(currentPotentialQuestion, 'not_sure')}>
+                      <AlertTriangle className="i" /> {L('Not Sure', language)}
+                    </button>
                   </div>
                 </div>
               )}
@@ -2960,13 +3019,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <div className="spr-form-footer">
               <span>{intakeDisplayDone}/{intakeDisplayTotal} {L('completed', language)}</span>
               <div className="spr-form-actions">
-                {currentQuestion && currentQuestionIndex > 0 && (
-                  <button className="spr-back" onClick={() => setCurrentQuestionIndex(i => Math.max(0, i - 1))}>{L('Back', language)}</button>
+                {canGoBackInIntake && (
+                  <button className="spr-back" onClick={handleIntakeBack}>{L('Back', language)}</button>
                 )}
                 <button
                   className="spr-primary"
                   onClick={handleStartDiscovery}
-                  disabled={!baseProfileReady || (questionList.length > 0 && currentQuestionIndex < questionList.length) || isLoading}
+                  disabled={!baseProfileReady || !intakeQuestionsComplete || isLoading}
                 >
                   {L('See my requirements', language)}
                   {isLoading ? <RefreshCw className="i spr-spin" /> : <ArrowRight className="i" />}
@@ -2985,7 +3044,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
             <div className="spr-metrics">
               <div className="spr-metric highlighted"><strong>{liveAgencies.length}</strong><span>{L('Agencies', language)}</span></div>
-              <div className="spr-metric highlighted"><strong>{liveReqs.length}</strong><span>{L('Requirements', language)}</span></div>
+              <div className="spr-metric highlighted"><strong>{liveReqs.length + liveConfirmedPotentialItems.length}</strong><span>{L('Requirements', language)}</span></div>
               <div className="spr-metric"><strong>{liveLicenses}</strong><span>{L('Licenses', language)}</span></div>
               <div className="spr-metric"><strong>{livePermits}</strong><span>{L('Permits', language)}</span></div>
             </div>
@@ -3090,73 +3149,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <div className="val">{recommendedCount}</div>
             </div>
 
-            {/* Conditional ("Potentially Required") items sit INSIDE the banner
-                so the user resolves the gating questions next to their readiness
-                summary, not buried below in the checklist. After ANY decision
-                the message stays visible with a green checkmark — visible
-                confirmation that the choice was saved (header pill goes
-                "Saving…" -> "Saved"). */}
-            {potentialItems.length > 0 && (
-              <div className="banner-conditionals">
-                <div className="bc-head">
-                  <span className="pip" /> {L('Additional Requirements Based on Your Answers', language)}
-                  <span className="count">{potentialItems.length}</span>
-                </div>
-                {potentialItems.map(p => {
-                  const decision = potentialDecisions[p.flag];
-                  const answered = !!decision;
-                  // Decision-specific badge metadata for the resolved-pill state.
-                  const meta = decision === 'applies'
-                    ? { cls: 'applies', label: L('Applies', language), tail: L('Added to required documents.', language) }
-                    : decision === 'not_applies'
-                    ? { cls: 'no', label: L('Does Not Apply', language), tail: L('Dismissed for this submission.', language) }
-                    : decision === 'not_sure'
-                    ? { cls: 'maybe', label: L('Not Sure', language), tail: L('Kept as potentially required. Revisit before submission.', language) }
-                    : null;
-                  return (
-                    <div key={p.flag} className={`bc-item ${answered ? `answered ${meta!.cls}` : ''}`}>
-                      <div className="bc-ic">
-                        {answered
-                          ? <CheckCircle className="i" style={{ width: 16, height: 16 }} />
-                          : <AlertTriangle className="i" style={{ width: 16, height: 16 }} />}
-                      </div>
-                      <div className="bc-body">
-                        <div className="bc-name">
-                          {p.document}
-                          {answered && <span className={`bc-badge ${meta!.cls}`}>{meta!.label}</span>}
-                        </div>
-                        <div className="bc-q">{L(p.followUp, language)}</div>
-                        {answered && (
-                          <div className={`bc-tail ${meta!.cls}`}>{meta!.tail}</div>
-                        )}
-                      </div>
-                      <div className="bc-actions">
-                        {answered ? (
-                          <button className="btn btn-secondary" onClick={() => {
-                            // Clear the decision so the question reopens.
-                            setPotentialDecisions(prev => {
-                              const { [p.flag]: _, ...rest } = prev; void _;
-                              return rest;
-                            });
-                            // If the decision was 'applies', remove the promoted requirement
-                            // so the user can re-answer cleanly.
-                            const code = 'potential_' + p.flag;
-                            setRequirements(prev => prev.filter(r => r.code !== code));
-                            void saveProgress();
-                          }}>{L('Change answer', language)}</button>
-                        ) : (
-                          <>
-                            <button className="btn btn-primary" onClick={() => decidePotential(p, 'applies')}>{L('Applies', language)}</button>
-                            <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_applies')}>{L('Does Not Apply', language)}</button>
-                            <button className="btn btn-secondary" onClick={() => decidePotential(p, 'not_sure')}>{L('Not Sure', language)}</button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* Municipal notices */}
