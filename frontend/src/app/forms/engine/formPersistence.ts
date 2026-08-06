@@ -117,3 +117,51 @@ export async function loadPersistedState(remote?: RemotePersistence): Promise<Pe
     applications: loadApplicationsLocal(),
   };
 }
+
+/**
+ * Concrete Supabase-backed persistence built on the app's existing workflow
+ * snapshot endpoint (`/api/snapshots/:id`). The government-form state (canonical
+ * profile + drafts + prepared applications) travels inside the same `state`
+ * blob the rest of the intake flow already persists, so signed-in users resume
+ * exact mid-flow state. Local storage remains the dev fallback.
+ */
+export function snapshotRemotePersistence(submissionId: string): RemotePersistence {
+  const url = `/api/snapshots/${submissionId}`;
+  const readState = async (): Promise<Record<string, unknown>> => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`snapshot ${res.status}`);
+    const snap = await res.json();
+    return (snap.state as Record<string, unknown>) ?? {};
+  };
+  const writeState = async (patch: Record<string, unknown>): Promise<void> => {
+    let current: Record<string, unknown> = {};
+    try {
+      current = await readState();
+    } catch {
+      /* first write — no snapshot yet */
+    }
+    await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: { ...current, ...patch } }),
+    });
+  };
+  return {
+    async saveCanonical(data) {
+      await writeState({ canonicalApplication: data });
+    },
+    async saveApplication(app) {
+      const state = await readState().catch(() => ({}) as Record<string, unknown>);
+      const prepared = { ...((state.preparedGovApplications as Record<string, unknown>) ?? {}), [app.formId]: app };
+      await writeState({ preparedGovApplications: prepared });
+    },
+    async loadState() {
+      const state = await readState();
+      return {
+        canonical: (state.canonicalApplication as PersistedState["canonical"]) ?? null,
+        drafts: (state.govFormDrafts as PersistedState["drafts"]) ?? {},
+        applications: Object.values((state.preparedGovApplications as Record<string, PersistedState["applications"][number]>) ?? {}),
+      };
+    },
+  };
+}

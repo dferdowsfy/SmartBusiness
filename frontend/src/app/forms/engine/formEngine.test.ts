@@ -15,6 +15,8 @@ import { buildGeneratedApplication, requirementFormState, actionsForFormState } 
 import { entityTypeRequirements } from "./requirementAugment.ts";
 import { feeEstimateFor } from "./fees.ts";
 import { buildCanonicalFromIntake } from "./intake.ts";
+import { setCanonicalValue } from "./canonicalMapping.ts";
+import { snapshotRemotePersistence } from "./formPersistence.ts";
 import { CORPREG01 } from "../definitions/pr/department-of-state/CORPREG01.ts";
 import { CORPREG02 } from "../definitions/pr/department-of-state/CORPREG02.ts";
 import { CORPREG03 } from "../definitions/pr/department-of-state/CORPREG03.ts";
@@ -293,6 +295,50 @@ test("PR postal-code validation is centralized and correct", () => {
   const errs = validatePuertoRicoAddress({ line1: "1 Calle", cityOrMunicipality: "San Juan", stateOrTerritory: "NY", postalCode: "10001", country: "USA" });
   assert.ok(errs.some((e) => e.path === "stateOrTerritory"));
   assert.ok(errs.some((e) => e.path === "postalCode"));
+});
+
+// --- 8 (extended): structured-address core intake feeds forms --------------
+
+test("core-intake structured address flows into the canonical model", () => {
+  let c = buildCanonicalFromIntake({ legalName: "Global LLP", entityType: "limited_liability_partnership" });
+  c = setCanonicalValue(c, "addresses.principalPhysical", { line1: "100 Ave Ponce de León", cityOrMunicipality: "San Juan", stateOrTerritory: "PR", postalCode: "00901", country: "Puerto Rico" });
+  const addr = c.addresses.principalPhysical!;
+  assert.equal(addr.line1, "100 Ave Ponce de León");
+  assert.equal(addr.postalCode, "00901");
+  // The structured address prefills the LLP principal-office address field.
+  const def = getDefinition("FORM_PR_DOS_CORPREG06")!;
+  const data = prefillFromCanonical(def, c);
+  assert.deepEqual(data.principal_office_physical, addr);
+});
+
+test("setCanonicalValue writes nested paths immutably", () => {
+  const c = emptyCanonicalData();
+  const next = setCanonicalValue(c, "business.ein", "12-3456789");
+  assert.equal(next.business.ein, "12-3456789");
+  assert.equal(c.business.ein, undefined); // original untouched
+});
+
+// --- 16 (extended): Supabase-backed persistence via the snapshot endpoint ---
+
+test("snapshotRemotePersistence loads gov-form state from the snapshot blob", async () => {
+  const store: Record<string, unknown> = {
+    canonicalApplication: emptyCanonicalData(),
+    govFormDrafts: { FORM_PR_DOS_CORPREG01: { corporation_name: "Draft Co." } },
+    preparedGovApplications: { FORM_PR_DOS_CORPREG01: { id: "a1", formId: "FORM_PR_DOS_CORPREG01" } },
+  };
+  const originalFetch = globalThis.fetch;
+  // @ts-expect-error minimal fetch stub for the test
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ state: store }) });
+  try {
+    const remote = snapshotRemotePersistence("sub_123");
+    const state = await remote.loadState();
+    assert.ok(state.canonical);
+    assert.equal(state.drafts.FORM_PR_DOS_CORPREG01.corporation_name, "Draft Co.");
+    assert.equal(state.applications.length, 1);
+    assert.equal(state.applications[0].id, "a1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("corporate / professional / LLP name designations validate", () => {

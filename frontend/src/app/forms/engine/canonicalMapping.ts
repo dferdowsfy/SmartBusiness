@@ -53,6 +53,15 @@ export function prefillFromCanonical(
   return next;
 }
 
+/** Set a dotted canonical path, returning a new canonical object (immutable). */
+export function setCanonicalValue(
+  canonical: CanonicalApplicationData,
+  path: string,
+  value: unknown
+): CanonicalApplicationData {
+  return writePath(canonical, path, value);
+}
+
 /** Write a dotted path into a (cloned) canonical object. */
 function writePath<T extends object>(obj: T, path: string, value: unknown): T {
   const clone = structuredCloneSafe(obj);

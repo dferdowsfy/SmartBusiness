@@ -27,10 +27,12 @@ import {
 import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client';
 // Schema-driven government form engine (CORPREG01–CORPREG06).
 import { GovernmentFormModal } from './forms/engine/GovernmentFormModal';
+import { CoreApplicationDetails } from './forms/engine/CoreApplicationDetails';
 import { getDefinition } from './forms/engine/registry';
 import { selectFormForRequirement } from './forms/engine/routing';
 import { buildCanonicalFromIntake } from './forms/engine/intake';
 import { requirementFormState, actionsForFormState } from './forms/engine/application';
+import { generatePreparationPdf } from './forms/engine/pdfGenerator';
 import { entityTypeRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
 import type { CanonicalApplicationData, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
 import JSZip from 'jszip';
@@ -1138,6 +1140,11 @@ export default function SmartPR() {
           if (st.potentialDecisions) setPotentialDecisions(st.potentialDecisions);
           if (st.sampleFormDrafts) setSampleFormDrafts(st.sampleFormDrafts);
           if (st.preparedSampleApplications) setPreparedSampleApplications(st.preparedSampleApplications);
+          // Government-form engine state (canonical profile + drafts + prepared
+          // applications) persists in the same Supabase-backed snapshot.
+          if (st.govFormDrafts) setGovFormDrafts(st.govFormDrafts);
+          if (st.preparedGovApplications) setPreparedGovApplications(st.preparedGovApplications);
+          if (st.canonicalApplication) setCanonicalOverride(st.canonicalApplication);
           if (typeof st.readinessScore === 'number') setReadinessScore(st.readinessScore);
           if (typeof st.currentStep === 'number') setCurrentStep(st.currentStep);
           if (snap.business_id) businessIdRef.current = snap.business_id;
@@ -1520,6 +1527,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               profile, discoveryAnswers,
               requirements, potentialDecisions,
               sampleFormDrafts, preparedSampleApplications,
+              govFormDrafts, preparedGovApplications,
+              canonicalApplication: canonicalOverride,
               currentStep, readinessScore,
             },
           }),
@@ -2576,6 +2585,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         zip.file(`Prepared_Applications/${prepared.filename}`, generateSampleApplicationPdf(definition, prepared.data));
       }
 
+      // Add schema-driven government-form preparation PDFs (CORPREG01–06).
+      // Regenerated from the durable structured data — never a cached Blob URL.
+      for (const app of Object.values(preparedGovApplications)) {
+        const definition = getDefinition(app.formId);
+        if (!definition) continue;
+        const blob = generatePreparationPdf(definition, app.data as GovFormData, canonicalApplication, language);
+        const safeTitle = `${app.officialFormNumber}_${definition.variantKey}`.replace(/[^a-z0-9_]+/gi, '_');
+        zip.file(`Prepared_Applications/${safeTitle}.pdf`, blob);
+      }
+
       // Collect validated docs that have real file blobs, sorted by submission priority
       const validatedWithFiles = uploadedDocs
         .filter(d => d.fileBlob)
@@ -2820,9 +2839,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       forProfitStatus: profile.business_structure === 'nonprofit_nonstock_corporation' ? 'nonprofit' : undefined,
     });
     if (canonicalOverride) {
-      // Preserve user write-back edits while keeping the latest profile-derived
-      // entity type / formation status for routing.
-      return { ...canonicalOverride, business: { ...canonicalOverride.business, entityType: base.business.entityType, formationStatus: base.business.formationStatus } };
+      // The override is authoritative for everything the user has entered
+      // (Core Application Details + in-form write-back). Entity type always
+      // follows the intake dropdown so routing stays consistent; formation
+      // status follows the dropdown only for a foreign corporation.
+      const entityType = base.business.entityType;
+      const formationStatus = entityType === 'foreign_corporation' ? 'formed_outside_puerto_rico' : canonicalOverride.business.formationStatus;
+      return {
+        ...canonicalOverride,
+        business: {
+          ...canonicalOverride.business,
+          entityType,
+          formationStatus,
+          legalName: canonicalOverride.business.legalName || base.business.legalName,
+        },
+      };
     }
     return base;
   }, [profile.name, profile.business_structure, profile.municipality, profile.number_of_employees, canonicalOverride]);
@@ -3033,7 +3064,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
   const preparedSampleList = Object.values(preparedSampleApplications);
-  const packageAssetCount = zipReadyDocs.length + preparedSampleList.length;
+  const preparedGovList = Object.values(preparedGovApplications);
+  const packageAssetCount = zipReadyDocs.length + preparedSampleList.length + preparedGovList.length;
   const activeSampleDefinition = activeSampleFormCode ? getSampleApplication(activeSampleFormCode) : null;
   const activeSampleData = activeSampleFormCode ? (sampleFormDrafts[activeSampleFormCode] || {}) : {};
   const deliverablesReady = totalMandatory > 0 && completedMandatory === totalMandatory;
@@ -3296,6 +3328,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 </div>
               )}
             </div>
+
+            {baseProfileReady && intakeQuestionsComplete && (
+              <div style={{ margin: '4px 0 8px', borderTop: '1px solid var(--border, #e2e8f0)', paddingTop: 12 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 8px' }}>{L('Core Application Details', language)}</h3>
+                <CoreApplicationDetails
+                  canonical={canonicalApplication}
+                  lang={language}
+                  onChange={(next) => setCanonicalOverride(next)}
+                />
+              </div>
+            )}
 
             <div className="spr-form-footer">
               <span>{intakeDisplayDone}/{intakeDisplayTotal} {L('completed', language)}</span>
@@ -3651,12 +3694,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="pkg-title">{L('Prepared Application Worksheets', language)}</div>
                   <div className="pkg-sub">{L('Fillable preparation drafts. Official agency-issued documents are still required.', language)}</div>
                 </div>
-                <span className={`pkg-status-pill ${preparedSampleList.length > 0 ? 'ready' : 'missing'}`}>
-                  {preparedSampleList.length > 0 ? `${preparedSampleList.length} ${L('Prepared', language)}` : L('None prepared', language)}
+                <span className={`pkg-status-pill ${preparedSampleList.length + preparedGovList.length > 0 ? 'ready' : 'missing'}`}>
+                  {preparedSampleList.length + preparedGovList.length > 0 ? `${preparedSampleList.length + preparedGovList.length} ${L('Prepared', language)}` : L('None prepared', language)}
                 </span>
               </div>
               <div className="pkg-list">
-                {preparedSampleList.length === 0 ? (
+                {preparedSampleList.length + preparedGovList.length === 0 ? (
                   <div className="pkg-item missing">
                     <span className="ic"><AlertTriangle className="i" style={{ width: 13, height: 13 }} /></span>
                     {L('Return to the checklist and choose Prepare application.', language)}
