@@ -25,6 +25,14 @@ import {
   type SampleFormValue,
 } from './sampleApplicationForms';
 import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client';
+// Schema-driven government form engine (CORPREG01–CORPREG06).
+import { GovernmentFormModal } from './forms/engine/GovernmentFormModal';
+import { getDefinition } from './forms/engine/registry';
+import { selectFormForRequirement } from './forms/engine/routing';
+import { buildCanonicalFromIntake } from './forms/engine/intake';
+import { requirementFormState, actionsForFormState } from './forms/engine/application';
+import { entityTypeRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
+import type { CanonicalApplicationData, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import {
@@ -1016,6 +1024,11 @@ export default function SmartPR() {
   const [activeSampleFormCode, setActiveSampleFormCode] = useState<string | null>(null);
   const [sampleFormErrors, setSampleFormErrors] = useState<string[]>([]);
   const [sampleFormNotice, setSampleFormNotice] = useState<string | null>(null);
+  // Schema-driven government-form engine state (CORPREG01–CORPREG06).
+  const [govFormDrafts, setGovFormDrafts] = useState<Record<string, GovFormData>>({});
+  const [preparedGovApplications, setPreparedGovApplications] = useState<Record<string, GeneratedApplication>>({});
+  const [activeGovForm, setActiveGovForm] = useState<{ formId: string; requirementCode: string; mode: 'edit' | 'view' } | null>(null);
+  const [canonicalOverride, setCanonicalOverride] = useState<CanonicalApplicationData | null>(null);
   const [readinessScore, setReadinessScore] = useState<number | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1051,6 +1064,28 @@ export default function SmartPR() {
       setPreparedSampleApplications((current) => Object.keys(current).length ? current : (parsed.prepared || {}));
     } catch { /* browser storage is best-effort */ }
   }, [sampleFormsStorageKey, profile.name, profile.municipality]);
+
+  // Government-form engine persistence (structured data is the durable source —
+  // previews regenerate from it; we never store a Blob URL as the only record).
+  const govFormsStorageKey = useMemo(() => `${sampleFormsStorageKey}-gov`, [sampleFormsStorageKey]);
+  useEffect(() => {
+    if (!profile.name || !profile.municipality) return;
+    try {
+      const saved = localStorage.getItem(govFormsStorageKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      setGovFormDrafts((current) => Object.keys(current).length ? current : (parsed.drafts || {}));
+      setPreparedGovApplications((current) => Object.keys(current).length ? current : (parsed.prepared || {}));
+      if (parsed.canonical) setCanonicalOverride((current) => current ?? parsed.canonical);
+    } catch { /* best-effort */ }
+  }, [govFormsStorageKey, profile.name, profile.municipality]);
+  useEffect(() => {
+    if (!profile.name || !profile.municipality) return;
+    if (!Object.keys(govFormDrafts).length && !Object.keys(preparedGovApplications).length) return;
+    try {
+      localStorage.setItem(govFormsStorageKey, JSON.stringify({ drafts: govFormDrafts, prepared: preparedGovApplications, canonical: canonicalOverride }));
+    } catch { /* best-effort */ }
+  }, [govFormsStorageKey, govFormDrafts, preparedGovApplications, canonicalOverride, profile.name, profile.municipality]);
 
   // Explainability: confidence + weighted "why required" reasons per document.
   // Additive only — does not change which requirements are produced.
@@ -2771,6 +2806,48 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     : ringScore >= 40 ? L('In Progress', language)
     : L('Getting Started', language);
 
+  // Canonical application profile — the shared business information entered once
+  // during core intake, reused across every applicable government form. In-form
+  // edits are captured in `canonicalOverride` (write-back); otherwise it is
+  // derived from the SmartPR business profile.
+  const canonicalApplication: CanonicalApplicationData = useMemo(() => {
+    const base = buildCanonicalFromIntake({
+      legalName: profile.name || '',
+      business_structure: profile.business_structure,
+      municipality: profile.municipality,
+      employeeCount: profile.number_of_employees,
+      formationStatus: profile.business_structure === 'foreign_corporation' ? 'formed_outside_puerto_rico' : undefined,
+      forProfitStatus: profile.business_structure === 'nonprofit_nonstock_corporation' ? 'nonprofit' : undefined,
+    });
+    if (canonicalOverride) {
+      // Preserve user write-back edits while keeping the latest profile-derived
+      // entity type / formation status for routing.
+      return { ...canonicalOverride, business: { ...canonicalOverride.business, entityType: base.business.entityType, formationStatus: base.business.formationStatus } };
+    }
+    return base;
+  }, [profile.name, profile.business_structure, profile.municipality, profile.number_of_employees, canonicalOverride]);
+
+  // Requirement ids currently present (from the rules engine output) plus the
+  // additive entity-type requirements (foreign corp / LLP registration).
+  const presentRequirementIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const r of requirements) if (r.document_id) ids.add(r.document_id);
+    for (const aug of entityTypeRequirements<MinimalRequirement>(canonicalApplication, requirements, (d) => ({ document_id: d.document_id }))) {
+      if (aug.document_id) ids.add(aug.document_id);
+    }
+    return ids;
+  }, [requirements, canonicalApplication]);
+
+  // Resolve the single applicable government-form entry for a requirement.
+  const govFormEntryForReq = (req: Requirement) => {
+    if (!req.document_id) return null;
+    return selectFormForRequirement(req.document_id, canonicalApplication, presentRequirementIds);
+  };
+
+  const openGovForm = (formId: string, requirementCode: string, mode: 'edit' | 'view') => {
+    setActiveGovForm({ formId, requirementCode, mode });
+  };
+
   // One Validador-styled requirement row. Upload flow, reasons, and the
   // extraction panel are the same components/handlers as before.
   const renderReqRow = (req: Requirement) => {
@@ -2827,12 +2904,53 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           </span>
         </div>
         <div className="req-actions-stack">
-          {sampleDefinition && (
-            <button className="req-action" onClick={() => openSampleApplication(req.code)}>
-              <FileText className="i" style={{ width: 13, height: 13 }} />
-              {preparedSampleApplications[req.code] ? L('Edit application', language) : L('Prepare application', language)}
-            </button>
-          )}
+          {(() => {
+            // Schema-driven government form (CORPREG01–CORPREG06) takes priority
+            // over the legacy sample worksheet when the entity type routes to a
+            // displayable form.
+            const govEntry = govFormEntryForReq(req);
+            if (govEntry) {
+              const prepared = preparedGovApplications[govEntry.id];
+              const hasDraft = !!govFormDrafts[govEntry.id];
+              const fState = requirementFormState(prepared);
+              const actions = fState === 'no_record' && hasDraft ? ['edit_form'] : actionsForFormState(fState);
+              return (
+                <>
+                  {prepared && (
+                    <span className="tag" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+                      {L('Application prepared', language)}
+                    </span>
+                  )}
+                  {actions.includes('start_form') && (
+                    <button className="req-action primary" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Start Form', language)}
+                    </button>
+                  )}
+                  {actions.includes('edit_form') && (
+                    <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Edit Form', language)}
+                    </button>
+                  )}
+                  {actions.includes('view_form') && (
+                    <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'view')}>
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View Form', language)}
+                    </button>
+                  )}
+                  {actions.includes('review_updates') && (
+                    <button className="req-action primary" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
+                      <RefreshCw className="i" style={{ width: 13, height: 13 }} /> {L('Review Updates', language)}
+                    </button>
+                  )}
+                </>
+              );
+            }
+            return sampleDefinition ? (
+              <button className="req-action" onClick={() => openSampleApplication(req.code)}>
+                <FileText className="i" style={{ width: 13, height: 13 }} />
+                {preparedSampleApplications[req.code] ? L('Edit application', language) : L('Prepare application', language)}
+              </button>
+            ) : null;
+          })()}
           <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
             <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload official' : 'Upload official', language)}
           </button>
@@ -3118,12 +3236,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="spr-field spr-field-static">
                   <label htmlFor="spr-structure">{t('businessStructure')}</label>
                   <select id="spr-structure" value={profile.business_structure} onChange={e => setProfile({ ...profile, business_structure: e.target.value })}>
-                    <option value="llc">LLC</option>
-                    <option value="corporation">Corporation</option>
-                    <option value="sole_proprietorship">Sole Proprietorship</option>
+                    <option value="corporation">Stock corporation</option>
+                    <option value="nonprofit_nonstock_corporation">Nonprofit non-stock corporation</option>
+                    <option value="close_corporation">Close / intimate corporation</option>
+                    <option value="professional_corporation">Professional corporation</option>
+                    <option value="foreign_corporation">Foreign corporation seeking authorization in Puerto Rico</option>
+                    <option value="limited_liability_partnership">Limited liability partnership</option>
+                    <option value="llc">Limited liability company (LLC)</option>
+                    <option value="sole_proprietorship">Sole proprietorship</option>
                     <option value="partnership">Partnership</option>
-                    <option value="professional_corporation">Professional Corporation</option>
-                    <option value="other">Other</option>
+                    <option value="other">Other / not sure</option>
                   </select>
                 </div>
                 <div className="spr-field">
@@ -3548,6 +3670,18 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     </button>
                   </div>
                 ))}
+                {/* Schema-driven government applications (CORPREG01–CORPREG06). */}
+                {Object.values(preparedGovApplications).map((app) => (
+                  <div key={app.id} className="pkg-item ok prepared-application-item">
+                    <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
+                    <span>{app.officialFormNumber} — {app.title}
+                      <small>{app.status === 'needs_refresh' ? L('Needs refresh — shared data changed', language) : L('Application prepared — official evidence still required', language)}</small>
+                    </span>
+                    <button className="btn btn-secondary" onClick={() => openGovForm(app.formId, app.requirementId, 'view')}>
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View', language)}
+                    </button>
+                  </div>
+                ))}
               </div>
               <div className="pkg-foot">
                 <span className="pkg-sub">{L('Included in the Submission Package ZIP', language)}</span>
@@ -3651,6 +3785,47 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
           </div>
         </main>
+      )}
+
+      {activeGovForm && getDefinition(activeGovForm.formId) && (
+        <GovernmentFormModal
+          definition={getDefinition(activeGovForm.formId)!}
+          requirementCode={activeGovForm.requirementCode}
+          canonical={canonicalApplication}
+          lang={language}
+          initialData={preparedGovApplications[activeGovForm.formId]?.data as GovFormData ?? govFormDrafts[activeGovForm.formId]}
+          initialMode={activeGovForm.mode}
+          existingApplicationId={preparedGovApplications[activeGovForm.formId]?.id}
+          onClose={() => setActiveGovForm(null)}
+          onSaveDraft={(formId, data) => {
+            setGovFormDrafts((cur) => ({ ...cur, [formId]: data }));
+            setSampleFormNotice(L('Draft saved.', language));
+            setActiveGovForm(null);
+          }}
+          onCanonicalChange={(updated, changedKeys) => {
+            setCanonicalOverride(updated);
+            // Mark previously prepared forms that used the changed values as
+            // needing a refresh — never silently overwrite them.
+            setPreparedGovApplications((cur) => {
+              const next = { ...cur };
+              for (const [fid, app] of Object.entries(next)) {
+                const def = getDefinition(fid);
+                if (!def) continue;
+                const usesChanged = def.sections.some((s) => s.fields.some((f) => f.canonicalKey && changedKeys.includes(f.canonicalKey)));
+                if (usesChanged && app.id !== preparedGovApplications[activeGovForm.formId]?.id) {
+                  next[fid] = { ...app, status: 'needs_refresh' };
+                }
+              }
+              return next;
+            });
+          }}
+          onComplete={(app, data) => {
+            setPreparedGovApplications((cur) => ({ ...cur, [app.formId]: app }));
+            setGovFormDrafts((cur) => ({ ...cur, [app.formId]: data }));
+            setActiveGovForm(null);
+            setSampleFormNotice(L('Application prepared and added to deliverables.', language));
+          }}
+        />
       )}
 
       {activeSampleDefinition && activeSampleFormCode && (

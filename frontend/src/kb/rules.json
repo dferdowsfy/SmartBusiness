@@ -594,5 +594,7 @@
 {"id": "RULE_0594", "rule_type": "municipality_flag", "business_type_id": "BT_WHOLESALE_GOODS_DISTRIBUTOR", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_CUSTOMS_BROKER_BOND"},
 {"id": "RULE_0595", "rule_type": "municipality_flag", "business_type_id": "BT_WHOLESALE_FOOD_DISTRIBUTOR", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_CUSTOMS_BROKER_BOND"},
 {"id": "RULE_0596", "rule_type": "municipality_flag", "business_type_id": "BT_CAR_RENTAL_BUSINESS", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_AIRPORT_CONCESSION"},
-{"id": "RULE_0597", "rule_type": "municipality_flag", "business_type_id": "BT_COURIER_SERVICE", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_TSA_KNOWN_SHIPPER"}
+{"id": "RULE_0597", "rule_type": "municipality_flag", "business_type_id": "BT_COURIER_SERVICE", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_TSA_KNOWN_SHIPPER"},
+{"id": "RULE_0598", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_ENTITY_FOREIGN_CORP", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_FOREIGN_CORPORATION_AUTHORIZATION"},
+{"id": "RULE_0599", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_ENTITY_LLP", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_LLP_REGISTRATION"}
 ]

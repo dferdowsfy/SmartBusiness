@@ -52,6 +52,8 @@ export const puertoRicoPack: JurisdictionPack = {
     // behavior (upload matching, submission filename ordering) is preserved.
     legacyCode: {
       DOC_CERT_INCORPORATION: "certificate_of_incorporation",
+      DOC_FOREIGN_CORPORATION_AUTHORIZATION: "foreign_corporation_authorization",
+      DOC_LLP_REGISTRATION: "llp_registration",
       DOC_EIN: "ein_letter",
       DOC_MERCHANT_REGISTRATION: "merchant_registration",
       DOC_PERMISO_UNICO: "permiso_unico",
