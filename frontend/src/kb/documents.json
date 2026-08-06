@@ -1,6 +1,8 @@
 [
 {"id": "DOC_CERT_INCORPORATION", "name": "Certificate of Incorporation", "agency": "Department of State", "category": "State"},
 {"id": "DOC_ARTICLES_ORGANIZATION", "name": "Articles of Organization", "agency": "Department of State", "category": "State"},
+{"id": "DOC_FOREIGN_CORPORATION_AUTHORIZATION", "name": "Certificate of Authorization to Do Business (Foreign Corporation)", "agency": "Department of State", "category": "State"},
+{"id": "DOC_LLP_REGISTRATION", "name": "Limited Liability Partnership Registration", "agency": "Department of State", "category": "State"},
 {"id": "DOC_DBA_REGISTRATION", "name": "DBA / Trade Name Registration", "agency": "Department of State", "category": "State"},
 {"id": "DOC_EIN", "name": "IRS EIN Confirmation Letter", "agency": "IRS", "category": "Federal"},
 {"id": "DOC_MERCHANT_REGISTRATION", "name": "Merchant Registration Certificate (Registro de Comerciante)", "agency": "Departamento de Hacienda", "category": "State"},
