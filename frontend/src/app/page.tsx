@@ -28,6 +28,11 @@ import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client'
 // Schema-driven government form engine (CORPREG01–CORPREG06).
 import { GovernmentFormModal } from './forms/engine/GovernmentFormModal';
 import { CoreApplicationDetails } from './forms/engine/CoreApplicationDetails';
+// Optional AI-assisted natural-language intake shortcut. The interpreter only
+// fills EXISTING intake fields — the rules engine still decides requirements.
+import { NaturalLanguageIntake } from './components/NaturalLanguageIntake';
+import { mirrorAnswersToProfile } from './ai/intake/questionKeyMap';
+import type { IntakePatch } from './ai/intake/validateInterpretation';
 import { getDefinition } from './forms/engine/registry';
 import { selectFormForRequirement } from './forms/engine/routing';
 import { buildCanonicalFromIntake } from './forms/engine/intake';
@@ -1201,6 +1206,10 @@ export default function SmartPR() {
 
   const [questionList, setQuestionList] = useState<{id: string; text: string}[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  // Discovery questions already answered by the natural-language interpreter.
+  // These are skipped in the guided flow so AI reduces intake work without
+  // removing the questions it could not determine.
+  const [aiPrefilledKeys, setAiPrefilledKeys] = useState<string[]>([]);
 
   // Workspace / final deliverables
   const [showWorkspaceModal, setShowWorkspaceModal] = useState(false);
@@ -1329,14 +1338,16 @@ export default function SmartPR() {
       const list = filterQuestionsByContext(
         getQuestionsForBusinessType(profile.business_type),
         profile.location_type
-      );
+      // Questions the interpreter already answered are dropped; everything it
+      // could NOT determine is still asked by the normal guided flow.
+      ).filter((q) => !aiPrefilledKeys.includes(q.id));
       setQuestionList(list);
       setCurrentQuestionIndex(0);
     } else {
       setQuestionList([]);
       setCurrentQuestionIndex(0);
     }
-  }, [profile.business_type, profile.location_type, kbReady]);
+  }, [profile.business_type, profile.location_type, kbReady, aiPrefilledKeys]);
 
   const handleQuestionAnswer = (yes: boolean) => {
     const q = questionList[currentQuestionIndex];
@@ -1383,6 +1394,34 @@ export default function SmartPR() {
 
     setDiscoveryAnswers(prev => ({ ...prev, [q.id]: yes }));
     setCurrentQuestionIndex(prev => prev + 1);
+  };
+
+  /**
+   * Apply a validated natural-language interpretation to the EXISTING intake.
+   *
+   * This only writes profile fields and discovery answers — exactly what the
+   * user would have entered by hand. No requirement is created here: the
+   * existing rules engine runs later over these same values.
+   */
+  const applyInterpretedIntake = (patch: IntakePatch) => {
+    const profilePatch: Partial<BusinessProfile> = { ...(patch.profile as Partial<BusinessProfile>) };
+    // Mirror booleans onto the profile the same way handleQuestionAnswer does,
+    // since question filtering and follow-up context read the profile.
+    Object.assign(profilePatch, mirrorAnswersToProfile(patch.answers));
+
+    setProfile((prev) => {
+      const next = { ...prev, ...profilePatch };
+      // Changing the industry normally clears business_type; keep the
+      // interpreted type when the interpreter supplied one.
+      if (patch.profile.business_type) next.business_type = patch.profile.business_type;
+      return next;
+    });
+
+    if (Object.keys(patch.answers).length > 0) {
+      setDiscoveryAnswers((prev) => ({ ...prev, ...patch.answers }));
+      setAiPrefilledKeys((prev) => Array.from(new Set([...prev, ...Object.keys(patch.answers)])));
+    }
+    if (patch.profile.municipality) setPotentialDecisions({});
   };
 
   const handlePotentialAnswer = (definition: PotentialDef, decision: PotentialDecision) => {
@@ -3199,6 +3238,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </p>
 
               <div className="spr-form">
+                {/* Optional shortcut: describe the business in plain language and
+                    SmartPR fills in the fields it can confidently determine. The
+                    guided fields below remain the source of truth. */}
+                <NaturalLanguageIntake
+                  kb={KB}
+                  lang={language}
+                  allowedIndustries={INDUSTRIES}
+                  allowedLocationTypes={LOCATION_TYPES}
+                  onApply={applyInterpretedIntake}
+                />
+
                 <div className="spr-field full">
                   <label htmlFor="spr-business-name">{t('businessName')}</label>
                   <input
