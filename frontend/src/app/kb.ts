@@ -10,6 +10,7 @@
 // ============================================================================
 
 import { ACTIVE_JURISDICTION } from "./jurisdictions";
+import { isHomeBasedLocation, isOnlineOnlyLocation } from "./locationTypes";
 import {
   runRulesEngine,
   type KnowledgeBase,
@@ -189,21 +190,39 @@ function resolveBusinessTypeName(name?: string): string | null {
   return partial ? partial.name : name;
 }
 
-// Translate the app profile + discovery answers into KB question answers.
+/** Values the rules engine reads as "yes". */
+const engineTruthy = (v: unknown): boolean =>
+  v === true || v === "true" || v === "yes" || v === "Yes";
+
+/**
+ * Translate the app profile + discovery answers into KB question answers.
+ *
+ * `resolved` carries the facts the intake relationship resolver derived (see
+ * ai/intake/relationships.ts) keyed by KB question id. It is applied LAST, but
+ * ADDITIVELY: a resolved value may fill in or strengthen an answer, and may
+ * never turn an answer this translation already asserted back into a negative.
+ * That keeps requirement generation monotonic with respect to the resolver —
+ * relationships can only teach the engine something new, never retract a
+ * requirement the same profile + answers already produced.
+ */
 export function buildEngineInput(
   profile: ProfileLike,
-  answers: Record<string, unknown> = {}
+  answers: Record<string, unknown> = {},
+  resolved: Record<string, boolean | string> = {}
 ): EngineInput {
   const p = profile || {};
   const da = answers || {};
   const on = (...keys: string[]) => keys.some((k) => p[k] === true || da[k] === true);
   const loc = (p.location_type as string) || "";
   const empCount = Number(p.number_of_employees || 0);
+  // The intake spells online-only two ways depending on which dropdown the
+  // location came from; both must mean "no physical premises" here.
+  const online = isOnlineOnlyLocation(loc);
 
   const a: Record<string, boolean | string | undefined> = {
-    Q_PHYSICAL_LOCATION: loc !== "Online Only",
-    Q_HOME_BASED: loc === "Home-Based Business",
-    Q_ONLINE_ONLY: loc === "Online Only",
+    Q_PHYSICAL_LOCATION: !online,
+    Q_HOME_BASED: isHomeBasedLocation(loc),
+    Q_ONLINE_ONLY: online,
     Q_FOOD_PREPARED: on("food_prepared_or_sold", "food_prepared_on_site", "food_prepared"),
     Q_FOOD_SOLD: on("food_prepared_or_sold", "food_sold"),
     Q_FOOD_SERVED: on("food_served", "food_prepared_or_sold"),
@@ -229,7 +248,7 @@ export function buildEngineInput(
       on("tourism_activity", "water_activities", "excursions") || p.industry === "Accommodation & Tourism",
     Q_OWNS_PROPERTY: on("owns_property"),
     Q_EXISTING_LEASE:
-      on("existing_lease") || (loc !== "" && loc !== "Home-Based Business" && loc !== "Online Only"),
+      on("existing_lease") || (loc !== "" && !isHomeBasedLocation(loc) && !online),
     Q_CHILDREN_PRESENT: on("children_present"),
     Q_PESTICIDES: on("pesticides"),
     Q_AGRICULTURE_PRODUCTION: on("agriculture_production", "food_products_sold") || p.industry === "Agriculture & Farming",
@@ -249,6 +268,14 @@ export function buildEngineInput(
     }
   }
 
+  // Relationship-resolved facts, applied additively (see the doc comment).
+  for (const q of KB.questions) {
+    const value = resolved[q.id];
+    if (value === undefined) continue;
+    if (engineTruthy(a[q.id]) && !engineTruthy(value)) continue;
+    a[q.id] = value;
+  }
+
   return {
     municipalityName: (p.municipality as string) || null,
     businessTypeName: resolveBusinessTypeName(p.business_type as string),
@@ -258,17 +285,19 @@ export function buildEngineInput(
 
 export function runRulesEngineForProfile(
   profile: ProfileLike,
-  answers: Record<string, unknown> = {}
+  answers: Record<string, unknown> = {},
+  resolved: Record<string, boolean | string> = {}
 ): EngineResult {
-  return runRulesEngine(KB, buildEngineInput(profile, answers));
+  return runRulesEngine(KB, buildEngineInput(profile, answers, resolved));
 }
 
 // Drop-in replacement for the old hardcoded computeRequirements().
 export function computeRequirementsFromKB(
   profile: ProfileLike,
-  answers: Record<string, unknown> = {}
+  answers: Record<string, unknown> = {},
+  resolved: Record<string, boolean | string> = {}
 ): UIRequirement[] {
-  const { requirements } = runRulesEngineForProfile(profile, answers);
+  const { requirements } = runRulesEngineForProfile(profile, answers, resolved);
   return requirements
     .map((r) => ({
       code: kbMeta.legacyCode[r.document_id] || r.document_id.toLowerCase(),

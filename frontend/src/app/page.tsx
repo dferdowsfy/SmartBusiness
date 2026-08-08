@@ -31,7 +31,12 @@ import { CoreApplicationDetails } from './forms/engine/CoreApplicationDetails';
 // Optional AI-assisted natural-language intake shortcut. The interpreter only
 // fills EXISTING intake fields — the rules engine still decides requirements.
 import { NaturalLanguageIntake } from './components/NaturalLanguageIntake';
-import { mirrorAnswersToProfile } from './ai/intake/questionKeyMap';
+import { mirrorAnswersToProfile, questionIdForAnswerKey } from './ai/intake/questionKeyMap';
+// Intake is a connected fact model: the resolver derives every fact that is
+// logically certain from what the user already told us, so SmartPR never asks a
+// question it can answer. It produces facts only — requirements still come
+// exclusively from the rules engine.
+import { resolveIntakeFacts, type ResolutionResult } from './ai/intake/relationships';
 import type { IntakePatch } from './ai/intake/validateInterpretation';
 import { getDefinition } from './forms/engine/registry';
 import { selectFormForRequirement } from './forms/engine/routing';
@@ -62,6 +67,10 @@ interface BusinessProfile {
   location_type: string;
   business_structure: string;
   number_of_employees: number | null;
+  // Counts the relationship resolver maps onto the KB's own select buckets
+  // (Q_FLEET_SIZE / Q_RENTAL_UNITS) and onto the matching boolean questions.
+  number_of_vehicles?: number | null;
+  number_of_rental_units?: number | null;
   customers_visit: boolean | null;
   food_prepared_or_sold: boolean | null;
   alcohol_sold: boolean | null;
@@ -825,12 +834,33 @@ function computeMunicipalityNotices(profile: BusinessProfile): string[] {
   return notices;
 }
 
+/**
+ * Every fact the intake knows — stated, answered, or deterministically derived.
+ *
+ * Pure function of (profile, answers): change a source value and every dependent
+ * fact is recomputed from scratch, so derived state can never go stale.
+ */
+function resolveFactsFor(
+  profile: Partial<BusinessProfile>,
+  answers: Record<string, unknown>
+): ResolutionResult {
+  return resolveIntakeFacts(
+    { profile: profile as Record<string, unknown>, answers },
+    { kb: KB, allowedIndustries: INDUSTRIES }
+  );
+}
+
 // Core compute logic - matches the approved rules engine design + seed data
 // Updated to use the new Step 1 fields (location_type, food_prepared_or_sold, alcohol_sold, professional_licenses_required, etc.)
 function computeRequirements(profile: BusinessProfile, answers: Record<string, any>): Requirement[] {
   // Database-driven: requirements come entirely from the SmartPR Knowledge
-  // Base tables via the rules engine (no hardcoded business rules here).
-  return computeRequirementsFromKB(profile as any, answers) as Requirement[];
+  // Base tables via the rules engine (no hardcoded business rules here). The
+  // resolver only supplies additional ANSWERS — it never decides requirements.
+  return computeRequirementsFromKB(
+    profile as any,
+    answers,
+    resolveFactsFor(profile, answers).questionValues
+  ) as Requirement[];
 }
 
 // Advisory historical insights shape (from /api/graph/similar).
@@ -1006,6 +1036,8 @@ export default function SmartPR() {
     location_type: '',
     business_structure: 'llc',
     number_of_employees: null,
+    number_of_vehicles: null,
+    number_of_rental_units: null,
     customers_visit: null,
     food_prepared_or_sold: null,
     alcohol_sold: null,
@@ -1094,18 +1126,48 @@ export default function SmartPR() {
     } catch { /* best-effort */ }
   }, [govFormsStorageKey, govFormDrafts, preparedGovApplications, canonicalOverride, profile.name, profile.municipality]);
 
+  // ==========================================================================
+  // Intake fact model.
+  //
+  // Everything SmartPR knows right now: what the user stated, what they have
+  // answered, and every fact those make logically certain. Recomputed from the
+  // profile + answers on every change, so a derived fact can never survive the
+  // source it came from (edit "10 employees" down to 0 and Q_EMPLOYEES_HIRED
+  // re-evaluates with it).
+  //
+  // It produces FACTS ONLY. Requirements continue to come from the rules
+  // engine, which consumes these facts through buildEngineInput().
+  // ==========================================================================
+  const intakeFacts = React.useMemo(
+    () => resolveFactsFor(profile, discoveryAnswers),
+    [profile, discoveryAnswers]
+  );
+
+  // Fill profile fields the resolver knows but the user has not set — notably
+  // the industry implied by the chosen business type. Only ever fills a blank.
+  useEffect(() => {
+    const patch: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(intakeFacts.profileValues)) {
+      const fact = intakeFacts.facts[`profile:${key}`];
+      if (!fact || fact.origin !== 'derived') continue;
+      if (profile[key as keyof BusinessProfile]) continue;
+      patch[key] = value;
+    }
+    if (Object.keys(patch).length > 0) setProfile((p) => ({ ...p, ...patch }));
+  }, [intakeFacts, profile]);
+
   // Explainability: confidence + weighted "why required" reasons per document.
   // Additive only — does not change which requirements are produced.
   const reasonsByDoc = React.useMemo(() => {
     try {
-      const res = runRulesEngineForProfile(profile as any, discoveryAnswers);
+      const res = runRulesEngineForProfile(profile as any, discoveryAnswers, intakeFacts.questionValues);
       const map: Record<string, EnrichedRequirement> = {};
       for (const e of enrichRequirements(KB, res)) map[e.document_id] = e;
       return map;
     } catch {
       return {} as Record<string, EnrichedRequirement>;
     }
-  }, [profile, discoveryAnswers]);
+  }, [profile, discoveryAnswers, intakeFacts]);
 
   // Fetch advisory historical insights once requirements exist (best-effort).
   // Load the signed-in user (if any) + capture ?business=<id> so this
@@ -1349,19 +1411,48 @@ export default function SmartPR() {
     }
   }, [profile.business_type, profile.location_type, kbReady]);
 
-  // Advance past questions the interpreter already answered, so the user is
-  // never asked something they already told us in their description.
-  useEffect(() => {
-    if (questionList.length === 0 || aiPrefilledKeys.length === 0) return;
-    setCurrentQuestionIndex((index) => {
-      let next = index;
-      while (next < questionList.length && aiPrefilledKeys.includes(questionList[next].id)) next++;
-      return next;
-    });
-  }, [questionList, aiPrefilledKeys]);
+  // ==========================================================================
+  // Question suppression.
+  //
+  // Before a discovery question is shown, ask whether its answer is already
+  // known — because the user stated it, because the interpreter extracted it,
+  // or because the relationship resolver derived it with certainty. A known
+  // answer is never asked again, anywhere in the intake.
+  //
+  // Note what is NOT suppressed: a question the user answered by hand here
+  // stays visible so Back can return to it.
+  // ==========================================================================
+  const isQuestionSuppressed = React.useCallback(
+    (wizardKey: string): boolean => {
+      if (aiPrefilledKeys.includes(wizardKey)) return true;
+      if (discoveryAnswers[wizardKey] !== undefined) return false;
+      const questionId = questionIdForAnswerKey(wizardKey);
+      return questionId !== null && intakeFacts.resolvedQuestionIds.has(questionId);
+    },
+    [aiPrefilledKeys, discoveryAnswers, intakeFacts]
+  );
+
+  /** First question at or after `start` that SmartPR still needs an answer to. */
+  const nextOpenQuestion = React.useCallback(
+    (start: number): number => {
+      for (let i = Math.max(0, start); i < questionList.length; i++) {
+        if (!isQuestionSuppressed(questionList[i].id)) return i;
+      }
+      return questionList.length;
+    },
+    [questionList, isQuestionSuppressed]
+  );
+
+  // The question actually on screen. Resolved questions are stepped over here
+  // rather than by mutating the index, so Back and Forward cannot fight.
+  const activeQuestionIndex = nextOpenQuestion(currentQuestionIndex);
+  const openQuestions = questionList.filter((q) => !isQuestionSuppressed(q.id));
+  const openQuestionsAnswered = questionList
+    .slice(0, activeQuestionIndex)
+    .filter((q) => !isQuestionSuppressed(q.id)).length;
 
   const handleQuestionAnswer = (yes: boolean) => {
-    const q = questionList[currentQuestionIndex];
+    const q = questionList[activeQuestionIndex];
     if (!q) return;
 
     const updates: Partial<BusinessProfile> = {};
@@ -1404,7 +1495,9 @@ export default function SmartPR() {
     }
 
     setDiscoveryAnswers(prev => ({ ...prev, [q.id]: yes }));
-    setCurrentQuestionIndex(prev => prev + 1);
+    // Advance past the question just answered. Anything this answer makes
+    // certain is skipped by `nextOpenQuestion` on the next render.
+    setCurrentQuestionIndex(activeQuestionIndex + 1);
   };
 
   /**
@@ -1415,10 +1508,11 @@ export default function SmartPR() {
    * existing rules engine runs later over these same values.
    */
   const applyInterpretedIntake = (patch: IntakePatch) => {
+    const numericFields = ['number_of_employees', 'number_of_vehicles', 'number_of_rental_units'];
     const profilePatch: Partial<BusinessProfile> = {};
     for (const [key, value] of Object.entries(patch.profile)) {
-      if (key === 'number_of_employees') {
-        profilePatch.number_of_employees = typeof value === 'number' ? value : null;
+      if (numericFields.includes(key)) {
+        (profilePatch as Record<string, unknown>)[key] = typeof value === 'number' ? value : null;
       } else {
         (profilePatch as Record<string, unknown>)[key] = value;
       }
@@ -1524,7 +1618,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       // submissionIdRef from the URL; first capture mints a fresh id.
       const submissionId = submissionIdRef.current || newSubmissionId();
       submissionIdRef.current = submissionId;
-      const engineInput = buildEngineInput(p as any, answers);
+      const engineInput = buildEngineInput(p as any, answers, resolveFactsFor(p, answers).questionValues);
       const qText = new Map(KB.questions.map((q) => [q.id, q.question]));
       // buildEngineInput expands the profile into EVERY canonical Q_* question,
       // defaulting the ones the user never engaged with to `false`. Capturing
@@ -2822,11 +2916,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // intelligence panel and progress stats update as they answer.
   const liveReqs = React.useMemo(() => {
     try {
-      return runRulesEngineForProfile(profile as any, discoveryAnswers).requirements;
+      return runRulesEngineForProfile(profile as any, discoveryAnswers, intakeFacts.questionValues).requirements;
     } catch {
       return [] as ReturnType<typeof runRulesEngineForProfile>['requirements'];
     }
-  }, [profile, discoveryAnswers]);
+  }, [profile, discoveryAnswers, intakeFacts]);
 
   const liveConfirmedPotentialItems = potentialItems.filter(
     (item) => potentialDecisions[item.flag] === 'applies'
@@ -2845,11 +2939,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // questions. All answers are collected before the checklist is generated.
   const intakeFieldsDone = [profile.name, profile.municipality, profile.industry, profile.business_type, profile.location_type].filter(Boolean).length;
   const answeredPotentialCount = potentialItems.filter((item) => potentialDecisions[item.flag]).length;
-  const intakeQuestionTotal = questionList.length + potentialItems.length;
+  // Totals count only questions SmartPR still needs. A question it can already
+  // answer is not work the user has to do, so it must not inflate the progress
+  // denominator either.
+  const intakeQuestionTotal = openQuestions.length + potentialItems.length;
   const intakeTotal = 5 + intakeQuestionTotal;
-  const intakeDone = intakeFieldsDone
-    + Math.min(currentQuestionIndex, questionList.length)
-    + answeredPotentialCount;
+  const intakeDone = intakeFieldsDone + openQuestionsAnswered + answeredPotentialCount;
   const intakePct = Math.round((intakeDone / Math.max(1, intakeTotal)) * 100);
   const baseProfileReady = Boolean(profile.name && profile.municipality && profile.industry && profile.business_type && profile.location_type);
   const intakeDisplayTotal = Math.max(7, intakeTotal);
@@ -3086,6 +3181,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     : reqFilter === 'done' ? key === 'done'
     : key === 'recommended';
 
+  // Contradictions only the user can settle. Clashes SmartPR resolved itself
+  // (a derivation losing to a user answer) are deliberately not shown.
+  const intakeConflicts = intakeFacts.conflicts.filter((c) => c.requiresUser);
+
   // Questions the interpreter answered, in the order they appear in the flow.
   const answeredFromDescription = questionList
     .filter((q) => aiPrefilledKeys.includes(q.id) && discoveryAnswers[q.id] !== undefined)
@@ -3103,8 +3202,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     if (index >= 0) setCurrentQuestionIndex(index);
   };
 
-  const currentQuestion = questionList.length > 0 && currentQuestionIndex < questionList.length
-    ? questionList[currentQuestionIndex]
+  const currentQuestion = activeQuestionIndex < questionList.length
+    ? questionList[activeQuestionIndex]
     : null;
   const currentPotentialQuestion = !baseProfileReady || currentQuestion
     ? null
@@ -3112,12 +3211,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const currentPotentialQuestionIndex = currentPotentialQuestion
     ? potentialItems.findIndex((item) => item.flag === currentPotentialQuestion.flag)
     : -1;
-  const intakeQuestionsComplete = currentQuestionIndex >= questionList.length
+  const intakeQuestionsComplete = activeQuestionIndex >= questionList.length
     && answeredPotentialCount === potentialItems.length;
-  const canGoBackInIntake = currentQuestionIndex > 0 || answeredPotentialCount > 0;
+  const canGoBackInIntake = openQuestionsAnswered > 0 || answeredPotentialCount > 0;
+  /** Last question before `start` that the user actually answered here. */
+  const previousOpenQuestion = (start: number): number => {
+    for (let i = Math.min(start, questionList.length) - 1; i >= 0; i--) {
+      if (!isQuestionSuppressed(questionList[i].id)) return i;
+    }
+    return -1;
+  };
   const handleIntakeBack = () => {
-    if (currentQuestionIndex < questionList.length) {
-      setCurrentQuestionIndex((index) => Math.max(0, index - 1));
+    if (activeQuestionIndex < questionList.length) {
+      const previous = previousOpenQuestion(activeQuestionIndex);
+      if (previous >= 0) setCurrentQuestionIndex(previous);
       return;
     }
 
@@ -3133,7 +3240,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       return;
     }
 
-    setCurrentQuestionIndex(Math.max(0, questionList.length - 1));
+    const lastOpen = previousOpenQuestion(questionList.length);
+    if (lastOpen >= 0) setCurrentQuestionIndex(lastOpen);
   };
 
   const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
@@ -3419,9 +3527,28 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 </div>
               )}
 
+              {/* Two things the user told us cannot both be true. SmartPR never
+                  picks a winner between explicit answers — it says what clashes
+                  and lets them correct it. */}
+              {intakeConflicts.length > 0 && (
+                <div className="spr-conflicts">
+                  <div className="spr-kicker">
+                    {L('Please check these answers', language)} · {intakeConflicts.length}
+                  </div>
+                  <ul className="spr-conflicts-list">
+                    {intakeConflicts.map((conflict) => (
+                      <li key={conflict.id}>
+                        <AlertTriangle className="i" style={{ width: 14, height: 14 }} />
+                        <span className="spr-answered-text">{L(conflict.message, language)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {currentQuestion && (
                 <div className="spr-follow-up">
-                  <div className="spr-kicker">{L('Question', language)} {currentQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}</div>
+                  <div className="spr-kicker">{L('Question', language)} {openQuestionsAnswered + 1} {L('of', language)} {intakeQuestionTotal}</div>
                   <h2>{L(currentQuestion.text, language)}</h2>
                   <div className="spr-answer-row">
                     <button onClick={() => handleQuestionAnswer(true)}><CheckCircle className="i" /> {t('yes')}</button>
@@ -3433,7 +3560,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               {currentPotentialQuestion && (
                 <div className="spr-follow-up">
                   <div className="spr-kicker">
-                    {L('Question', language)} {questionList.length + currentPotentialQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}
+                    {L('Question', language)} {openQuestions.length + currentPotentialQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}
                   </div>
                   <h2>{L(currentPotentialQuestion.followUp, language)}</h2>
                   <p className="spr-question-context">
@@ -4129,7 +4256,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
       {/* Hidden rules-engine debug panel (enable with ?debug=1) */}
       {debugMode && (() => {
-        const dbg = runRulesEngineForProfile(profile as any, discoveryAnswers).debug;
+        const dbg = runRulesEngineForProfile(profile as any, discoveryAnswers, intakeFacts.questionValues).debug;
         return (
           <div style={{ position: 'fixed', bottom: 0, right: 0, zIndex: 400, width: 440, maxWidth: '100%', maxHeight: '60vh', overflow: 'auto', background: 'var(--navy)', color: 'white', fontSize: 11, fontFamily: 'monospace', boxShadow: 'var(--shadow-lg)', borderLeft: '1px solid rgba(255,255,255,0.2)', borderTop: '1px solid rgba(255,255,255,0.2)' }}>
             <div style={{ padding: '8px 12px', fontWeight: 700, borderBottom: '1px solid rgba(255,255,255,0.2)', display: 'flex', justifyContent: 'space-between' }}>

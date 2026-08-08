@@ -58,7 +58,9 @@ function runEngineWithAnswers(
 /** Validate + convert to an intake patch, the way the UI does. */
 function interpret(raw: RawInterpretation) {
   const validated = validateInterpretation(raw, KB, { allowedIndustries: INDUSTRIES });
-  return { validated, patch: toIntakePatch(validated) };
+  // The UI passes the active KB so the patch can reconcile contradictory model
+  // answers and drop chips that restate a fact another chip already implies.
+  return { validated, patch: toIntakePatch(validated, { kb: KB, allowedIndustries: INDUSTRIES }) };
 }
 
 // --- 1–2: business type + municipality resolution --------------------------
@@ -358,8 +360,11 @@ test("\"a bar that serves alcohol with 10 employees\" fills the employee field",
   assert.equal(patch.profile.number_of_employees, 10);
   assert.equal(typeof patch.profile.number_of_employees, "number");
   assert.equal(patch.answers.alcohol_served, true);
-  // A stated headcount also answers "will you hire employees?".
-  assert.equal(patch.answers.employees_hired, true);
+  // The headcount is stored ONCE, as the fact the user stated. "Will employees
+  // be hired?" is not written here — the relationship resolver derives it from
+  // `number_of_employees`, so the answer can never outlive its source.
+  // See relationships.test.ts for the derivation itself.
+  assert.equal(patch.answers.employees_hired, undefined);
   assert.ok(patch.chips.some((c) => c.label === "10 employees"));
 });
 

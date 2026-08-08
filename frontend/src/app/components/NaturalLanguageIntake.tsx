@@ -83,7 +83,9 @@ export function NaturalLanguageIntake({
         allowedIndustries,
         allowedLocationTypes,
       });
-      const patch = toIntakePatch(validated);
+      // The KB lets toIntakePatch reconcile contradictory model answers and
+      // hide chips that merely restate a fact another chip already implies.
+      const patch = toIntakePatch(validated, { kb, allowedIndustries });
 
       const nothingFound =
         Object.keys(patch.profile).length === 0 && Object.keys(patch.answers).length === 0;
@@ -117,7 +119,7 @@ export function NaturalLanguageIntake({
       suggested: { profileValues: [], answers: [] },
       discarded: [],
     };
-    const patch = toIntakePatch(promoted);
+    const patch = toIntakePatch(promoted, { kb, allowedIndustries });
     onApply(patch, promoted);
     setChips((current) => [...current, ...patch.chips]);
     setPending(null);
