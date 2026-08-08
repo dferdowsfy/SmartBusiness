@@ -1,0 +1,306 @@
+// ============================================================================
+// Validate AI intake interpretation against the ACTIVE knowledge base.
+//
+// The model is never trusted with ids. Everything it returns is checked against
+// the same KB the rules engine uses; anything unknown, mistyped, or low
+// confidence is discarded. The model NEVER produces requirements — it only
+// proposes intake values, and this module decides which of those are safe to
+// apply automatically.
+// ============================================================================
+
+import type { KnowledgeBase } from "../../rulesEngine.ts";
+import {
+  QUESTION_KEY_MAP,
+  LOCATION_QUESTION_IDS,
+  isApplicableQuestionId,
+  locationTypeForAnswer,
+} from "./questionKeyMap.ts";
+import { normalize } from "./kbCandidates.ts";
+
+// --- Confidence policy (Part 7) -------------------------------------------
+
+/** At or above this, populate the field automatically. */
+export const AUTO_APPLY_THRESHOLD = 0.85;
+/** At or above this (but below auto), offer as a suggestion to confirm. */
+export const SUGGEST_THRESHOLD = 0.6;
+
+export type Confidence = "applied" | "suggested" | "discarded";
+
+export function classifyConfidence(confidence: number | undefined): Confidence {
+  const c = typeof confidence === "number" ? confidence : 0;
+  if (c >= AUTO_APPLY_THRESHOLD) return "applied";
+  if (c >= SUGGEST_THRESHOLD) return "suggested";
+  return "discarded";
+}
+
+// --- Raw model output ------------------------------------------------------
+
+export interface RawInterpretation {
+  summary?: unknown;
+  businessType?: { id?: unknown; name?: unknown; confidence?: unknown } | null;
+  municipality?: { value?: unknown; confidence?: unknown } | null;
+  profileValues?: Array<{ key?: unknown; value?: unknown; confidence?: unknown }> | null;
+  answers?: Array<{ questionId?: unknown; value?: unknown; confidence?: unknown }> | null;
+}
+
+// --- Validated output ------------------------------------------------------
+
+export interface ValidatedAnswer {
+  questionId: string;
+  question: string;
+  value: boolean | string;
+  confidence: number;
+}
+
+export interface ValidatedInterpretation {
+  summary: string;
+  businessType?: { id: string; name: string; confidence: number };
+  municipality?: { value: string; confidence: number };
+  /** Validated profile values, keyed by SmartPR profile field. */
+  profileValues: { key: string; value: string; confidence: number }[];
+  answers: ValidatedAnswer[];
+  /** Same shapes as above but needing user confirmation (0.60–0.84). */
+  suggested: {
+    businessType?: { id: string; name: string; confidence: number };
+    municipality?: { value: string; confidence: number };
+    profileValues: { key: string; value: string; confidence: number }[];
+    answers: ValidatedAnswer[];
+  };
+  /** Anything rejected, with the reason (useful for debugging/telemetry). */
+  discarded: { field: string; reason: string }[];
+}
+
+/** Profile fields the interpreter may set. Everything else is ignored. */
+const ALLOWED_PROFILE_KEYS = new Set(["industry", "location_type"]);
+
+function asNumber(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function asString(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+/**
+ * Coerce a model answer to the type the KB question declares.
+ * Returns `undefined` when the value cannot be represented — the caller then
+ * discards it so the normal intake asks the question instead.
+ */
+export function coerceAnswerValue(
+  raw: unknown,
+  questionType: string,
+  options?: string[]
+): boolean | string | undefined {
+  if (questionType === "boolean") {
+    if (typeof raw === "boolean") return raw;
+    const s = asString(raw).toLowerCase();
+    if (s === "true" || s === "yes" || s === "si" || s === "sí") return true;
+    if (s === "false" || s === "no") return false;
+    return undefined;
+  }
+  // Select-style questions must land on an allowed option.
+  const s = asString(raw);
+  if (!s) return undefined;
+  if (options && options.length > 0) {
+    const hit = options.find((o) => normalize(o) === normalize(s));
+    return hit ?? undefined;
+  }
+  return s;
+}
+
+export interface ValidateOptions {
+  /** Industry names the app offers (validated case-insensitively). */
+  allowedIndustries?: string[];
+  /** Location types the app offers. */
+  allowedLocationTypes?: string[];
+}
+
+/**
+ * Validate a raw model interpretation against the active KB.
+ * Nothing here can create a requirement — only intake values.
+ */
+export function validateInterpretation(
+  raw: RawInterpretation | null | undefined,
+  kb: KnowledgeBase,
+  options: ValidateOptions = {}
+): ValidatedInterpretation {
+  const out: ValidatedInterpretation = {
+    summary: asString(raw?.summary),
+    profileValues: [],
+    answers: [],
+    suggested: { profileValues: [], answers: [] },
+    discarded: [],
+  };
+  if (!raw || typeof raw !== "object") {
+    out.discarded.push({ field: "response", reason: "empty or non-object response" });
+    return out;
+  }
+
+  const drop = (field: string, reason: string) => out.discarded.push({ field, reason });
+
+  // --- Business type: must exist in the active KB -------------------------
+  if (raw.businessType) {
+    const id = asString(raw.businessType.id);
+    const confidence = asNumber(raw.businessType.confidence);
+    const match = (kb.businessTypes || []).find((b) => b.id === id);
+    if (!id) {
+      drop("businessType", "missing id");
+    } else if (!match) {
+      drop("businessType", `unknown business type id "${id}"`);
+    } else {
+      const value = { id: match.id, name: match.name, confidence };
+      const band = classifyConfidence(confidence);
+      if (band === "applied") out.businessType = value;
+      else if (band === "suggested") out.suggested.businessType = value;
+      else drop("businessType", `confidence ${confidence} below ${SUGGEST_THRESHOLD}`);
+    }
+  }
+
+  // --- Municipality: must exist in the active KB --------------------------
+  if (raw.municipality) {
+    const value = asString(raw.municipality.value);
+    const confidence = asNumber(raw.municipality.confidence);
+    const match = (kb.municipalities || []).find((m) => normalize(m.name) === normalize(value));
+    if (!value) {
+      drop("municipality", "missing value");
+    } else if (!match) {
+      drop("municipality", `unknown municipality "${value}"`);
+    } else {
+      const v = { value: match.name, confidence };
+      const band = classifyConfidence(confidence);
+      if (band === "applied") out.municipality = v;
+      else if (band === "suggested") out.suggested.municipality = v;
+      else drop("municipality", `confidence ${confidence} below ${SUGGEST_THRESHOLD}`);
+    }
+  }
+
+  // --- Profile values: restricted key set + allowed options ---------------
+  for (const entry of raw.profileValues ?? []) {
+    const key = asString(entry?.key);
+    const value = asString(entry?.value);
+    const confidence = asNumber(entry?.confidence);
+    if (!ALLOWED_PROFILE_KEYS.has(key)) {
+      drop(`profileValues.${key || "?"}`, "key not allowed");
+      continue;
+    }
+    if (!value) {
+      drop(`profileValues.${key}`, "missing value");
+      continue;
+    }
+    const allowed =
+      key === "industry" ? options.allowedIndustries
+      : key === "location_type" ? options.allowedLocationTypes
+      : undefined;
+    let resolved = value;
+    if (allowed && allowed.length > 0) {
+      const hit = allowed.find((a) => normalize(a) === normalize(value));
+      if (!hit) {
+        drop(`profileValues.${key}`, `value "${value}" not in allowed list`);
+        continue;
+      }
+      resolved = hit;
+    }
+    const band = classifyConfidence(confidence);
+    const record = { key, value: resolved, confidence };
+    if (band === "applied") out.profileValues.push(record);
+    else if (band === "suggested") out.suggested.profileValues.push(record);
+    else drop(`profileValues.${key}`, `confidence ${confidence} below ${SUGGEST_THRESHOLD}`);
+  }
+
+  // --- Answers: id must exist in KB AND be applicable to the intake -------
+  const questionById = new Map((kb.questions || []).map((q) => [q.id, q]));
+  const seen = new Set<string>();
+  for (const entry of raw.answers ?? []) {
+    const questionId = asString(entry?.questionId);
+    const confidence = asNumber(entry?.confidence);
+    if (!questionId) {
+      drop("answers", "missing questionId");
+      continue;
+    }
+    if (seen.has(questionId)) {
+      drop(`answers.${questionId}`, "duplicate answer");
+      continue;
+    }
+    const question = questionById.get(questionId);
+    if (!question) {
+      drop(`answers.${questionId}`, "question id not in knowledge base");
+      continue;
+    }
+    if (!isApplicableQuestionId(questionId)) {
+      drop(`answers.${questionId}`, "question is not applicable to the intake");
+      continue;
+    }
+    const value = coerceAnswerValue(entry?.value, question.type, question.options);
+    if (value === undefined) {
+      drop(`answers.${questionId}`, `value does not match question type "${question.type}"`);
+      continue;
+    }
+    seen.add(questionId);
+    const record: ValidatedAnswer = { questionId, question: question.question, value, confidence };
+    const band = classifyConfidence(confidence);
+    if (band === "applied") out.answers.push(record);
+    else if (band === "suggested") out.suggested.answers.push(record);
+    else drop(`answers.${questionId}`, `confidence ${confidence} below ${SUGGEST_THRESHOLD}`);
+  }
+
+  return out;
+}
+
+// --- Turning a validated interpretation into an intake patch ---------------
+
+export interface IntakePatch {
+  /** Partial SmartPR business profile (existing field names). */
+  profile: Record<string, string>;
+  /**
+   * Discovery answers keyed by the EXISTING legacy answer keys that
+   * `buildEngineInput()` reads, so the existing rules engine consumes them
+   * with no duplicated logic.
+   */
+  answers: Record<string, boolean | string>;
+  /** Short confirmation chips for the "We understood:" strip. */
+  chips: { label: string; detail?: string }[];
+}
+
+/**
+ * Convert the auto-apply portion of a validated interpretation into patches for
+ * the EXISTING profile + discovery answers. Suggested (0.60–0.84) values are
+ * deliberately excluded — the caller confirms those first.
+ */
+export function toIntakePatch(validated: ValidatedInterpretation): IntakePatch {
+  const patch: IntakePatch = { profile: {}, answers: {}, chips: [] };
+
+  if (validated.businessType) {
+    patch.profile.business_type = validated.businessType.name;
+    patch.chips.push({ label: validated.businessType.name });
+  }
+  if (validated.municipality) {
+    patch.profile.municipality = validated.municipality.value;
+    patch.chips.push({ label: validated.municipality.value });
+  }
+  for (const pv of validated.profileValues) {
+    patch.profile[pv.key] = pv.value;
+    if (pv.key === "industry") patch.chips.push({ label: pv.value });
+  }
+
+  for (const ans of validated.answers) {
+    if (LOCATION_QUESTION_IDS.has(ans.questionId)) {
+      // Location-derived questions move the profile's location_type instead of
+      // a discovery answer, because that is what buildEngineInput() reads.
+      const locationType = typeof ans.value === "boolean"
+        ? locationTypeForAnswer(ans.questionId, ans.value)
+        : null;
+      if (locationType && !patch.profile.location_type) patch.profile.location_type = locationType;
+      if (ans.value === true && ans.questionId !== "Q_PHYSICAL_LOCATION") {
+        patch.chips.push({ label: ans.question });
+      }
+      continue;
+    }
+    const binding = QUESTION_KEY_MAP[ans.questionId];
+    if (!binding) continue;
+    patch.answers[binding.writeKey] = ans.value;
+    if (ans.value === true) patch.chips.push({ label: ans.question });
+  }
+
+  return patch;
+}
