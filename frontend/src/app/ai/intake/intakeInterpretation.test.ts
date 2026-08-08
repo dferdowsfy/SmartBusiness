@@ -217,7 +217,7 @@ test("10. requirements are produced by the existing rules engine, not the model"
   // rules.json — not the model — turns those answers into these documents.
   const docs = runEngineWithAnswers(
     { Q_OUTDOOR_SEATING: true, Q_ALCOHOL_SERVED: true },
-    patch.profile.business_type
+    String(patch.profile.business_type)
   );
   assert.ok(docs.includes("DOC_OUTDOOR_SEATING_AUTH"), "outdoor seating rule must fire");
   assert.ok(docs.includes("DOC_ALCOHOL_LICENSE"), "alcohol rule must fire");
@@ -340,6 +340,73 @@ test("answer coercion accepts yes/no strings but rejects nonsense", () => {
   assert.equal(coerceAnswerValue("perhaps", "boolean"), undefined);
   assert.equal(coerceAnswerValue("LLC", "single_select", ["LLC", "Corporation"]), "LLC");
   assert.equal(coerceAnswerValue("Sociedad", "single_select", ["LLC", "Corporation"]), undefined);
+});
+
+// --- Field coverage: everything a sentence can populate --------------------
+
+test("\"a bar that serves alcohol with 10 employees\" fills the employee field", () => {
+  const { patch } = interpret({
+    businessType: { id: "BT_BAR", name: "Bar", confidence: 0.96 },
+    profileValues: [
+      { key: "industry", value: "Food & Beverage", confidence: 0.93 },
+      { key: "number_of_employees", value: 10, confidence: 0.97 },
+    ],
+    answers: [{ questionId: "Q_ALCOHOL_SERVED", value: true, confidence: 0.98 }],
+  });
+  assert.equal(patch.profile.business_type, "Bar");
+  // Numeric, not a string — the profile field is `number | null`.
+  assert.equal(patch.profile.number_of_employees, 10);
+  assert.equal(typeof patch.profile.number_of_employees, "number");
+  assert.equal(patch.answers.alcohol_served, true);
+  // A stated headcount also answers "will you hire employees?".
+  assert.equal(patch.answers.employees_hired, true);
+  assert.ok(patch.chips.some((c) => c.label === "10 employees"));
+});
+
+test("a zero headcount does not claim the business hires employees", () => {
+  const { patch } = interpret({
+    profileValues: [{ key: "number_of_employees", value: 0, confidence: 0.95 }],
+  });
+  assert.equal(patch.profile.number_of_employees, 0);
+  assert.equal(patch.answers.employees_hired, undefined);
+});
+
+test("employee counts are validated: non-numeric and out-of-range are dropped", () => {
+  for (const bad of ["a bunch", -3, 999999, null]) {
+    const { validated } = interpret({
+      profileValues: [{ key: "number_of_employees", value: bad, confidence: 0.95 }],
+    });
+    assert.equal(validated.profileValues.length, 0, `expected ${JSON.stringify(bad)} to be dropped`);
+  }
+});
+
+test("business structure maps onto the intake's entity-type values", () => {
+  const { patch } = interpret({
+    profileValues: [{ key: "business_structure", value: "limited_liability_partnership", confidence: 0.9 }],
+  });
+  assert.equal(patch.profile.business_structure, "limited_liability_partnership");
+  assert.ok(patch.chips.some((c) => c.label === "Limited Liability Partnership"));
+
+  const { validated } = interpret({
+    profileValues: [{ key: "business_structure", value: "s-corp-ish", confidence: 0.9 }],
+  });
+  assert.equal(validated.profileValues.length, 0);
+});
+
+test("an explicitly named business populates the name field", () => {
+  const { patch } = interpret({
+    profileValues: [{ key: "name", value: "Luna's", confidence: 0.94 }],
+  });
+  assert.equal(patch.profile.name, "Luna's");
+});
+
+test("location type is validated against the app's list", () => {
+  const validated = validateInterpretation(
+    { profileValues: [{ key: "location_type", value: "Home-Based Business", confidence: 0.95 }] },
+    KB,
+    { allowedIndustries: INDUSTRIES, allowedLocationTypes: ["Home-Based Business", "Online Only"] }
+  );
+  assert.equal(validated.profileValues[0].value, "Home-Based Business");
 });
 
 test("only true answers mirror onto the profile (false never asserts a negative)", () => {

@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { clampCandidates, type KbCandidates } from "../../../ai/intake/kbCandidates";
+import { BUSINESS_STRUCTURE_VALUES } from "../../../ai/intake/validateInterpretation";
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "x-ai/grok-4.20";
@@ -26,9 +27,17 @@ interface InterpretPayload {
   description?: string;
   candidates?: KbCandidates;
   lang?: string;
+  /** The industry / location-type choices the intake actually offers. */
+  allowedIndustries?: string[];
+  allowedLocationTypes?: string[];
 }
 
-function buildSystemPrompt(candidates: KbCandidates, isEs: boolean): string {
+function buildSystemPrompt(
+  candidates: KbCandidates,
+  isEs: boolean,
+  allowedIndustries?: string[],
+  allowedLocationTypes?: string[]
+): string {
   const businessTypes = candidates.businessTypes
     .map((b) => `- ${b.id} :: ${b.name}`)
     .join("\n") || "- (none)";
@@ -93,8 +102,24 @@ Return ONLY valid JSON (no markdown, no commentary) with this exact structure:
 }
 
 Omit "businessType" or "municipality" entirely when unknown. Use an empty array
-for "profileValues"/"answers" when nothing is known. The only allowed
-profileValues keys are "industry" and "location_type".${
+for "profileValues"/"answers" when nothing is known.
+
+ALLOWED profileValues KEYS (use these exact keys, omit any you cannot determine):
+- "industry" :: one of: ${(allowedIndustries || []).join(" | ") || "(not supplied)"}
+- "business_structure" :: one of: ${BUSINESS_STRUCTURE_VALUES.join(" | ")}
+- "location_type" :: one of: ${(allowedLocationTypes || []).join(" | ") || "(not supplied)"}
+- "number_of_employees" :: an integer (extract from phrases like "with 10 employees",
+  "a staff of 4", "just me" = 1, "no employees" = 0)
+- "name" :: the business name ONLY when the user actually names it
+  (e.g. "a bar called Luna's" -> "Luna's"). Never invent a name.
+
+EXTRACT EVERYTHING THE SENTENCE SUPPORTS. If the user states a headcount, an
+entity type, an industry, or a location type, return it — do not return only the
+business type and municipality.
+
+Example: "I want to open a bar that serves alcohol with 10 employees"
+-> businessType BT_BAR, profileValues [{industry}, {number_of_employees: 10}],
+   answers [Q_ALCOHOL_SERVED = true, Q_EMPLOYEES_HIRED = true].${
     isEs ? '\n\nWrite the "summary" field in Spanish. Keep all ids and JSON keys exactly as specified.' : ""
   }
 
@@ -189,7 +214,10 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
         messages: [
-          { role: "system", content: buildSystemPrompt(candidates, isEs) },
+          {
+            role: "system",
+            content: buildSystemPrompt(candidates, isEs, payload.allowedIndustries, payload.allowedLocationTypes),
+          },
           { role: "user", content: description },
         ],
         max_tokens: 900,

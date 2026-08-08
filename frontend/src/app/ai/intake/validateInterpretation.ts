@@ -52,26 +52,60 @@ export interface ValidatedAnswer {
   confidence: number;
 }
 
+export interface ValidatedProfileValue {
+  key: string;
+  value: string | number;
+  confidence: number;
+}
+
 export interface ValidatedInterpretation {
   summary: string;
   businessType?: { id: string; name: string; confidence: number };
   municipality?: { value: string; confidence: number };
   /** Validated profile values, keyed by SmartPR profile field. */
-  profileValues: { key: string; value: string; confidence: number }[];
+  profileValues: ValidatedProfileValue[];
   answers: ValidatedAnswer[];
   /** Same shapes as above but needing user confirmation (0.60–0.84). */
   suggested: {
     businessType?: { id: string; name: string; confidence: number };
     municipality?: { value: string; confidence: number };
-    profileValues: { key: string; value: string; confidence: number }[];
+    profileValues: ValidatedProfileValue[];
     answers: ValidatedAnswer[];
   };
   /** Anything rejected, with the reason (useful for debugging/telemetry). */
   discarded: { field: string; reason: string }[];
 }
 
-/** Profile fields the interpreter may set. Everything else is ignored. */
-const ALLOWED_PROFILE_KEYS = new Set(["industry", "location_type"]);
+/**
+ * Profile fields the interpreter may set, and how each is validated.
+ *
+ * `option` fields must match one of the app's existing choices; `number` fields
+ * are parsed and clamped; `text` fields are free-form (a business name cannot
+ * be validated against a list). Anything not listed here is ignored.
+ */
+const PROFILE_FIELD_KINDS: Record<string, "option" | "number" | "text"> = {
+  industry: "option",
+  location_type: "option",
+  business_structure: "option",
+  number_of_employees: "number",
+  name: "text",
+};
+
+/** Entity/filing types the intake's structure selector offers. */
+export const BUSINESS_STRUCTURE_VALUES = [
+  "corporation",
+  "nonprofit_nonstock_corporation",
+  "close_corporation",
+  "professional_corporation",
+  "foreign_corporation",
+  "limited_liability_partnership",
+  "llc",
+  "sole_proprietorship",
+  "partnership",
+  "other",
+];
+
+const MAX_EMPLOYEES = 10000;
 
 function asNumber(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
@@ -175,34 +209,60 @@ export function validateInterpretation(
     }
   }
 
-  // --- Profile values: restricted key set + allowed options ---------------
+  // --- Profile values: restricted key set + per-kind validation -----------
   for (const entry of raw.profileValues ?? []) {
     const key = asString(entry?.key);
-    const value = asString(entry?.value);
     const confidence = asNumber(entry?.confidence);
-    if (!ALLOWED_PROFILE_KEYS.has(key)) {
+    const kind = PROFILE_FIELD_KINDS[key];
+    if (!kind) {
       drop(`profileValues.${key || "?"}`, "key not allowed");
       continue;
     }
-    if (!value) {
-      drop(`profileValues.${key}`, "missing value");
-      continue;
-    }
-    const allowed =
-      key === "industry" ? options.allowedIndustries
-      : key === "location_type" ? options.allowedLocationTypes
-      : undefined;
-    let resolved = value;
-    if (allowed && allowed.length > 0) {
-      const hit = allowed.find((a) => normalize(a) === normalize(value));
-      if (!hit) {
-        drop(`profileValues.${key}`, `value "${value}" not in allowed list`);
+
+    let resolved: string | number;
+    if (kind === "number") {
+      // "10 employees" must land on the numeric field, not a string.
+      // Guard the raw type first: Number(null) and Number("") are both 0, so
+      // coercing blindly would turn "unknown" into a confident zero.
+      const rawValue = entry?.value;
+      const isNumeric =
+        typeof rawValue === "number" ||
+        (typeof rawValue === "string" && rawValue.trim() !== "" && !Number.isNaN(Number(rawValue)));
+      const n = isNumeric ? Math.floor(Number(rawValue)) : NaN;
+      if (!Number.isFinite(n) || n < 0 || n > MAX_EMPLOYEES) {
+        drop(`profileValues.${key}`, `"${asString(rawValue)}" is not a valid number`);
         continue;
       }
-      resolved = hit;
+      resolved = n;
+    } else {
+      const value = asString(entry?.value);
+      if (!value) {
+        drop(`profileValues.${key}`, "missing value");
+        continue;
+      }
+      if (kind === "option") {
+        const allowed =
+          key === "industry" ? options.allowedIndustries
+          : key === "location_type" ? options.allowedLocationTypes
+          : key === "business_structure" ? BUSINESS_STRUCTURE_VALUES
+          : undefined;
+        if (!allowed || allowed.length === 0) {
+          drop(`profileValues.${key}`, "no allowed values configured");
+          continue;
+        }
+        const hit = allowed.find((a) => normalize(a) === normalize(value));
+        if (!hit) {
+          drop(`profileValues.${key}`, `value "${value}" not in allowed list`);
+          continue;
+        }
+        resolved = hit;
+      } else {
+        resolved = value;
+      }
     }
+
     const band = classifyConfidence(confidence);
-    const record = { key, value: resolved, confidence };
+    const record: ValidatedProfileValue = { key, value: resolved, confidence };
     if (band === "applied") out.profileValues.push(record);
     else if (band === "suggested") out.suggested.profileValues.push(record);
     else drop(`profileValues.${key}`, `confidence ${confidence} below ${SUGGEST_THRESHOLD}`);
@@ -251,7 +311,7 @@ export function validateInterpretation(
 
 export interface IntakePatch {
   /** Partial SmartPR business profile (existing field names). */
-  profile: Record<string, string>;
+  profile: Record<string, string | number>;
   /**
    * Discovery answers keyed by the EXISTING legacy answer keys that
    * `buildEngineInput()` reads, so the existing rules engine consumes them
@@ -260,6 +320,17 @@ export interface IntakePatch {
   answers: Record<string, boolean | string>;
   /** Short confirmation chips for the "We understood:" strip. */
   chips: { label: string; detail?: string }[];
+}
+
+/** Human-readable chip text for a profile value. */
+function profileChipLabel(pv: ValidatedProfileValue): string {
+  if (pv.key === "number_of_employees") {
+    return `${pv.value} ${Number(pv.value) === 1 ? "employee" : "employees"}`;
+  }
+  if (pv.key === "business_structure") {
+    return String(pv.value).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return String(pv.value);
 }
 
 /**
@@ -280,7 +351,14 @@ export function toIntakePatch(validated: ValidatedInterpretation): IntakePatch {
   }
   for (const pv of validated.profileValues) {
     patch.profile[pv.key] = pv.value;
-    if (pv.key === "industry") patch.chips.push({ label: pv.value });
+    patch.chips.push({ label: profileChipLabel(pv) });
+  }
+
+  // An explicit headcount also answers "will you hire employees?", so the
+  // guided flow does not ask a question the user already answered.
+  const employees = validated.profileValues.find((p) => p.key === "number_of_employees");
+  if (typeof employees?.value === "number" && employees.value > 0) {
+    patch.answers[QUESTION_KEY_MAP.Q_EMPLOYEES_HIRED.writeKey] = true;
   }
 
   for (const ans of validated.answers) {

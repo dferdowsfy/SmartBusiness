@@ -57,7 +57,13 @@ export function NaturalLanguageIntake({
       const res = await fetch("/api/intake/interpret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, candidates, lang }),
+        body: JSON.stringify({
+          description,
+          candidates,
+          lang,
+          allowedIndustries,
+          allowedLocationTypes,
+        }),
       });
       if (!res.ok) throw new Error(`interpret ${res.status}`);
       const data = await res.json();

@@ -1335,19 +1335,30 @@ export default function SmartPR() {
   // customers visiting "the location" when there is no physical location).
   useEffect(() => {
     if (profile.business_type) {
+      // Pre-answered questions STAY in the list so progress totals stay honest
+      // and they can be shown as completed; the flow just advances past them.
       const list = filterQuestionsByContext(
         getQuestionsForBusinessType(profile.business_type),
         profile.location_type
-      // Questions the interpreter already answered are dropped; everything it
-      // could NOT determine is still asked by the normal guided flow.
-      ).filter((q) => !aiPrefilledKeys.includes(q.id));
+      );
       setQuestionList(list);
       setCurrentQuestionIndex(0);
     } else {
       setQuestionList([]);
       setCurrentQuestionIndex(0);
     }
-  }, [profile.business_type, profile.location_type, kbReady, aiPrefilledKeys]);
+  }, [profile.business_type, profile.location_type, kbReady]);
+
+  // Advance past questions the interpreter already answered, so the user is
+  // never asked something they already told us in their description.
+  useEffect(() => {
+    if (questionList.length === 0 || aiPrefilledKeys.length === 0) return;
+    setCurrentQuestionIndex((index) => {
+      let next = index;
+      while (next < questionList.length && aiPrefilledKeys.includes(questionList[next].id)) next++;
+      return next;
+    });
+  }, [questionList, aiPrefilledKeys]);
 
   const handleQuestionAnswer = (yes: boolean) => {
     const q = questionList[currentQuestionIndex];
@@ -1404,7 +1415,14 @@ export default function SmartPR() {
    * existing rules engine runs later over these same values.
    */
   const applyInterpretedIntake = (patch: IntakePatch) => {
-    const profilePatch: Partial<BusinessProfile> = { ...(patch.profile as Partial<BusinessProfile>) };
+    const profilePatch: Partial<BusinessProfile> = {};
+    for (const [key, value] of Object.entries(patch.profile)) {
+      if (key === 'number_of_employees') {
+        profilePatch.number_of_employees = typeof value === 'number' ? value : null;
+      } else {
+        (profilePatch as Record<string, unknown>)[key] = value;
+      }
+    }
     // Mirror booleans onto the profile the same way handleQuestionAnswer does,
     // since question filtering and follow-up context read the profile.
     Object.assign(profilePatch, mirrorAnswersToProfile(patch.answers));
@@ -1413,7 +1431,7 @@ export default function SmartPR() {
       const next = { ...prev, ...profilePatch };
       // Changing the industry normally clears business_type; keep the
       // interpreted type when the interpreter supplied one.
-      if (patch.profile.business_type) next.business_type = patch.profile.business_type;
+      if (typeof patch.profile.business_type === 'string') next.business_type = patch.profile.business_type;
       return next;
     });
 
@@ -3068,6 +3086,23 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     : reqFilter === 'done' ? key === 'done'
     : key === 'recommended';
 
+  // Questions the interpreter answered, in the order they appear in the flow.
+  const answeredFromDescription = questionList
+    .filter((q) => aiPrefilledKeys.includes(q.id) && discoveryAnswers[q.id] !== undefined)
+    .map((q) => ({ id: q.id, text: q.text, value: discoveryAnswers[q.id] as boolean | string }));
+
+  /** Let the user correct something the interpreter got wrong. */
+  const reopenAnsweredQuestion = (questionId: string) => {
+    setAiPrefilledKeys((prev) => prev.filter((id) => id !== questionId));
+    setDiscoveryAnswers((prev) => {
+      const next = { ...prev };
+      delete next[questionId];
+      return next;
+    });
+    const index = questionList.findIndex((q) => q.id === questionId);
+    if (index >= 0) setCurrentQuestionIndex(index);
+  };
+
   const currentQuestion = questionList.length > 0 && currentQuestionIndex < questionList.length
     ? questionList[currentQuestionIndex]
     : null;
@@ -3337,11 +3372,52 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                     type="number"
                     min="0"
                     max="10000"
-                    value={profile.number_of_employees ?? 0}
-                    onChange={e => setProfile({ ...profile, number_of_employees: Math.max(0, parseInt(e.target.value) || 0) })}
+                    placeholder="0"
+                    // Empty (not 0) when unset, otherwise a typed "10" lands
+                    // after the rendered zero and reads as "010".
+                    value={profile.number_of_employees ?? ''}
+                    onChange={e => {
+                      const raw = e.target.value;
+                      if (raw === '') {
+                        setProfile({ ...profile, number_of_employees: null });
+                        return;
+                      }
+                      const parsed = parseInt(raw, 10);
+                      if (Number.isNaN(parsed)) return;
+                      setProfile({ ...profile, number_of_employees: Math.min(10000, Math.max(0, parsed)) });
+                    }}
                   />
                 </div>
               </div>
+
+              {/* Questions already answered from the description — shown as
+                  completed so the user can see what was understood (and change
+                  it) instead of silently losing them. */}
+              {answeredFromDescription.length > 0 && (
+                <div className="spr-answered">
+                  <div className="spr-kicker">
+                    {L('Answered from your description', language)} · {answeredFromDescription.length}
+                  </div>
+                  <ul className="spr-answered-list">
+                    {answeredFromDescription.map((item) => (
+                      <li key={item.id}>
+                        <CheckCircle className="i" style={{ width: 14, height: 14 }} />
+                        <span className="spr-answered-text">{L(item.text, language)}</span>
+                        <span className="spr-answered-value">
+                          {item.value === true ? t('yes') : item.value === false ? t('no') : String(item.value)}
+                        </span>
+                        <button
+                          type="button"
+                          className="spr-answered-change"
+                          onClick={() => reopenAnsweredQuestion(item.id)}
+                        >
+                          {L('Change', language)}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {currentQuestion && (
                 <div className="spr-follow-up">
