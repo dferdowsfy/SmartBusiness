@@ -11,7 +11,7 @@
 // If interpretation fails for any reason, the guided intake below still works.
 // ============================================================================
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import type { KnowledgeBase } from "../rulesEngine";
 import { buildKbCandidates } from "../ai/intake/kbCandidates";
 import {
@@ -44,6 +44,16 @@ export function NaturalLanguageIntake({
   const [status, setStatus] = useState<Status>("idle");
   const [chips, setChips] = useState<{ label: string }[]>([]);
   const [pending, setPending] = useState<ValidatedInterpretation["suggested"] | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Grow with the text so a long description wraps into view instead of
+  // scrolling sideways on one line. Capped so the field never runs away.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 190)}px`;
+  }, [text]);
 
   const interpret = async () => {
     const description = text.trim();
@@ -119,14 +129,17 @@ export function NaturalLanguageIntake({
         {L("What are you looking to open?", "¿Qué desea abrir?")}
       </label>
       <div className="spr-nl-row">
-        <input
+        <textarea
           id="spr-nl-input"
           className="spr-nl-input"
+          ref={inputRef}
+          rows={2}
           value={text}
           placeholder={L("Describe your business...", "Describa su negocio...")}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            // Enter submits; Shift+Enter adds a line break.
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               void interpret();
             }

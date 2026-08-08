@@ -1455,29 +1455,39 @@ button { font-family: inherit; }
 /* ---- Natural-language intake shortcut (optional AI-assisted entry) ------- */
 .spr-nl { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
 .spr-nl-label { color: #5b6b78; font-size: 12.5px; font-weight: 600; line-height: 1; }
-.spr-nl-row { position: relative; display: flex; align-items: center; }
+.spr-nl-row { position: relative; display: flex; align-items: stretch; }
 .spr-nl-input {
-  flex: 1; min-width: 0; height: 62px; padding: 0 66px 0 22px;
-  border: 1px solid #e3e8ec; border-radius: 999px; background-color: #fff;
+  display: block; width: 100%; min-width: 0;
+  min-height: 78px; max-height: 190px;
+  padding: 18px 68px 18px 22px;
+  border: 2px solid #dbe3e9; border-radius: 24px; background-color: #fff;
   color: var(--spr-copy); font: inherit; font-size: 16.5px; font-weight: 500;
-  box-shadow: 0 2px 10px rgba(15, 35, 50, .05);
+  line-height: 1.5;
+  /* Wrap instead of scrolling sideways on one long line. */
+  white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word;
+  resize: none; overflow-y: auto;
+  box-shadow: 0 0 0 4px rgba(85, 144, 182, .07), 0 3px 14px rgba(15, 35, 50, .06);
   transition: border-color .18s ease, box-shadow .18s ease;
 }
 .spr-nl-input::placeholder { color: #a6b3bd; opacity: 1; }
-.spr-nl-input:hover { border-color: #cfd8de; }
+.spr-nl-input:hover { border-color: #c6d2da; }
 .spr-nl-input:focus {
   outline: none; border-color: #5590b6;
-  box-shadow: 0 0 0 4px rgba(51, 125, 171, .12), 0 2px 10px rgba(15, 35, 50, .05);
+  /* Slight glow on focus. */
+  box-shadow: 0 0 0 5px rgba(85, 144, 182, .16), 0 0 22px rgba(85, 144, 182, .22),
+              0 3px 14px rgba(15, 35, 50, .06);
 }
 .spr-nl-go {
-  position: absolute; right: 8px; width: 46px; height: 46px; border-radius: 999px;
+  position: absolute; right: 12px; bottom: 14px;
+  width: 44px; height: 44px; border-radius: 999px;
   border: none; background: var(--spr-ink, #0f2332); color: #fff;
   font-size: 19px; line-height: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 8px rgba(15, 35, 50, .18);
   transition: opacity .18s ease, transform .18s ease;
 }
 .spr-nl-go:hover:not(:disabled) { transform: translateX(1px); }
-.spr-nl-go:disabled { opacity: .3; cursor: default; }
+.spr-nl-go:disabled { opacity: .3; cursor: default; box-shadow: none; }
 .spr-nl-example { margin: 0; color: #a6b3bd; font-size: 12.5px; }
 .spr-nl-result { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .spr-nl-result-label { color: #5b6b78; font-size: 12px; font-weight: 600; }
