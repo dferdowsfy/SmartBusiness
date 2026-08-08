@@ -5,18 +5,25 @@
 // form (Parts 13–14). Encapsulates the renderer, review/preview toggle, action
 // bar, completion validation, canonical write-back, and preparation-PDF export
 // so the host page only manages "which form is open" and the prepared-app list.
+//
+// Completing the form lands on the "ready" step, where GovernmentSubmissionPanel
+// states the government filing fee and links to the official agency portal. That
+// step is reachable only after the application has been completed and reviewed —
+// never at the start of the form.
 // ============================================================================
 
 import React, { useMemo, useState } from "react";
 import { GovernmentFormRenderer } from "./GovernmentFormRenderer.tsx";
 import { GovernmentFormPreview } from "./GovernmentFormPreview.tsx";
 import { GovernmentFormActions } from "./GovernmentFormActions.tsx";
+import { GovernmentSubmissionPanel } from "../submission/GovernmentSubmissionPanel.tsx";
+import { governmentFeeText } from "../submission/pr.ts";
 import { validateForm, type FieldError } from "./formValidation.ts";
 import { prefillFromCanonical, writeBackToCanonical } from "./canonicalMapping.ts";
 import { buildGeneratedApplication } from "./application.ts";
 import { generatePreparationPdf } from "./pdfGenerator.ts";
-import { feeEstimateFor } from "./fees.ts";
 import type {
+  ApplicationStatus,
   CanonicalApplicationData,
   DigitalFormDefinition,
   FormData,
@@ -33,21 +40,29 @@ export interface GovernmentFormModalProps {
   initialData?: FormData;
   initialMode?: "edit" | "view";
   existingApplicationId?: string;
+  /** Status of the already-prepared application, when one exists. */
+  applicationStatus?: ApplicationStatus;
   onClose: () => void;
   onSaveDraft: (formId: string, data: FormData) => void;
   onCanonicalChange: (canonical: CanonicalApplicationData, changedKeys: string[]) => void;
   onComplete: (app: GeneratedApplication, data: FormData) => void;
+  /** Applicant's own confirmation that they filed with the agency. */
+  onMarkSubmitted?: (formId: string) => void;
 }
 
 export function GovernmentFormModal(props: GovernmentFormModalProps) {
-  const { definition, canonical, lang, initialData, initialMode, existingApplicationId, onClose, onSaveDraft, onCanonicalChange, onComplete } = props;
+  const { definition, canonical, lang, initialData, initialMode, existingApplicationId, applicationStatus, onClose, onSaveDraft, onCanonicalChange, onComplete, onMarkSubmitted } = props;
   const L = (en: string, es: string) => (lang === "es" ? es : en);
 
   const [data, setData] = useState<FormData>(() => prefillFromCanonical(definition, canonical, initialData ?? {}));
-  const [mode, setMode] = useState<"edit" | "review" | "view">(initialMode ?? "edit");
+  const [mode, setMode] = useState<"edit" | "review" | "view" | "ready">(initialMode ?? "edit");
   const [errors, setErrors] = useState<FieldError[]>([]);
 
-  const fee = useMemo(() => feeEstimateFor(definition, canonical), [definition, canonical]);
+  const fee = useMemo(() => governmentFeeText(definition.id, canonical, lang), [definition.id, canonical, lang]);
+
+  // The submission step belongs to a prepared application only: right after the
+  // applicant completes it, or when they reopen one they already prepared.
+  const showSubmissionPanel = mode === "ready" || (mode === "view" && !!existingApplicationId);
 
   const setField = (fieldId: string, value: unknown) => {
     setData((prev) => ({ ...prev, [fieldId]: value as never }));
@@ -75,6 +90,9 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
     const updated = persistCanonical();
     const app = buildGeneratedApplication(definition, data, updated, { id: existingApplicationId, status: "prepared", lang });
     onComplete(app, data);
+    // Completing hands off to the submission step. The application stays
+    // "prepared" — reaching the government portal is not a filing.
+    setMode("ready");
   };
 
   const downloadPdf = () => {
@@ -102,7 +120,7 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
             </span>
             {fee !== null && (
               <span style={{ fontSize: 11, color: "#475569" }}>
-                {L("Estimated fee", "Tarifa estimada")}: ${fee} · {L("requires portal verification", "requiere verificación en el portal")}
+                {L("Government filing fee", "Tarifa gubernamental de radicación")}: {fee} · {L("paid to the agency at submission", "se paga a la agencia al presentar")}
               </span>
             )}
           </div>
@@ -116,7 +134,18 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
         {/* Body */}
         <div style={{ padding: 20, maxHeight: "62vh", overflowY: "auto" }}>
-          {mode === "review" || mode === "view" ? (
+          {showSubmissionPanel && (
+            <div style={{ marginBottom: 16 }}>
+              <GovernmentSubmissionPanel
+                formId={definition.id}
+                canonical={canonical}
+                lang={lang}
+                submitted={applicationStatus === "submitted"}
+                onMarkSubmitted={onMarkSubmitted ? () => onMarkSubmitted(definition.id) : undefined}
+              />
+            </div>
+          )}
+          {mode === "review" || mode === "view" || mode === "ready" ? (
             <GovernmentFormPreview definition={definition} formData={data} canonical={canonical} lang={lang} />
           ) : (
             <GovernmentFormRenderer definition={definition} formData={data} canonical={canonical} lang={lang} errors={errors} onChange={setField} />
@@ -133,14 +162,19 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
         {/* Footer actions */}
         <div style={{ padding: "14px 20px", borderTop: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 8 }}>
-          {(mode === "review" || mode === "view") && (
+          {(mode === "review" || mode === "view" || mode === "ready") && (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-start" }}>
               <button type="button" onClick={downloadPdf} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>
                 {L("Download preparation PDF", "Descargar PDF de preparación")}
               </button>
             </div>
           )}
-          {readOnly ? (
+          {mode === "ready" ? (
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => setMode("edit")} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>{L("Back to edit", "Volver a editar")}</button>
+              <button type="button" onClick={onClose} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-1, #0a2540)", color: "white", cursor: "pointer" }}>{L("Done", "Listo")}</button>
+            </div>
+          ) : readOnly ? (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button type="button" onClick={onClose} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>{L("Close", "Cerrar")}</button>
               <button type="button" onClick={() => setMode("edit")} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-1, #0a2540)", color: "white", cursor: "pointer" }}>{L("Edit Form", "Editar formulario")}</button>

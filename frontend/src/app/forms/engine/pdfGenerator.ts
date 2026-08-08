@@ -18,7 +18,7 @@ import type {
   PartyRecord,
 } from "./types.ts";
 import { localize } from "./types.ts";
-import { feeEstimateFor } from "./fees.ts";
+import { getSubmissionDestination, governmentFeeText } from "../submission/pr.ts";
 
 function fmtAddress(addr: CanonicalAddress | undefined): string {
   if (!addr) return "—";
@@ -133,7 +133,8 @@ export function generatePreparationPdf(
 
   // Footer metadata.
   ensure(30);
-  const fee = feeEstimateFor(def, canonical);
+  const fee = governmentFeeText(def.id, canonical, lang);
+  const destination = getSubmissionDestination(def.id);
   doc.setDrawColor(203, 213, 225);
   doc.line(margin, y, margin + width, y);
   y += 5;
@@ -144,7 +145,10 @@ export function generatePreparationPdf(
     `Source document: ${def.sourceDocument}`,
     `Submission method: ${def.submissionMethod}`,
     `Prepared: ${new Date().toLocaleString()}`,
-    fee !== null ? `Estimated government fee: $${fee} (requires portal verification)` : "",
+    fee !== null ? `Government filing fee: ${fee} (paid to the agency at submission)` : "",
+    destination
+      ? `Submitted to: ${localize(destination.agency, lang)} — ${localize(destination.portalName, lang)} (${destination.url})`
+      : "",
   ].filter(Boolean);
   for (const line of meta) {
     doc.text(line, margin, y);
