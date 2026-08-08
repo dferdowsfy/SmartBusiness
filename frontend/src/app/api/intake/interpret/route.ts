@@ -78,6 +78,24 @@ employees = false, or renovations = false. Omit all of them.
 Only return false when the user explicitly negates something.
 Example: "I will not sell alcohol." -> Q_ALCOHOL_SOLD = false.
 
+CRITICAL — RETURN FACTS, NOT CONSEQUENCES.
+SmartPR resolves logical relationships between facts itself, deterministically.
+Return the most specific thing the user actually said and STOP there. Do not
+also return the answers that follow from it.
+
+- "with 10 employees" -> number_of_employees = 10. Do NOT also return
+  Q_EMPLOYEES_HIRED — SmartPR derives that, and derives the size bracket too.
+- "3 delivery vans" -> number_of_vehicles = 3. Do NOT also return
+  Q_COMMERCIAL_VEHICLES.
+- "3 rental units" -> number_of_rental_units = 3.
+- "a bar" -> businessType BT_BAR. Do NOT also return the industry, or the
+  alcohol questions that being a bar already implies.
+- "from my house" -> location_type = the home-based option. Do NOT also return
+  Q_HOME_BASED / Q_PHYSICAL_LOCATION / Q_ONLINE_ONLY.
+
+Returning a consequence as well is not fatal — SmartPR reconciles it — but a
+consequence that CONTRADICTS the fact it follows from will be discarded.
+
 CONFIDENCE:
 - Explicitly stated facts: 0.90–0.99
 - Strongly implied facts: 0.70–0.89
@@ -110,16 +128,22 @@ ALLOWED profileValues KEYS (use these exact keys, omit any you cannot determine)
 - "location_type" :: one of: ${(allowedLocationTypes || []).join(" | ") || "(not supplied)"}
 - "number_of_employees" :: an integer (extract from phrases like "with 10 employees",
   "a staff of 4", "just me" = 1, "no employees" = 0)
+- "number_of_vehicles" :: an integer, for commercial/delivery vehicles the user
+  counts ("3 delivery vans" -> 3)
+- "number_of_rental_units" :: an integer, for rental units the user counts
+  ("an Airbnb with 3 units" -> 3)
 - "name" :: the business name ONLY when the user actually names it
   (e.g. "a bar called Luna's" -> "Luna's"). Never invent a name.
 
-EXTRACT EVERYTHING THE SENTENCE SUPPORTS. If the user states a headcount, an
-entity type, an industry, or a location type, return it — do not return only the
-business type and municipality.
+EXTRACT EVERY FACT THE SENTENCE STATES. If the user states a headcount, a
+vehicle or unit count, an entity type, an industry, or a location type, return
+it — do not return only the business type and municipality.
 
-Example: "I want to open a bar that serves alcohol with 10 employees"
--> businessType BT_BAR, profileValues [{industry}, {number_of_employees: 10}],
-   answers [Q_ALCOHOL_SERVED = true, Q_EMPLOYEES_HIRED = true].${
+Example: "I want to open a bar with 10 employees in Bayamón"
+-> businessType BT_BAR, municipality Bayamón,
+   profileValues [{ number_of_employees: 10 }], answers [].
+   (SmartPR derives the industry, the employee bracket, and that employees will
+   be hired — all from those facts.)${
     isEs ? '\n\nWrite the "summary" field in Spanish. Keep all ids and JSON keys exactly as specified.' : ""
   }
 

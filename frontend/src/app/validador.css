@@ -1517,3 +1517,10 @@ button { font-family: inherit; }
   background: none; border: none; padding: 0 2px; cursor: pointer;
   color: var(--brand-2, #4f46e5); font-size: 12px; text-decoration: underline;
 }
+
+/* ---- Contradictory answers the user has to settle ----------------------- */
+.spr-conflicts { margin-top: 20px; padding: 14px 16px; border: 1px solid #f3e2c4; border-radius: 12px; background: #fdf8ef; }
+.spr-conflicts .spr-kicker { color: #a16207; }
+.spr-conflicts-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.spr-conflicts-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; color: #40515e; }
+.spr-conflicts-list li .i { color: #d97706; flex: 0 0 auto; margin-top: 2px; }

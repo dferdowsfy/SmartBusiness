@@ -16,6 +16,7 @@ import {
   locationTypeForAnswer,
 } from "./questionKeyMap.ts";
 import { normalize } from "./kbCandidates.ts";
+import { resolveIntakeFacts, type ResolvedFact } from "./relationships.ts";
 
 // --- Confidence policy (Part 7) -------------------------------------------
 
@@ -88,6 +89,10 @@ const PROFILE_FIELD_KINDS: Record<string, "option" | "number" | "text"> = {
   location_type: "option",
   business_structure: "option",
   number_of_employees: "number",
+  // Counts the relationship resolver turns into the KB's own select buckets
+  // (Q_FLEET_SIZE / Q_RENTAL_UNITS) — see relationshipRegistry.ts.
+  number_of_vehicles: "number",
+  number_of_rental_units: "number",
   name: "text",
 };
 
@@ -105,7 +110,13 @@ export const BUSINESS_STRUCTURE_VALUES = [
   "other",
 ];
 
-const MAX_EMPLOYEES = 10000;
+/** Upper bound per numeric profile field (guards against a runaway model). */
+const NUMBER_FIELD_MAX: Record<string, number> = {
+  number_of_employees: 10000,
+  number_of_vehicles: 10000,
+  number_of_rental_units: 10000,
+};
+const MAX_EMPLOYEES = NUMBER_FIELD_MAX.number_of_employees;
 
 function asNumber(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
@@ -229,7 +240,8 @@ export function validateInterpretation(
         typeof rawValue === "number" ||
         (typeof rawValue === "string" && rawValue.trim() !== "" && !Number.isNaN(Number(rawValue)));
       const n = isNumeric ? Math.floor(Number(rawValue)) : NaN;
-      if (!Number.isFinite(n) || n < 0 || n > MAX_EMPLOYEES) {
+      const max = NUMBER_FIELD_MAX[key] ?? MAX_EMPLOYEES;
+      if (!Number.isFinite(n) || n < 0 || n > max) {
         drop(`profileValues.${key}`, `"${asString(rawValue)}" is not a valid number`);
         continue;
       }
@@ -319,27 +331,86 @@ export interface IntakePatch {
    */
   answers: Record<string, boolean | string>;
   /** Short confirmation chips for the "We understood:" strip. */
-  chips: { label: string; detail?: string }[];
+  chips: { label: string; detail?: string; questionId?: string }[];
+  /**
+   * Model answers dropped because a stronger extracted fact makes them
+   * impossible (e.g. "10 employees" + "no employees will be hired").
+   */
+  reconciled: {
+    questionId: string;
+    question: string;
+    modelValue: boolean | string;
+    derivedValue: unknown;
+    relationshipId?: string;
+  }[];
 }
 
 /** Human-readable chip text for a profile value. */
 function profileChipLabel(pv: ValidatedProfileValue): string {
-  if (pv.key === "number_of_employees") {
-    return `${pv.value} ${Number(pv.value) === 1 ? "employee" : "employees"}`;
-  }
+  const n = Number(pv.value);
+  if (pv.key === "number_of_employees") return `${pv.value} ${n === 1 ? "employee" : "employees"}`;
+  if (pv.key === "number_of_vehicles") return `${pv.value} ${n === 1 ? "vehicle" : "vehicles"}`;
+  if (pv.key === "number_of_rental_units") return `${pv.value} ${n === 1 ? "rental unit" : "rental units"}`;
   if (pv.key === "business_structure") {
     return String(pv.value).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
   return String(pv.value);
 }
 
+export interface IntakePatchOptions {
+  /**
+   * The ACTIVE knowledge base. Supplying it enables the two relationship-aware
+   * behaviours: reconciling model answers that contradict a stronger extracted
+   * fact, and dropping chips that merely restate a fact another chip implies.
+   * Without it `toIntakePatch` behaves exactly as it did before.
+   */
+  kb?: KnowledgeBase;
+  allowedIndustries?: string[];
+}
+
+/**
+ * Facts the resolver can derive from the interpretation's NON-question values
+ * alone (business type, municipality, headcount, location type, structure).
+ *
+ * Anything in here is already known without the model answering it, which makes
+ * it both the reconciliation baseline and the redundant-chip filter.
+ */
+function derivableFromExtractedFacts(
+  validated: ValidatedInterpretation,
+  options: IntakePatchOptions
+): Map<string, ResolvedFact> {
+  if (!options.kb) return new Map();
+  const profile: Record<string, unknown> = {};
+  if (validated.businessType) profile.business_type = validated.businessType.name;
+  for (const pv of validated.profileValues) profile[pv.key] = pv.value;
+
+  const resolution = resolveIntakeFacts(
+    { profile, answers: {}, explicitKeys: Object.keys(profile) },
+    { kb: options.kb, allowedIndustries: options.allowedIndustries }
+  );
+
+  const derived = new Map<string, ResolvedFact>();
+  for (const fact of Object.values(resolution.facts)) {
+    if (fact.ref.type === "question" && fact.origin === "derived") derived.set(fact.ref.key, fact);
+  }
+  return derived;
+}
+
 /**
  * Convert the auto-apply portion of a validated interpretation into patches for
  * the EXISTING profile + discovery answers. Suggested (0.60–0.84) values are
  * deliberately excluded — the caller confirms those first.
+ *
+ * Note what this deliberately does NOT do: it does not write derived answers.
+ * `Q_EMPLOYEES_HIRED` is not stored just because a headcount was given — the
+ * relationship resolver derives it live from `number_of_employees`, so the fact
+ * has exactly one home and can never go stale.
  */
-export function toIntakePatch(validated: ValidatedInterpretation): IntakePatch {
-  const patch: IntakePatch = { profile: {}, answers: {}, chips: [] };
+export function toIntakePatch(
+  validated: ValidatedInterpretation,
+  options: IntakePatchOptions = {}
+): IntakePatch {
+  const patch: IntakePatch = { profile: {}, answers: {}, chips: [], reconciled: [] };
 
   if (validated.businessType) {
     patch.profile.business_type = validated.businessType.name;
@@ -354,14 +425,24 @@ export function toIntakePatch(validated: ValidatedInterpretation): IntakePatch {
     patch.chips.push({ label: profileChipLabel(pv) });
   }
 
-  // An explicit headcount also answers "will you hire employees?", so the
-  // guided flow does not ask a question the user already answered.
-  const employees = validated.profileValues.find((p) => p.key === "number_of_employees");
-  if (typeof employees?.value === "number" && employees.value > 0) {
-    patch.answers[QUESTION_KEY_MAP.Q_EMPLOYEES_HIRED.writeKey] = true;
-  }
+  const derived = derivableFromExtractedFacts(validated, options);
 
   for (const ans of validated.answers) {
+    // Reconcile: a model answer that contradicts a fact we can derive with
+    // certainty from what the user actually stated is impossible state, not a
+    // second opinion. Drop it and surface the clash.
+    const derivedFact = derived.get(ans.questionId);
+    if (derivedFact !== undefined && derivedFact.value !== ans.value) {
+      patch.reconciled.push({
+        questionId: ans.questionId,
+        question: ans.question,
+        modelValue: ans.value,
+        derivedValue: derivedFact.value,
+        relationshipId: derivedFact.relationshipId,
+      });
+      continue;
+    }
+
     if (LOCATION_QUESTION_IDS.has(ans.questionId)) {
       // Location-derived questions move the profile's location_type instead of
       // a discovery answer, because that is what buildEngineInput() reads.
@@ -370,15 +451,20 @@ export function toIntakePatch(validated: ValidatedInterpretation): IntakePatch {
         : null;
       if (locationType && !patch.profile.location_type) patch.profile.location_type = locationType;
       if (ans.value === true && ans.questionId !== "Q_PHYSICAL_LOCATION") {
-        patch.chips.push({ label: ans.question });
+        patch.chips.push({ label: ans.question, questionId: ans.questionId });
       }
       continue;
     }
     const binding = QUESTION_KEY_MAP[ans.questionId];
     if (!binding) continue;
     patch.answers[binding.writeKey] = ans.value;
-    if (ans.value === true) patch.chips.push({ label: ans.question });
+    if (ans.value === true) patch.chips.push({ label: ans.question, questionId: ans.questionId });
   }
+
+  // Keep the "We understood:" strip to facts the user would recognise. A chip
+  // for "Will alcohol be served?" adds nothing next to a "Bar" chip that
+  // already implies it.
+  patch.chips = patch.chips.filter((chip) => !chip.questionId || !derived.has(chip.questionId));
 
   return patch;
 }
