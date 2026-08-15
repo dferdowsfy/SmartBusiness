@@ -8,8 +8,8 @@
 //   2. Production default: the deployed Railway URL
 //   3. Development default: http://localhost:8080
 
-const PROD_DEFAULT = "https://smartbusiness-production.up.railway.app";
-const DEV_DEFAULT = "http://localhost:8080";
+const PROD_DEFAULT = "https://smartbusiness-adminemailsdferdowsgmailcom.up.railway.app";
+const DEV_DEFAULT = "http://localhost:3000";
 
 export function getSiteUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_SITE_URL;
@@ -18,6 +18,6 @@ export function getSiteUrl(): string {
 }
 
 export function authRedirectUrl(nextPath: string): string {
-  const safeNext = nextPath && nextPath.startsWith("/") ? nextPath : "/dashboard";
+  const safeNext = nextPath && nextPath.startsWith("/") ? nextPath : "/";
   return `${getSiteUrl()}/auth/callback?next=${encodeURIComponent(safeNext)}`;
 }

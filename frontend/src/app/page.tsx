@@ -1019,7 +1019,7 @@ function SaveProgressPanel({ me, saveState, setSaveState, claimEmail, setClaimEm
            : saveState === 'saved' ? `✓ ${L('Saved', language)}`
            : L('Save', language)}
         </button>
-        <a href={`/auth/login?next=${encodeURIComponent('/dashboard')}`} className="bg-[#0A2540] text-white rounded-lg px-4 py-2 text-sm font-medium text-center">
+        <a href={`/auth/login?next=${encodeURIComponent('/')}`} className="bg-[#0A2540] text-white rounded-lg px-4 py-2 text-sm font-medium text-center">
           {L('Sign in', language)}
         </a>
       </div>
