@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, Landmark, RefreshCw, ExternalLink, ShieldCheck } from "lucide-react";
+import { Building2, Landmark, RefreshCw, LogOut, Settings, ShieldCheck } from "lucide-react";
 import { ACTIVE_JURISDICTION } from "../jurisdictions";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 
@@ -22,7 +22,7 @@ function signOutNow() {
 
 // Primary navigation shared across the compliance workspace. Uses the same
 // Validador app bar as the main experience so the UI is consistent everywhere.
-export function TopNav({ active }: { active: "dashboard" | "businesses" | "history" | "graph" | "admin" }) {
+export function TopNav({ active }: { active: "dashboard" | "businesses" | "history" | "graph" | "admin" | "settings" }) {
   const tabs = [
     { key: "dashboard", label: "Dashboard", href: "/dashboard", Icon: Building2 },
     { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
@@ -73,7 +73,8 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "histo
                   <div className="uname">{user.name || user.email}</div>
                   <div className="uemail">{user.email}</div>
                 </div>
-                <button type="button" className="uitem" onClick={signOutNow}><ExternalLink className="i" /> Sign out</button>
+                <Link className="uitem" href="/settings"><Settings className="i" /> Settings</Link>
+                <button type="button" className="uitem" onClick={signOutNow}><LogOut className="i" /> Sign out</button>
               </div>
             </>
           ) : (

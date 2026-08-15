@@ -15,6 +15,7 @@ export const ES: Record<string, string> = {
   "My Businesses": "Mis Negocios",
   "Sign in": "Iniciar sesión",
   "Sign out": "Cerrar sesión",
+  "Settings": "Configuración",
   // ---- Save & resume ----
   "Save Progress": "Guardar progreso",
   "Saved to your account — resume from History any time.": "Guardado en tu cuenta — puedes continuar desde Historial cuando quieras.",

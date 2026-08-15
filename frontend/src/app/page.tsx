@@ -50,7 +50,8 @@ import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle,
+  LogOut, Settings
 } from 'lucide-react';
 
 // SmartPR
@@ -3313,17 +3314,23 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
               <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
             </div>
-            <button className="avatar" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }} title="Account">{initials}</button>
-            <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={e => e.stopPropagation()}>
-              <div className="uhead">
-                <div className="uname">{me?.name || (me ? me.email : L('Guest', language))}</div>
-                <div className="uemail">{me?.email || L('Not signed in', language)}</div>
-              </div>
-              {me === null && <a className="uitem" href="/auth/login"><ExternalLink className="i" /> {L('Sign in', language)}</a>}
-              {me?.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
-              {me?.isAdmin && <a className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> {L('Admin Review', language)}</a>}
-              {me && <button type="button" className="uitem" onClick={handleSignOut}><ExternalLink className="i" /> {L('Sign out', language)}</button>}
-            </div>
+            {me === null ? (
+              <a className="nav-tab auth-entry" href="/auth/login">{L('Sign in', language)}</a>
+            ) : me ? (
+              <>
+                <button className="avatar" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }} title="Account settings" aria-label="Account settings">{initials}</button>
+                <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={e => e.stopPropagation()}>
+                  <div className="uhead">
+                    <div className="uname">{me.name || me.email}</div>
+                    <div className="uemail">{me.email}</div>
+                  </div>
+                  <a className="uitem" href="/settings"><Settings className="i" /> {L('Settings', language)}</a>
+                  {me.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
+                  {me.isAdmin && <a className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> {L('Admin Review', language)}</a>}
+                  <button type="button" className="uitem" onClick={handleSignOut}><LogOut className="i" /> {L('Sign out', language)}</button>
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       </header>}
@@ -3363,6 +3370,26 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <div className="spr-language" aria-label={L('Language', language)}>
               <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
               <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
+            </div>
+
+            <div className="spr-account">
+              {me === null ? (
+                <a className="spr-sign-in" href="/auth/login">{L('Sign in', language)}</a>
+              ) : me ? (
+                <>
+                  <button className="avatar" onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open); }}
+                    title="Account settings" aria-label="Account settings">{initials}</button>
+                  <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={(event) => event.stopPropagation()}>
+                    <div className="uhead">
+                      <div className="uname">{me.name || me.email}</div>
+                      <div className="uemail">{me.email}</div>
+                    </div>
+                    <a className="uitem" href="/settings"><Settings className="i" /> {L('Settings', language)}</a>
+                    {me.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
+                    <button type="button" className="uitem" onClick={handleSignOut}><LogOut className="i" /> {L('Sign out', language)}</button>
+                  </div>
+                </>
+              ) : null}
             </div>
           </aside>
 

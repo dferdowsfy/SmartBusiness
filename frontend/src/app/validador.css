@@ -954,6 +954,33 @@ button { font-family: inherit; }
   cursor: pointer;
 }
 .spr-language button.active { background: rgba(255, 255, 255, .16); color: #fff; }
+.spr-account {
+  position: relative;
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+}
+.spr-sign-in {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 9px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+  text-decoration: none;
+  background: rgba(255, 255, 255, .08);
+}
+.spr-sign-in:hover { background: rgba(255, 255, 255, .14); }
+.spr-account .avatar { margin-left: 0; }
+.spr-account .user-menu {
+  left: 0;
+  right: auto;
+  top: 38px;
+}
 
 .spr-intake-panel {
   min-width: 0;
@@ -1439,6 +1466,9 @@ button { font-family: inherit; }
   .spr-step-number { width: 22px; height: 22px; font-size: 10px; border-width: 1px; }
   .spr-language { position: absolute; top: 20px; right: 14px; }
   .spr-language button { min-width: 34px; height: 30px; padding: 0 8px; }
+  .spr-account { position: absolute; top: 58px; right: 14px; margin-top: 0; }
+  .spr-sign-in { width: auto; min-height: 32px; padding: 0 12px; }
+  .spr-account .user-menu { left: auto; right: 0; top: 36px; }
   .spr-intake-panel { min-height: auto; }
   .spr-intake-scroll { overflow: visible; padding: 30px 20px 24px; }
   .spr-intake-panel h1 { font-size: 34px; }
