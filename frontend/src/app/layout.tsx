@@ -9,9 +9,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Validador — Regulatory intelligence for opening a business",
+  title: "SmartPR — Regulatory intelligence for opening a business",
   description:
-    "Answer a few questions and Validador determines every license, permit, certification, and document your business needs.",
+    "Answer a few questions and SmartPR determines every license, permit, certification, and document your business needs.",
 };
 
 export default function RootLayout({
