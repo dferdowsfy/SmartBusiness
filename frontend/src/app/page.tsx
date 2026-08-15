@@ -3339,12 +3339,32 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       {view === 'intake' && (
         <main className="spr-workspace">
           <aside className="spr-sidebar">
-            <div className="spr-brand">
-              <div>
+            <div className="spr-sidebar-head">
+              <div className="spr-brand">
                 <div className="spr-brand-name" aria-label="SmartPR">
                   <span className="spr-brand-smart">Smart</span><span className="spr-brand-pr">PR</span>
                 </div>
                 <div className="spr-brand-place">PUERTO RICO</div>
+              </div>
+
+              <div className="spr-account">
+                {me === null ? (
+                  <a className="spr-sign-in" href="/auth/login">{L('Sign in', language)}</a>
+                ) : me ? (
+                  <>
+                    <button className="avatar" onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open); }}
+                      title="Account settings" aria-label="Account settings">{initials}</button>
+                    <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={(event) => event.stopPropagation()}>
+                      <div className="uhead">
+                        <div className="uname">{me.name || me.email}</div>
+                        <div className="uemail">{me.email}</div>
+                      </div>
+                      <a className="uitem" href="/settings"><Settings className="i" /> {L('Settings', language)}</a>
+                      {me.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
+                      <button type="button" className="uitem" onClick={handleSignOut}><LogOut className="i" /> {L('Sign out', language)}</button>
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
 
@@ -3372,25 +3392,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
             </div>
 
-            <div className="spr-account">
-              {me === null ? (
-                <a className="spr-sign-in" href="/auth/login">{L('Sign in', language)}</a>
-              ) : me ? (
-                <>
-                  <button className="avatar" onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open); }}
-                    title="Account settings" aria-label="Account settings">{initials}</button>
-                  <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={(event) => event.stopPropagation()}>
-                    <div className="uhead">
-                      <div className="uname">{me.name || me.email}</div>
-                      <div className="uemail">{me.email}</div>
-                    </div>
-                    <a className="uitem" href="/settings"><Settings className="i" /> {L('Settings', language)}</a>
-                    {me.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
-                    <button type="button" className="uitem" onClick={handleSignOut}><LogOut className="i" /> {L('Sign out', language)}</button>
-                  </div>
-                </>
-              ) : null}
-            </div>
           </aside>
 
           <section className="spr-intake-panel">

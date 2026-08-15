@@ -845,21 +845,24 @@ button { font-family: inherit; }
   --spr-copy: #142434;
   --spr-muted: #7e8d99;
   background: var(--spr-navy-deep);
-  padding: 22px 24px;
+  height: 100dvh;
+  min-height: 0 !important;
+  padding: 0;
+  overflow: hidden;
 }
 
 .spr-workspace {
-  width: min(100%, 1732px);
-  height: min(880px, calc(100vh - 44px));
-  min-height: 720px;
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 18.82% 46.99% 34.19%;
   overflow: hidden;
   background: #fff;
-  border: 1px solid #284d68;
-  border-radius: 0 0 8px 8px;
-  box-shadow: 0 24px 60px rgba(0, 8, 18, .28);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .spr-sidebar {
@@ -871,9 +874,15 @@ button { font-family: inherit; }
   flex-direction: column;
 }
 
-.spr-brand {
+.spr-sidebar-head {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
   padding: 2px 13px 0;
 }
+.spr-brand { padding: 0; }
 .spr-brand-name {
   color: #fff;
   font-size: 27px;
@@ -956,16 +965,18 @@ button { font-family: inherit; }
 .spr-language button.active { background: rgba(255, 255, 255, .16); color: #fff; }
 .spr-account {
   position: relative;
-  margin-top: 14px;
+  margin-top: -2px;
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
 }
 .spr-sign-in {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: auto;
   min-height: 38px;
+  padding: 0 12px;
   border: 1px solid rgba(255, 255, 255, .2);
   border-radius: 9px;
   color: #fff;
@@ -977,8 +988,8 @@ button { font-family: inherit; }
 .spr-sign-in:hover { background: rgba(255, 255, 255, .14); }
 .spr-account .avatar { margin-left: 0; }
 .spr-account .user-menu {
-  left: 0;
-  right: auto;
+  left: auto;
+  right: 0;
   top: 38px;
 }
 
@@ -1441,7 +1452,7 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 1120px) {
-  .spr-page { padding: 0; }
+  .spr-page { height: auto; min-height: 100vh !important; padding: 0; overflow: visible; }
   .spr-workspace {
     width: 100%;
     height: auto;
@@ -1458,7 +1469,8 @@ button { font-family: inherit; }
 @media (max-width: 760px) {
   .spr-workspace { display: flex; flex-direction: column; }
   .spr-sidebar { padding: 18px 16px; }
-  .spr-brand { padding: 2px 5px 0; }
+  .spr-sidebar-head { padding: 2px 5px 0; }
+  .spr-brand { padding: 0; }
   .spr-brand-name { font-size: 23px; }
   .spr-brand-place { font-size: 9px; }
   .spr-steps { margin-top: 18px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
@@ -1466,9 +1478,9 @@ button { font-family: inherit; }
   .spr-step-number { width: 22px; height: 22px; font-size: 10px; border-width: 1px; }
   .spr-language { position: absolute; top: 20px; right: 14px; }
   .spr-language button { min-width: 34px; height: 30px; padding: 0 8px; }
-  .spr-account { position: absolute; top: 58px; right: 14px; margin-top: 0; }
+  .spr-account { margin-top: 0; }
   .spr-sign-in { width: auto; min-height: 32px; padding: 0 12px; }
-  .spr-account .user-menu { left: auto; right: 0; top: 36px; }
+  .spr-account .user-menu { right: 0; top: 36px; }
   .spr-intake-panel { min-height: auto; }
   .spr-intake-scroll { overflow: visible; padding: 30px 20px 24px; }
   .spr-intake-panel h1 { font-size: 34px; }
