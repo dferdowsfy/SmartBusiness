@@ -312,8 +312,8 @@ export const ES: Record<string, string> = {
 
   // ---- Toasts ----
   "Could not analyze with AI": "No se pudo analizar con IA",
-  "Add OPENROUTER_API_KEY in your environment to enable AI analysis.":
-    "Agregue OPENROUTER_API_KEY en su entorno para habilitar el análisis con IA.",
+  "Add XAI_API_KEY in your environment to enable AI analysis.":
+    "Agregue XAI_API_KEY en su entorno para habilitar el análisis con IA.",
   "AI analysis unavailable. Using basic classification.":
     "Análisis de IA no disponible. Usando clasificación básica.",
   "passed": "aprobado",

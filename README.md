@@ -42,7 +42,7 @@ smartpr
   source .venv/bin/activate
   pip install -r requirements.txt 2>/dev/null || pip install fastapi uvicorn pydantic python-multipart
   ```
-- To use real AI (OpenRouter) and Supabase later: add keys to `.env` (see `.env.example` if created) and wire the services in the code (the design documents exactly how).
+- To use real AI (xAI) and Supabase: add keys to `.env` (see the frontend and backend `.env.example` files).
 
 ### Stopping
 Press `Ctrl + C` in the terminal running the launch script (it cleans up both servers).
@@ -85,7 +85,7 @@ Business owners in Puerto Rico face opaque, multi-agency requirements that lead 
 - **Frontend**: Next.js (App Router) + TypeScript + Tailwind + shadcn/ui
 - **Backend**: FastAPI (Python)
 - **Database / Auth / Storage**: Supabase (PostgreSQL, Auth, Storage)
-- **AI**: OpenRouter (configurable routing to Claude 3.5/Opus/Sonnet, GPT-4o, Gemini, etc.)
+- **AI**: xAI Responses API (Grok, configured server-side)
 - **Document Processing**: AI vision + text extraction (structured output), optional OCR fallback
 - **i18n**: next-intl (or equivalent) — full bilingual from day one
 - **Observability / Audit**: Structured logs + validation audit trail (model, version, evidence, timestamp)

@@ -2160,7 +2160,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         kind: 'error',
         title: L('Could not analyze with AI', language),
         detail: llmError
-          ? `${llmError}. ${L('Add OPENROUTER_API_KEY in your environment to enable AI analysis.', language)}`
+          ? `${llmError}. ${L('Add XAI_API_KEY in your environment to enable AI analysis.', language)}`
           : L('AI analysis unavailable. Using basic classification.', language),
       });
     } else {

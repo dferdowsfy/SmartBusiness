@@ -2,7 +2,7 @@
 //
 // This replaces the separate Python/FastAPI backend: it runs on the SAME
 // Next.js service (same origin -> no CORS, no NEXT_PUBLIC_BACKEND_URL needed).
-// The only server variables required are OPENROUTER_API_KEY and OPENROUTER_MODEL.
+// The only server variables required are XAI_API_KEY and XAI_MODEL.
 //
 // Uses the Web Request/Response API so it is independent of Next-version-specific
 // request helpers.
@@ -14,11 +14,12 @@ export const dynamic = "force-dynamic";
 
 import { buildExtraction } from "../../documentFields";
 import { ACTIVE_JURISDICTION } from "../../jurisdictions";
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "x-ai/grok-4.20";
-const OPENROUTER_BASE_URL =
-  process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+import {
+  isXaiConfigured,
+  requestXaiText,
+  XaiApiError,
+  XAI_MODEL,
+} from "../../ai/xai";
 
 type DocPayload = {
   filename?: string;
@@ -132,9 +133,9 @@ function parseAnalysis(raw: string) {
 }
 
 export async function POST(request: Request) {
-  if (!OPENROUTER_API_KEY) {
+  if (!isXaiConfigured()) {
     return Response.json(
-      { error: "OPENROUTER_API_KEY is not configured on the server." },
+      { error: "XAI_API_KEY is not configured on the server." },
       { status: 503 }
     );
   }
@@ -170,34 +171,15 @@ Follow the SMARTPR DOCUMENT VALIDATION ENGINE rules exactly. Analyze and return 
   const timer = setTimeout(() => controller.abort(), 60000);
 
   try {
-    const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        max_tokens: 2000,
-        temperature: 0.2,
-      }),
+    const text = await requestXaiText({
+      input: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      maxOutputTokens: 2000,
+      temperature: 0.2,
       signal: controller.signal,
     });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return Response.json(
-        { error: `OpenRouter error ${res.status}`, detail: errText.slice(0, 500) },
-        { status: 502 }
-      );
-    }
-
-    const data = await res.json();
-    const text: string = data?.choices?.[0]?.message?.content || "";
     const analysis = parseAnalysis(text);
 
     // Extraction-first: deterministically derive fields found/missing,
@@ -221,10 +203,16 @@ Follow the SMARTPR DOCUMENT VALIDATION ENGINE rules exactly. Analyze and return 
 
     return Response.json({
       analysis,
-      ai_model: OPENROUTER_MODEL,
+      ai_model: XAI_MODEL,
       message: "Document analyzed with AI.",
     });
   } catch (e) {
+    if (e instanceof XaiApiError) {
+      return Response.json(
+        { error: `xAI error ${e.status}`, detail: e.detail },
+        { status: 502 }
+      );
+    }
     const aborted = e instanceof Error && e.name === "AbortError";
     return Response.json(
       { error: aborted ? "AI request timed out" : "AI request failed" },

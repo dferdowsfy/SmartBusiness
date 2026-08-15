@@ -1,7 +1,7 @@
 // Server-side natural-language intake interpretation.
 //
-// Reuses the EXISTING OpenRouter/Grok setup (same env vars and calling pattern
-// as api/analyze-document). The browser never sees OPENROUTER_API_KEY.
+// Reuses the xAI/Grok setup from api/analyze-document. The browser never sees
+// XAI_API_KEY.
 //
 // SCOPE: this route converts a sentence into EXISTING SmartPR intake values.
 // It does NOT decide permits, licenses, or documents — the deterministic rules
@@ -15,11 +15,12 @@ export const dynamic = "force-dynamic";
 
 import { clampCandidates, type KbCandidates } from "../../../ai/intake/kbCandidates";
 import { BUSINESS_STRUCTURE_VALUES } from "../../../ai/intake/validateInterpretation";
-
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || "x-ai/grok-4.20";
-const OPENROUTER_BASE_URL =
-  process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+import {
+  isXaiConfigured,
+  requestXaiText,
+  XaiApiError,
+  XAI_MODEL,
+} from "../../../ai/xai";
 
 const MAX_DESCRIPTION_CHARS = 1200;
 
@@ -201,9 +202,9 @@ function stripUnknownIds(
 }
 
 export async function POST(request: Request) {
-  if (!OPENROUTER_API_KEY) {
+  if (!isXaiConfigured()) {
     return Response.json(
-      { error: "OPENROUTER_API_KEY is not configured on the server." },
+      { error: "XAI_API_KEY is not configured on the server." },
       { status: 503 }
     );
   }
@@ -229,37 +230,18 @@ export async function POST(request: Request) {
   const timer = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const res = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENROUTER_MODEL,
-        messages: [
-          {
-            role: "system",
-            content: buildSystemPrompt(candidates, isEs, payload.allowedIndustries, payload.allowedLocationTypes),
-          },
-          { role: "user", content: description },
-        ],
-        max_tokens: 900,
-        temperature: 0.1,
-      }),
+    const text = await requestXaiText({
+      input: [
+        {
+          role: "system",
+          content: buildSystemPrompt(candidates, isEs, payload.allowedIndustries, payload.allowedLocationTypes),
+        },
+        { role: "user", content: description },
+      ],
+      maxOutputTokens: 900,
+      temperature: 0.1,
       signal: controller.signal,
     });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return Response.json(
-        { error: `OpenRouter error ${res.status}`, detail: errText.slice(0, 500) },
-        { status: 502 }
-      );
-    }
-
-    const data = await res.json();
-    const text: string = data?.choices?.[0]?.message?.content || "";
     const parsed = parseInterpretation(text);
     if (!parsed) {
       return Response.json({ error: "Could not parse the AI response." }, { status: 502 });
@@ -267,9 +249,15 @@ export async function POST(request: Request) {
 
     return Response.json({
       interpretation: stripUnknownIds(parsed, candidates),
-      ai_model: OPENROUTER_MODEL,
+      ai_model: XAI_MODEL,
     });
   } catch (e) {
+    if (e instanceof XaiApiError) {
+      return Response.json(
+        { error: `xAI error ${e.status}`, detail: e.detail },
+        { status: 502 }
+      );
+    }
     const aborted = e instanceof Error && e.name === "AbortError";
     return Response.json(
       { error: aborted ? "AI request timed out" : "AI request failed" },

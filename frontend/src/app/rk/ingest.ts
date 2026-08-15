@@ -5,7 +5,7 @@
 //     → sectionize (ARTÍCULO / Sección / CAPÍTULO + English equivalents)
 //     → classify per section: business_permitting | construction_only | general
 //     → extract proposed graph changes per business-permitting section
-//         · OpenRouter (existing OPENROUTER_* env plumbing) when a key is set
+//         · xAI Responses API when XAI_API_KEY is set
 //         · deterministic low-confidence flagging otherwise — the fallback
 //           NEVER invents legal requirements, it only files sections for
 //           human review
@@ -26,6 +26,7 @@ import { ensureRkReady } from "./store";
 import { writeAudit } from "./audit";
 import { NODE_TYPE_CONFIGS } from "./registry";
 import type { NodeType, ProposalClassification, SourceSection } from "./types";
+import { isXaiConfigured, requestXaiText } from "../ai/xai";
 
 const MAX_SECTIONS = 150;
 const MAX_SECTION_CHARS = 6000;
@@ -118,7 +119,7 @@ export function classifySectionText(text: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// 3. AI extraction (OpenRouter) with deterministic fallback
+// 3. AI extraction (xAI) with deterministic fallback
 // ---------------------------------------------------------------------------
 
 interface ExtractedChange {
@@ -148,10 +149,7 @@ async function extractWithLLM(
   sourceTitle: string,
   catalog: string
 ): Promise<ExtractedChange[] | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return null;
-  const model = process.env.OPENROUTER_MODEL || "x-ai/grok-4.20";
-  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+  if (!isXaiConfigured()) return null;
 
   const system = `You are a Puerto Rico business-permitting regulatory analyst for SmartPR.
 You read one section of a regulatory source and extract PROPOSED changes to a knowledge graph
@@ -183,26 +181,15 @@ business permitting return {"changes": []}; low certainty -> low confidence; quo
 in "explanation". Answer with JSON only.`;
 
   try {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        temperature: 0.1,
-        max_tokens: 2500,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: `Source: ${sourceTitle}\nSection ${sectionKey}:\n\n${sectionText.slice(0, 5000)}` },
-        ],
-      }),
+    const content = await requestXaiText({
+      input: [
+        { role: "system", content: system },
+        { role: "user", content: `Source: ${sourceTitle}\nSection ${sectionKey}:\n\n${sectionText.slice(0, 5000)}` },
+      ],
+      maxOutputTokens: 2500,
+      temperature: 0.1,
       signal: AbortSignal.timeout(60_000),
     });
-    if (!res.ok) {
-      console.error(`[rk/ingest] OpenRouter HTTP ${res.status}`);
-      return null;
-    }
-    const payload = await res.json();
-    const content: string = payload?.choices?.[0]?.message?.content ?? "";
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return [];
     const parsed = JSON.parse(jsonMatch[0]);
@@ -309,7 +296,7 @@ export async function runIngestion(sourceId: string, actor?: string | null): Pro
   ).rows as { entity_id: string; node_type: string; label: string }[];
   const catalog = catalogRows.map((r) => `${r.entity_id} (${r.node_type}): ${r.label}`).join("\n");
 
-  const usedAI = !!process.env.OPENROUTER_API_KEY;
+  const usedAI = isXaiConfigured();
   let proposalsCreated = 0;
 
   for (const section of businessSections.slice(0, MAX_AI_SECTIONS)) {

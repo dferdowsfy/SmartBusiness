@@ -1,18 +1,21 @@
 """
 SmartPR Backend (FastAPI)
-Local dev server with real AI integration via OpenRouter.
+Local dev server with real AI integration via xAI.
 
-Uses the configured AI (Grok via OpenRouter) for:
+Uses the configured AI (Grok via the xAI Responses API) for:
 - Document identification and text extraction
 - Determining if requirements are met (validation + findings)
 - "Use this AI for everything" as requested.
 
 .env should contain:
-  OPENROUTER_API_KEY=sk-or-...
-  OPENROUTER_MODEL=x-ai/grok-4.20
+  XAI_API_KEY=xai-...
+  XAI_MODEL=grok-4.20-0309-non-reasoning
 """
 
 import os
+import json
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,22 +23,14 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uuid
-from openai import OpenAI
 
 # Load environment
 load_dotenv()
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "x-ai/grok-4.20")
-OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
-
-# OpenRouter client (OpenAI compatible)
-ai_client = None
-if OPENROUTER_API_KEY:
-    ai_client = OpenAI(
-        base_url=OPENROUTER_BASE_URL,
-        api_key=OPENROUTER_API_KEY,
-    )
+XAI_API_KEY = os.getenv("XAI_API_KEY", "")
+XAI_MODEL = os.getenv("XAI_MODEL", "grok-4.20-0309-non-reasoning")
+XAI_BASE_URL = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1").rstrip("/")
+AI_CONFIGURED = bool(XAI_API_KEY)
 
 app = FastAPI(
     title="SmartPR API (Local Dev + Real AI)",
@@ -45,7 +40,7 @@ app = FastAPI(
 
 # CORS
 # Defaults to allowing all origins so the only required variables are the
-# OpenRouter API key and model. Optionally restrict by setting
+# xAI API key and model. Optionally restrict by setting
 # BACKEND_CORS_ORIGINS to a comma-separated list of allowed frontend URLs.
 _cors_env = os.getenv("BACKEND_CORS_ORIGINS", "").strip()
 if _cors_env:
@@ -65,31 +60,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- AI Helper Functions (using the provided Grok model via OpenRouter) ---
+# --- AI Helper Functions (using Grok via xAI's Responses API) ---
 
 def _call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> str:
     """Central AI call - used for EVERYTHING as requested."""
-    if not ai_client:
+    if not AI_CONFIGURED:
         return "AI client not configured. Using fallback."
-    
+
     try:
-        completion = ai_client.chat.completions.create(
-            model=OPENROUTER_MODEL,
-            messages=[
+        payload = json.dumps({
+            "model": XAI_MODEL,
+            "input": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
+                {"role": "user", "content": user_prompt},
             ],
-            max_tokens=max_tokens,
-            temperature=0.2,  # more deterministic for analysis
+            "max_output_tokens": max_tokens,
+            "temperature": 0.2,
+            "store": False,
+        }).encode("utf-8")
+        request = Request(
+            f"{XAI_BASE_URL}/responses",
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {XAI_API_KEY}",
+            },
         )
-        return completion.choices[0].message.content or ""
+        with urlopen(request, timeout=60) as response:
+            result = json.load(response)
+        return "".join(
+            block.get("text", "")
+            for item in result.get("output", [])
+            if isinstance(item, dict)
+            for block in item.get("content", [])
+            if isinstance(block, dict) and block.get("type") == "output_text"
+        )
+    except HTTPError as e:
+        return f"AI call failed with xAI HTTP {e.code}. Falling back to rules."
     except Exception as e:
         return f"AI call failed: {str(e)}. Falling back to rules."
 
 async def ai_identify_and_extract_document(document_text: str, filename: str, business_context: dict, requirement_code: Optional[str] = None) -> dict:
     """
     SMARTPR DOCUMENT VALIDATION ENGINE
-    Uses the LLM (Grok via OpenRouter) for high-accuracy identification + field extraction.
+    Uses the LLM (Grok via xAI) for high-accuracy identification + field extraction.
     When requirement_code is provided, a unique specialized prompt is used so the model
     focuses on the exact fields and formats expected for that specific licensing item
     (acting as intelligent OCR + validator on the provided text content).
@@ -202,7 +216,7 @@ Return ONLY valid JSON (no markdown, no extra text) with this exact structure:
   "notes": "short summary"
 }}
 
-Follow these specific rules for each type:"""
+Follow these specific rules for each type:
 
 CERTIFICATE OF INCORPORATION / LLC FORMATION / Articles of Organization:
 Look For: Business Name, Entity Type, Entity Number, Puerto Rico Department of State, Formation Date, Good Standing.
@@ -522,13 +536,13 @@ async def trigger_validation(business_id: str):
     docs = DOCUMENTS.get(business_id, [])
     
     # === USE THE CONFIGURED AI FOR EVERYTHING (validation + findings) ===
-    if ai_client:
+    if AI_CONFIGURED:
         ai_result = await ai_validate_requirements(b, reqs, docs)
         score = ai_result.get("readiness_score", 65)
         findings = ai_result.get("findings", [])
     else:
         score = 65.0
-        findings = [{"severity": "warning", "title": "AI not configured", "description": "Add OPENROUTER_API_KEY to .env", "recommended_action": "See backend/.env"}]
+        findings = [{"severity": "warning", "title": "AI not configured", "description": "Add XAI_API_KEY to .env", "recommended_action": "See backend/.env"}]
     
     run_id = str(uuid.uuid4())
     VALIDATIONS[run_id] = {
@@ -538,7 +552,7 @@ async def trigger_validation(business_id: str):
         "status": "completed",
         "findings": findings,
         "created_at": datetime.utcnow().isoformat(),
-        "ai_model_used": OPENROUTER_MODEL if ai_client else "none"
+        "ai_model_used": XAI_MODEL if AI_CONFIGURED else "none"
     }
     
     return {
@@ -546,7 +560,7 @@ async def trigger_validation(business_id: str):
         "status": "completed",
         "readiness_score": score,
         "findings_count": len(findings),
-        "ai_powered": bool(ai_client)
+        "ai_powered": AI_CONFIGURED
     }
 
 @app.get("/api/v1/businesses/{business_id}/findings")
@@ -571,7 +585,7 @@ async def analyze_document(business_id: str, payload: DocumentInput):
     
     b = BUSINESSES[business_id]
     
-    # Use the Grok model via OpenRouter to identify the document and extract structured data
+    # Use Grok via xAI to identify the document and extract structured data
     # Pass requirement_code so we can use a specialized prompt for the exact document type being uploaded
     analysis = await ai_identify_and_extract_document(
         document_text=payload.content,
@@ -586,7 +600,7 @@ async def analyze_document(business_id: str, payload: DocumentInput):
         "filename": payload.filename,
         "analysis": analysis,
         "uploaded_at": datetime.utcnow().isoformat(),
-        "ai_model": OPENROUTER_MODEL
+        "ai_model": XAI_MODEL
     }
     DOCUMENTS[business_id].append(doc_entry)
     
