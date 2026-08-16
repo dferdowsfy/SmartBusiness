@@ -1,6 +1,6 @@
 // Server-only xAI Responses API client shared by SmartPR's AI routes.
 
-export const XAI_MODEL = process.env.XAI_MODEL || "grok-4.20-0309-non-reasoning";
+export const XAI_MODEL = process.env.XAI_MODEL || "grok-4.3";
 
 const XAI_API_KEY = process.env.XAI_API_KEY || "";
 const XAI_BASE_URL = (process.env.XAI_BASE_URL || "https://api.x.ai/v1").replace(/\/$/, "");
@@ -56,6 +56,7 @@ export async function requestXaiText(options: {
     body: JSON.stringify({
       model: XAI_MODEL,
       input: options.input,
+      reasoning: { effort: "none" },
       max_output_tokens: options.maxOutputTokens,
       temperature: options.temperature,
       // Uploaded business documents should not be retained by the model provider.

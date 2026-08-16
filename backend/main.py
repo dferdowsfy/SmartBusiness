@@ -9,7 +9,7 @@ Uses the configured AI (Grok via the xAI Responses API) for:
 
 .env should contain:
   XAI_API_KEY=xai-...
-  XAI_MODEL=grok-4.20-0309-non-reasoning
+  XAI_MODEL=grok-4.3
 """
 
 import os
@@ -28,7 +28,7 @@ import uuid
 load_dotenv()
 
 XAI_API_KEY = os.getenv("XAI_API_KEY", "")
-XAI_MODEL = os.getenv("XAI_MODEL", "grok-4.20-0309-non-reasoning")
+XAI_MODEL = os.getenv("XAI_MODEL", "grok-4.3")
 XAI_BASE_URL = os.getenv("XAI_BASE_URL", "https://api.x.ai/v1").rstrip("/")
 AI_CONFIGURED = bool(XAI_API_KEY)
 
@@ -74,6 +74,7 @@ def _call_ai(system_prompt: str, user_prompt: str, max_tokens: int = 1500) -> st
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
+            "reasoning": {"effort": "none"},
             "max_output_tokens": max_tokens,
             "temperature": 0.2,
             "store": False,
