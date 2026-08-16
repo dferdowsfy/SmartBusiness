@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, Eye, EyeOff, Waypoints } from "lucide-react";
+import { Check, Eye, EyeOff } from "lucide-react";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 import { authRedirectUrl } from "../../lib/siteUrl";
 import styles from "./signup.module.css";
+import { SmartPRLogo } from "../components/brand/SmartPRLogo";
 
 type Intent = "start" | "manage";
 type Language = "EN" | "ES";
@@ -29,10 +30,6 @@ const esLabels: Record<string, string> = {
   "I agree to the": "Acepto los", "Terms of Service": "Términos de servicio", and: "y la", "Privacy Policy": "Política de privacidad",
   "Creating account…": "Creando cuenta…", "Create Account": "Crear cuenta", "Already have an account?": "¿Ya tienes una cuenta?", "Log in": "Iniciar sesión", "← Back to smartpr.com": "← Volver a smartpr.com",
 };
-
-function Logo({ dark = false }: { dark?: boolean }) {
-  return <span className={styles.logo}><i><Waypoints size={18} /></i><b className={dark ? styles.darkLogo : ""}>Smart<span>PR</span></b></span>;
-}
 
 function LanguageToggle({ language, onChange }: { language: Language; onChange: (language: Language) => void }) {
   return <div className={styles.language}>{(["EN", "ES"] as const).map((item) => <button key={item} type="button" aria-pressed={language === item} onClick={() => onChange(item)}>{item}</button>)}</div>;
@@ -120,7 +117,7 @@ function SignupForm() {
     <main className={styles.shell}>
       <aside className={styles.leftPanel}>
         <div className={styles.glow} />
-        <Link href="/"><Logo /></Link>
+        <Link href="/"><SmartPRLogo className={styles.logo} inverted size="auth" /></Link>
         <div className={styles.pitch}>
           <h1>{isSpanish ? "Todo lo que el cumplimiento en Puerto Rico necesita, en un solo lugar." : "Everything Puerto Rico compliance needs, in one place."}</h1>
           <p>{isSpanish ? "Únete a dueños de negocios, gestores, CPA y bufetes que usan SmartPR para adelantarse a cada requisito." : "Join business owners, gestores, CPAs, and law firms who use SmartPR to stay ahead of every requirement."}</p>
@@ -131,7 +128,7 @@ function SignupForm() {
 
       <section className={styles.formPanel}>
         <div className={styles.topBar}>
-          <Link className={styles.mobileLogo} href="/"><Logo dark /></Link>
+          <Link className={styles.mobileLogo} href="/"><SmartPRLogo className={styles.logo} size="auth" /></Link>
           <div><Link href="/auth/login">{t("Log in")}</Link><LanguageToggle language={language} onChange={setLanguage} /></div>
         </div>
         <div className={styles.formWrap}>

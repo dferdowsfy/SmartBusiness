@@ -1,9 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createSupabaseBrowser, isAuthConfigured } from "../../../lib/supabase/client";
 import { authRedirectUrl } from "../../../lib/siteUrl";
+import { SmartPRLogo } from "../../components/brand/SmartPRLogo";
 
 type Mode = "signin" | "signup" | "forgot";
 
@@ -257,6 +259,9 @@ function LoginInner() {
 export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-50">
+      <header className="px-6 py-5">
+        <Link href="/" aria-label="SmartPR home"><SmartPRLogo iconSize={18} size="auth" /></Link>
+      </header>
       <Suspense fallback={<div className="p-10 text-center text-[#0A2540]/50">Loading…</div>}>
         <LoginInner />
       </Suspense>

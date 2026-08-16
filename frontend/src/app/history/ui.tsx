@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Building2, CalendarDays, Landmark, RefreshCw, LogOut, Settings, ShieldCheck } from "lucide-react";
-import { ACTIVE_JURISDICTION } from "../jurisdictions";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
+import { SmartPRLogo } from "../components/brand/SmartPRLogo";
 
 interface MeUser { id: string; email: string | null; name: string | null; avatar: string | null; isAdmin?: boolean }
 
@@ -31,7 +31,6 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
   ];
   const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
   const [menuOpen, setMenuOpen] = useState(false);
-  const product = ACTIVE_JURISDICTION.meta.productName;
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setUser(d.user || null)).catch(() => setUser(null));
@@ -50,8 +49,7 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
       <div className="appbar-inner">
         <div className="appbar-left">
           <Link href="/" className="brand">
-            <div className="brand-mark">{(product || "V").slice(0, 1)}</div>
-            <div className="brand-name">{product}</div>
+            <SmartPRLogo inverted iconSize={18} size="app" />
           </Link>
         </div>
 

@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import styles from "./marketing.module.css";
+import { SmartPRLogo } from "../brand/SmartPRLogo";
 
 type Language = "EN" | "ES";
 
@@ -144,15 +145,6 @@ const categoryArticles: Record<string, string> = {
   Other: "A business",
 };
 
-function Logo({ dark = false }: { dark?: boolean }) {
-  return (
-    <span className={styles.logo}>
-      <span className={styles.logoMark}><Waypoints size={20} strokeWidth={2.4} aria-hidden /></span>
-      <span className={dark ? styles.logoTextDark : styles.logoText}>Smart<span>PR</span></span>
-    </span>
-  );
-}
-
 function LanguageToggle({ language, onChange, dark = false }: { language: Language; onChange: (lang: Language) => void; dark?: boolean }) {
   return (
     <div className={`${styles.language} ${dark ? styles.languageDark : ""}`} aria-label="Language">
@@ -217,7 +209,7 @@ export default function MarketingLanding() {
     <div className={styles.shell}>
       <header className={styles.header}>
         <div className={styles.headerInner}>
-          <Link href="/" aria-label="SmartPR home"><Logo /></Link>
+          <Link href="/" aria-label="SmartPR home"><SmartPRLogo className={styles.logo} inverted size="landing" /></Link>
           <nav className={styles.desktopNav} aria-label="Main navigation">
             <a href="#how-it-works">{c.nav[0]}</a><a href="#professionals">{c.nav[1]}</a><a href="#pricing">{c.nav[2]}</a>
           </nav>
@@ -321,7 +313,7 @@ export default function MarketingLanding() {
       </main>
 
       <footer className={styles.footer}>
-        <div className={styles.footerGrid}><Logo dark /><div><b>{t("Product")}</b><a href="#how-it-works">{t("How It Works")}</a><a href="#professionals">{t("For Professionals")}</a><a href="#pricing">{t("Pricing")}</a></div><div><b>{t("Company")}</b><a href="#">{t("About")}</a><a href="#">{t("Contact")}</a></div><div><b>{t("Legal")}</b><a href="#">{t("Privacy")}</a><a href="#">{t("Terms")}</a></div></div>
+        <div className={styles.footerGrid}><SmartPRLogo className={styles.logo} size="landing" /><div><b>{t("Product")}</b><a href="#how-it-works">{t("How It Works")}</a><a href="#professionals">{t("For Professionals")}</a><a href="#pricing">{t("Pricing")}</a></div><div><b>{t("Company")}</b><a href="#">{t("About")}</a><a href="#">{t("Contact")}</a></div><div><b>{t("Legal")}</b><a href="#">{t("Privacy")}</a><a href="#">{t("Terms")}</a></div></div>
         <div className={styles.footerBottom}><span>© 2026 SmartPR</span><LanguageToggle language={language} onChange={setLanguage} dark /></div>
       </footer>
     </div>
