@@ -5,7 +5,8 @@ import Link from "next/link";
 import { AlertCircle, Bell, Building2, CalendarDays, FilePlus2, FolderClock, Search, TriangleAlert } from "lucide-react";
 import { TopNav } from "../history/ui";
 import { StatusBadge } from "../components/compliance/StatusBadge";
-import { DUE_DATE_UNKNOWN_MESSAGE, type ObligationStatus } from "../compliance/types";
+import { DUE_DATE_UNKNOWN_MESSAGE, MATTER_TYPES, type ObligationStatus } from "../compliance/types";
+import { KB, initKbFromServer } from "../kb";
 
 interface PortfolioBusiness {
   id: string;
@@ -76,9 +77,15 @@ export default function DashboardPage() {
   const [horizon, setHorizon] = useState("");
   const [sort, setSort] = useState("due");
 
+  // Bumped once the admin-published KB snapshot loads, so the filter option
+  // lists (which read KB.* directly) recompute with it. The bundled static KB
+  // used before that resolves is always a correct fallback.
+  const [kbTick, setKbTick] = useState(0);
+
   useEffect(() => {
     fetch("/api/portfolio").then((response) => response.json()).then(setData)
       .catch(() => setData({ enabled: false, error: "network" }));
+    initKbFromServer().then((updated) => { if (updated) setKbTick((tick) => tick + 1); });
   }, []);
 
   const items = useMemo(() => {
@@ -105,8 +112,27 @@ export default function DashboardPage() {
     });
   }, [data, search, business, municipality, agency, matterType, status, horizon, sort]);
 
-  const options = (key: "municipality" | "agency" | "matter_type") =>
-    Array.from(new Set((data?.items ?? []).map((item) => item[key]).filter(Boolean) as string[])).sort();
+  // Filter option lists come from the knowledge base / rules engine — the full
+  // set of municipalities, agencies and matter types SmartPR knows about — not
+  // just whatever subset already has a generated obligation for this portfolio.
+  // A portfolio with zero filed obligations still gets a complete filter set.
+  const itemValues = (key: "municipality" | "agency" | "matter_type") =>
+    (data?.items ?? []).map((item) => item[key]).filter(Boolean) as string[];
+  const municipalityOptions = useMemo(
+    () => Array.from(new Set([...KB.municipalities.map((m) => m.name), ...itemValues("municipality")])).sort(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, kbTick]
+  );
+  const agencyOptions = useMemo(
+    () => Array.from(new Set([...KB.documents.map((d) => d.agency), ...itemValues("agency")])).filter(Boolean).sort(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, kbTick]
+  );
+  const matterTypeOptions = useMemo(
+    () => Array.from(new Set([...MATTER_TYPES, ...itemValues("matter_type")])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data]
+  );
   const metrics = data?.metrics ?? { businesses: 0, due_next_30_days: 0, overdue: 0, needs_attention: 0, filings_in_progress: 0 };
 
   if (!data) return <div className="min-h-screen bg-slate-50"><TopNav active="dashboard" /><div className="p-12 text-center text-slate-500">Loading portfolio…</div></div>;
@@ -173,9 +199,9 @@ export default function DashboardPage() {
                 <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search business or obligation" className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-[#0A2540]" />
               </label>
               <select value={business} onChange={(event) => setBusiness(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All businesses</option>{data.businesses?.map((item) => <option key={item.id} value={item.id}>{item.legal_name}</option>)}</select>
-              <select value={municipality} onChange={(event) => setMunicipality(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All municipalities</option>{options("municipality").map((value) => <option key={value}>{value}</option>)}</select>
-              <select value={agency} onChange={(event) => setAgency(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All agencies</option>{options("agency").map((value) => <option key={value}>{value}</option>)}</select>
-              <select value={matterType} onChange={(event) => setMatterType(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All matter types</option>{options("matter_type").map((value) => <option key={value}>{value.replaceAll("_", " ")}</option>)}</select>
+              <select value={municipality} onChange={(event) => setMunicipality(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All municipalities</option>{municipalityOptions.map((value) => <option key={value}>{value}</option>)}</select>
+              <select value={agency} onChange={(event) => setAgency(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All agencies</option>{agencyOptions.map((value) => <option key={value}>{value}</option>)}</select>
+              <select value={matterType} onChange={(event) => setMatterType(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All matter types</option>{matterTypeOptions.map((value) => <option key={value} value={value}>{value.replaceAll("_", " ")}</option>)}</select>
               <select value={status} onChange={(event) => setStatus(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">All statuses</option>{["OVERDUE","DUE_SOON","NEEDS_ATTENTION","MISSING","UNKNOWN","IN_PROGRESS","UPCOMING","CURRENT","COMPLETED"].map((value) => <option key={value}>{value}</option>)}</select>
               <select value={horizon} onChange={(event) => setHorizon(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-[#0A2540]"><option value="">Any due date</option>{[7,30,60,90].map((value) => <option key={value} value={value}>Due within {value} days</option>)}</select>
             </div>
