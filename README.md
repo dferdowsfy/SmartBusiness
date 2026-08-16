@@ -91,6 +91,31 @@ and are linked to the new records. Due dates are nullable and always carry one
 of `REGULATORY_RULE`, `DOCUMENT_EXTRACTED`, `USER_PROVIDED`,
 `EXTERNALLY_VERIFIED`, or `UNKNOWN`; SmartPR never manufactures a date.
 
+### Landing, authentication, and onboarding connection
+
+The public landing page, Supabase Auth, and compliance workspace are one
+continuous application:
+
+1. `/` is public. Its Log in action opens the existing `/auth/login` Supabase
+   flow; successful login initializes the user's SmartPR workspace and returns
+   to `/dashboard` unless a protected destination was requested.
+2. `/signup?intent=start` creates the Supabase Auth user, stores the signup
+   profile in auth metadata, initializes the PostgreSQL user/workspace mirror,
+   and continues to `/?entry=new-business`. Opening that intake creates the
+   persistent Business and `NEW_BUSINESS_FORMATION` Matter before the existing
+   deterministic workflow proceeds.
+3. `/signup?intent=manage` performs the same account/workspace bootstrap and
+   continues to `/businesses/import`. Completing the reconstruction writes the
+   Business, Matter, rules-engine obligations, evidence metadata, readiness,
+   and workflow snapshot to PostgreSQL; evidence binaries use the private
+   Supabase Storage bucket.
+
+Production requires `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the Supabase Postgres connection in
+`DATABASE_URL` (or `DIRECT_URL`). Apply the checked-in migration once to create
+the private `evidence` bucket and owner-scoped storage policy; core database
+tables are also bootstrapped idempotently at runtime.
+
 ## Design Documentation
 All original deliverables are in the `design/` folder and generated artifacts in `docs/`. The local demo was built to match the architecture, rules engine, validation workflow, and UI patterns exactly.
 

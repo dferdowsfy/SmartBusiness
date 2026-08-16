@@ -4,7 +4,8 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "../../../lib/supabase/server";
-import { upsertUser, claimSubmissionsByEmail } from "../../graph/auth-actions";
+import { bootstrapPlatformUser } from "../../../lib/auth/bootstrap";
+import { claimSubmissionsByEmail } from "../../graph/auth-actions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,9 @@ export async function GET(req: NextRequest) {
       const { data } = await supabase.auth.getUser();
       const u = data?.user;
       if (u) {
-        await upsertUser(u.id, u.email ?? null, (u.user_metadata?.full_name as string) || (u.user_metadata?.name as string) || null);
+        await bootstrapPlatformUser(u).catch((bootstrapError) => {
+          console.error("[auth-callback] platform bootstrap failed:", (bootstrapError as Error).message);
+        });
         await claimSubmissionsByEmail(u.id, u.email ?? null);
       }
     }

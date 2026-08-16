@@ -203,7 +203,7 @@ export default function DashboardPage() {
                       <td className="px-5 py-4"><div className="font-medium text-slate-800">{shortDate(item.due_date) || "Unknown"}</div>{!item.due_date && <div className="max-w-52 text-[11px] leading-4 text-slate-400">{DUE_DATE_UNKNOWN_MESSAGE}</div>}</td>
                       <td className="px-5 py-4"><StatusBadge status={item.status} /></td>
                       <td className="px-5 py-4 font-bold text-[#0A2540]">{item.readiness_score == null ? "—" : `${Math.round(item.readiness_score)}%`}</td>
-                      <td className="px-5 py-4"><Link href={item.item_type === "MATTER" && item.submission_id ? `/?resume=${item.submission_id}` : `/businesses/${item.business_id}${item.item_type === "OBLIGATION" ? `#obligation-${item.id}` : ""}`} className="font-semibold text-[#0D9488] hover:underline">{item.next_action} →</Link></td>
+                      <td className="px-5 py-4"><Link href={item.item_type === "MATTER" && item.submission_id ? `/?entry=new-business&resume=${item.submission_id}` : `/businesses/${item.business_id}${item.item_type === "OBLIGATION" ? `#obligation-${item.id}` : ""}`} className="font-semibold text-[#0D9488] hover:underline">{item.next_action} →</Link></td>
                     </tr>
                   ))}
                 </tbody>

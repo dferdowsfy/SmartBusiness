@@ -1,5 +1,5 @@
 // Diagnostic endpoint for the businesses flow. Reports: auth configured,
-// user signed in, database reachable, businesses table present, row count.
+// user signed in, database reachable, compliance tables present, row count.
 // Safe to call any time — read-only.
 
 import { getPool, isEnabled } from "../../../graph/db";
@@ -33,6 +33,27 @@ export async function GET() {
   }
 
   try {
+    const requiredTables = [
+      "users",
+      "workspaces",
+      "workspace_members",
+      "businesses",
+      "matters",
+      "obligations",
+      "evidence",
+      "notifications",
+      "workflow_snapshots",
+    ] as const;
+    const tableCheck = await pool.query<{ table_name: string; present: boolean }>(
+      `SELECT table_name, to_regclass('public.' || table_name) IS NOT NULL AS present
+       FROM unnest($1::text[]) AS table_name`,
+      [requiredTables]
+    );
+    out.compliance_tables = Object.fromEntries(
+      tableCheck.rows.map(({ table_name, present }) => [table_name, present])
+    );
+    out.compliance_schema_ready = tableCheck.rows.every(({ present }) => present);
+
     const { rows } = await pool.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM businesses`);
     out.businesses_table = true;
     out.total_businesses = rows[0]?.n ?? 0;

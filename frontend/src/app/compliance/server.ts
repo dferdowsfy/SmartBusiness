@@ -38,12 +38,16 @@ export async function ensureUserWorkspace(db: Db, user: UserLike): Promise<strin
   if (existing.rows[0]) return existing.rows[0].id;
 
   const workspaceId = randomUUID();
+  const professionalRole = user.user_metadata?.professional_role;
+  const workspaceKind = ["gestor", "cpa", "permitting", "attorney"].includes(
+    typeof professionalRole === "string" ? professionalRole : ""
+  ) ? "PROFESSIONAL" : "INDIVIDUAL";
   const displayName =
     (user.user_metadata?.full_name as string | undefined) ||
     (user.email ? `${user.email.split("@")[0]}'s workspace` : "My SmartPR Workspace");
   await db.query(
-    `INSERT INTO workspaces (id, owner_user_id, name, kind) VALUES ($1,$2,$3,'INDIVIDUAL')`,
-    [workspaceId, user.id, displayName]
+    `INSERT INTO workspaces (id, owner_user_id, name, kind) VALUES ($1,$2,$3,$4)`,
+    [workspaceId, user.id, displayName, workspaceKind]
   );
   await db.query(
     `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1,$2,'OWNER')

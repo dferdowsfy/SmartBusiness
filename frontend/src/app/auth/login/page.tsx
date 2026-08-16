@@ -47,6 +47,14 @@ function LoginInner() {
 
   const swapMode = (m: Mode) => { setMode(m); setErr(null); setInfo(null); };
 
+  const bootstrapPlatform = async () => {
+    const response = await fetch("/api/auth/bootstrap", { method: "POST" });
+    if (response.ok) return true;
+    const result = await response.json().catch(() => ({}));
+    setErr(result.error || "Signed in, but SmartPR could not initialize your workspace.");
+    return false;
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     // forgot mode doesn't need a password
@@ -69,8 +77,11 @@ function LoginInner() {
         // returns an active session and we can go straight in. Otherwise the
         // user must click the confirmation link in their inbox — surface a
         // dedicated confirm-pending state with a Resend button.
-        if (data.session) router.push(nextPath);
-        else setNeedsConfirm(email);
+        if (data.session) {
+          if (await bootstrapPlatform()) router.push(nextPath);
+        } else {
+          setNeedsConfirm(email);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) {
@@ -90,7 +101,7 @@ function LoginInner() {
           }
           return;
         }
-        router.push(nextPath);
+        if (await bootstrapPlatform()) router.push(nextPath);
       }
     } catch (e) {
       setErr((e as Error).message || "Sign-in failed");

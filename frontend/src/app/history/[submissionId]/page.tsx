@@ -84,7 +84,7 @@ export default function SubmissionDetailPage({ params }: { params: Promise<{ sub
                 </div>
               </div>
               {canResume && (
-                <Link href={`/?resume=${s.id}`} className="inline-block mt-4 bg-[#0A2540] text-white rounded-full px-5 py-2 text-sm font-medium">
+                <Link href={`/?entry=new-business&resume=${s.id}`} className="inline-block mt-4 bg-[#0A2540] text-white rounded-full px-5 py-2 text-sm font-medium">
                   Resume Submission →
                 </Link>
               )}
