@@ -44,6 +44,23 @@ smartpr
   ```
 - To use real AI (xAI) and Supabase: add keys to `.env` (see the frontend and backend `.env.example` files).
 
+### xAI production configuration
+
+SmartPR calls xAI directly through `POST https://api.x.ai/v1/responses`; it does
+not use OpenRouter. Configure these server-side variables in **every** deployed
+environment:
+
+```text
+XAI_API_KEY=<secret xAI API key>
+XAI_MODEL=grok-4.3
+XAI_BASE_URL=https://api.x.ai/v1  # optional; this is the default
+```
+
+Railway variables are environment-specific. Adding a variable to `production`
+does not add it to preview, staging, or any other Railway environment. A missing
+`XAI_API_KEY` makes SmartPR's AI routes return HTTP 503 before contacting xAI;
+an upstream xAI failure is returned as HTTP 502.
+
 ### Stopping
 Press `Ctrl + C` in the terminal running the launch script (it cleans up both servers).
 
