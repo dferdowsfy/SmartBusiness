@@ -10,9 +10,9 @@ type Mode = "signin" | "signup" | "forgot";
 function LoginInner() {
   const sp = useSearchParams();
   const router = useRouter();
-  // The current SmartPR experience lives at `/`. Only use another destination
-  // when the user was explicitly redirected here from a protected route.
-  const nextPath = sp.get("next") || "/";
+  // Signed-in users land in the persistent portfolio. Explicit protected-route
+  // redirects still return to the page the user originally requested.
+  const nextPath = sp.get("next") || "/dashboard";
   const initialMode: Mode = sp.get("mode") === "signup" ? "signup" : "signin";
 
   const [mode, setMode] = useState<Mode>(initialMode);

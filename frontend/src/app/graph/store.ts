@@ -8,8 +8,11 @@
 // nothing here feeds back into requirement generation.
 // ============================================================================
 
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { getPool, isEnabled } from "./db";
+import { COMPLIANCE_SCHEMA_SQL } from "../compliance/schema";
+import { deriveObligationStatus, nextActionForStatus, validDateOnly } from "../compliance/dates";
+import { renewalMetadataForDocuments, scheduleObligationNotifications } from "../compliance/server";
 import type {
   CaptureEvent,
   SubmissionEvent,
@@ -175,7 +178,7 @@ export async function ensureSchema(): Promise<void> {
   if (!schemaReady) {
     const pool = getPool();
     schemaReady = pool
-      ? pool.query(SCHEMA_SQL).then(() => undefined).catch((e) => {
+      ? pool.query(`${SCHEMA_SQL}\n${COMPLIANCE_SCHEMA_SQL}`).then(() => undefined).catch((e) => {
           schemaReady = null;
           throw e;
         })
@@ -198,20 +201,22 @@ async function captureSubmission(
   // Header row (idempotent on re-capture of the same submission id).
   await c.query(
     `INSERT INTO submissions (id, municipality, industry, business_type, business_structure,
-       location_type, business_name, business_id, user_id, claim_email)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+       location_type, business_name, business_id, matter_id, user_id, claim_email)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT (id) DO UPDATE SET
        municipality=EXCLUDED.municipality, industry=EXCLUDED.industry,
        business_type=EXCLUDED.business_type, business_structure=EXCLUDED.business_structure,
        location_type=EXCLUDED.location_type, business_name=EXCLUDED.business_name,
        business_id=COALESCE(EXCLUDED.business_id, submissions.business_id),
+       matter_id=COALESCE(EXCLUDED.matter_id, submissions.matter_id),
        user_id=COALESCE(EXCLUDED.user_id, submissions.user_id),
        claim_email=COALESCE(EXCLUDED.claim_email, submissions.claim_email),
        updated_at=now()`,
     [
       e.submission_id, e.municipality ?? null, e.industry ?? null, e.business_type ?? null,
       e.business_structure ?? null, e.location_type ?? null,
-      e.business_name ?? null, e.business_id ?? null, ctx.userId ?? null, e.claim_email ?? null,
+      e.business_name ?? null, e.business_id ?? null, e.matter_id ?? null,
+      ctx.userId ?? null, e.claim_email ?? null,
     ]
   );
 
@@ -234,6 +239,59 @@ async function captureSubmission(
        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [e.submission_id, r.document_id ?? null, r.document, r.agency ?? null, r.reason ?? null, r.source_rule ?? null, r.mandatory ?? null]
     );
+  }
+
+  // Project authoritative engine output into the persistent compliance model.
+  // This projection never creates requirements on its own; it mirrors only the
+  // requirements supplied by the deterministic rules engine above.
+  if (ctx.userId && e.business_id && e.matter_id) {
+    const access = await c.query<{ workspace_id: string | null }>(
+      `SELECT workspace_id FROM businesses WHERE id = $1 AND user_id = $2 AND archived = false`,
+      [e.business_id, ctx.userId]
+    );
+    if (access.rows[0]) {
+      await c.query(
+        `UPDATE businesses SET
+           name = COALESCE(NULLIF($3,''), name),
+           legal_name = COALESCE(NULLIF($3,''), legal_name, name),
+           municipality = COALESCE(NULLIF($4,''), municipality),
+           industry = COALESCE(NULLIF($5,''), industry),
+           business_type = COALESCE(NULLIF($6,''), business_type),
+           business_structure = COALESCE(NULLIF($7,''), business_structure),
+           updated_at = now()
+         WHERE id = $1 AND user_id = $2`,
+        [e.business_id, ctx.userId, e.business_name ?? "", e.municipality ?? "", e.industry ?? "", e.business_type ?? "", e.business_structure ?? ""]
+      );
+      await c.query(
+        `UPDATE matters SET submission_id = $1, status = CASE WHEN status = 'DRAFT' THEN 'IN_PROGRESS' ELSE status END,
+                            updated_at = now()
+          WHERE id = $2 AND business_id = $3 AND user_id = $4`,
+        [e.submission_id, e.matter_id, e.business_id, ctx.userId]
+      );
+      const renewalMetadata = await renewalMetadataForDocuments(
+        c,
+        e.requirements.map((requirement) => requirement.document_id).filter((id): id is string => Boolean(id))
+      );
+      for (const requirement of e.requirements) {
+        const requirementId = requirement.document_id || requirement.document;
+        const renewal = renewalMetadata.get(requirementId);
+        await c.query(
+          `INSERT INTO obligations
+             (id, business_id, matter_id, requirement_id, graph_entity_id, name, agency,
+              status, mandatory, source, source_reference, renewal_frequency_months,
+              renewal_reference, next_action)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,'MISSING',$8,'REGULATORY_GRAPH',$9,$10,$11,'Upload current evidence')
+           ON CONFLICT (matter_id, requirement_id, cycle_index) DO UPDATE SET
+             name = EXCLUDED.name, agency = EXCLUDED.agency, mandatory = EXCLUDED.mandatory,
+             source_reference = EXCLUDED.source_reference,
+             renewal_frequency_months = COALESCE(EXCLUDED.renewal_frequency_months, obligations.renewal_frequency_months),
+             renewal_reference = COALESCE(EXCLUDED.renewal_reference, obligations.renewal_reference), updated_at = now()`,
+          [randomUUID(), e.business_id, e.matter_id, requirementId, renewal?.graphEntityId ?? requirementId,
+            requirement.document, requirement.agency ?? null, requirement.mandatory ?? true,
+            requirement.source_rule ?? null, renewal?.frequencyMonths ?? null, renewal?.reference ?? null]
+        );
+      }
+    }
   }
 
   // Scenario-pattern frequency counter.
@@ -259,11 +317,12 @@ async function captureSubmission(
 async function captureValidation(c: PoolClient, e: ValidationEvent, ctx: CaptureContext): Promise<void> {
   // Inherit user_id from the parent submission if the client didn't pass one.
   const userId = ctx.userId ?? (await ownerForSubmission(c, e.submission_id));
-  await c.query(
+  const inserted = await c.query<{ id: number }>(
     `INSERT INTO document_validations
        (submission_id, business_type, document_type, validation_result, pass_fail,
         confidence, expiration_status, extracted_fields, fields_found, fields_missing, user_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+     RETURNING id`,
     [
       sub(e.submission_id), e.business_type ?? null, e.document_type, e.validation_result,
       e.pass_fail, e.confidence, e.expiration_status,
@@ -273,6 +332,84 @@ async function captureValidation(c: PoolClient, e: ValidationEvent, ctx: Capture
       userId,
     ]
   );
+
+  if (!userId || !e.submission_id) return;
+  const scope = await c.query<{
+    business_id: string | null;
+    matter_id: string | null;
+    workspace_id: string | null;
+    business_name: string | null;
+  }>(
+    `SELECT s.business_id, s.matter_id, b.workspace_id, COALESCE(b.legal_name, b.name) AS business_name
+       FROM submissions s LEFT JOIN businesses b ON b.id = s.business_id
+      WHERE s.id = $1 AND s.user_id = $2`,
+    [e.submission_id, userId]
+  );
+  const owner = scope.rows[0];
+  if (!owner?.business_id) return;
+
+  const requirementId = e.requirement_id ?? null;
+  const obligation = requirementId && owner.matter_id
+    ? (await c.query<{
+        id: string;
+        name: string;
+        renewal_frequency_months: number | null;
+      }>(
+        `SELECT id, name, renewal_frequency_months FROM obligations
+          WHERE matter_id = $1 AND requirement_id = $2 ORDER BY cycle_index DESC LIMIT 1`,
+        [owner.matter_id, requirementId]
+      )).rows[0]
+    : null;
+  const extracted = e.extracted_fields ?? {};
+  const expirationDate = validDateOnly(extracted.expiration_date);
+  const issueDate = validDateOnly(extracted.issue_date);
+  const evidenceState = e.validation_result === "PASS" ? "VERIFIED"
+    : e.validation_result === "NEEDS_REVIEW" ? "NEEDS_REVIEW" : "FAILED";
+  const status = deriveObligationStatus({
+    evidenceState,
+    dueDate: expirationDate,
+    expectsRenewal: Boolean(obligation?.renewal_frequency_months || expirationDate),
+  });
+  await c.query(
+    `INSERT INTO evidence
+       (id, user_id, business_id, matter_id, obligation_id, validation_id,
+        original_filename, mime_type, size_bytes, document_type, review_status,
+        extracted_fields, extraction_confidence, issue_date, expiration_date,
+        date_source, source_reference, reviewed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())`,
+    [randomUUID(), userId, owner.business_id, owner.matter_id, obligation?.id ?? null,
+      inserted.rows[0]?.id ?? null, e.original_filename || e.document_type,
+      e.mime_type ?? null, e.size_bytes ?? null, e.document_type,
+      evidenceState === "VERIFIED" ? "VERIFIED" : evidenceState === "NEEDS_REVIEW" ? "NEEDS_REVIEW" : "REJECTED",
+      JSON.stringify(extracted), Math.max(0, Math.min(1, e.confidence / 100)),
+      issueDate, expirationDate, expirationDate ? "DOCUMENT_EXTRACTED" : "UNKNOWN",
+      expirationDate ? `Document extraction: ${e.original_filename || e.document_type}` : null]
+  );
+  if (obligation) {
+    await c.query(
+      `UPDATE obligations SET status = $2, due_date = COALESCE($3::date, due_date),
+          due_date_source = CASE WHEN $3::date IS NOT NULL THEN 'DOCUMENT_EXTRACTED' ELSE due_date_source END,
+          due_date_confidence = CASE WHEN $3::date IS NOT NULL THEN $4 ELSE due_date_confidence END,
+          source_reference = CASE WHEN $3::date IS NOT NULL THEN $5 ELSE source_reference END,
+          verified_at = CASE WHEN $6 = 'VERIFIED' THEN now() ELSE verified_at END,
+          next_action = $7, updated_at = now()
+        WHERE id = $1`,
+      [obligation.id, status, expirationDate, Math.max(0, Math.min(1, e.confidence / 100)),
+        expirationDate ? `Document extraction: ${e.original_filename || e.document_type}` : null,
+        evidenceState, nextActionForStatus(status)]
+    );
+    if (expirationDate) {
+      await scheduleObligationNotifications(c, {
+        userId,
+        workspaceId: owner.workspace_id,
+        businessId: owner.business_id,
+        businessName: owner.business_name || "Business",
+        obligationId: obligation.id,
+        obligationName: obligation.name,
+        dueDate: expirationDate,
+      });
+    }
+  }
 }
 
 async function captureReadiness(c: PoolClient, e: ReadinessEvent, ctx: CaptureContext): Promise<void> {
@@ -282,6 +419,16 @@ async function captureReadiness(c: PoolClient, e: ReadinessEvent, ctx: CaptureCo
      VALUES ($1,$2,$3,$4,$5)`,
     [sub(e.submission_id), e.business_type ?? null, e.score, e.status, userId]
   );
+  if (e.submission_id) {
+    await c.query(
+      `UPDATE matters m SET readiness_score = $2,
+          status = CASE WHEN $2 >= 90 THEN 'READY' WHEN m.status = 'DRAFT' THEN 'IN_PROGRESS' ELSE m.status END,
+          updated_at = now()
+        FROM submissions s
+       WHERE s.id = $1 AND s.matter_id = m.id AND ($3::uuid IS NULL OR m.user_id = $3)`,
+      [e.submission_id, e.score, userId]
+    );
+  }
 }
 
 async function ownerForSubmission(c: PoolClient, id: string): Promise<string | null> {

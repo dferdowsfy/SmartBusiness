@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { getPool, isEnabled } from "../../graph/db";
 import { ensureSchema } from "../../graph/store";
 import { getCurrentUser } from "../../../lib/supabase/server";
+import { ensureUserWorkspace } from "../../compliance/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,9 @@ export async function GET() {
     // Each business is enriched with the latest readiness score across its
     // submissions, plus a count of submissions, so the listing reads at a glance.
     const { rows } = await pool.query(
-      `SELECT b.id, b.name, b.notes, b.created_at, b.archived,
+      `SELECT b.id, b.name, b.legal_name, b.entity_number, b.business_structure,
+              b.business_type, b.industry, b.municipality, b.physical_address,
+              b.onboarding_mode, b.notes, b.created_at, b.archived,
               (SELECT COUNT(*) FROM submissions s WHERE s.business_id = b.id) AS submission_count,
               (SELECT s.id FROM submissions s WHERE s.business_id = b.id
                  ORDER BY s.created_at DESC LIMIT 1) AS latest_submission_id,
@@ -33,7 +36,11 @@ export async function GET() {
                  JOIN submissions s ON s.id = rs.submission_id
                  WHERE s.business_id = b.id
                  ORDER BY rs.created_at DESC LIMIT 1) AS readiness_score
-       FROM businesses b WHERE b.user_id = $1 AND b.archived = false
+              (SELECT COUNT(*) FROM obligations o WHERE o.business_id=b.id AND o.status='OVERDUE') AS overdue_count,
+              (SELECT COUNT(*) FROM matters m WHERE m.business_id=b.id AND m.status NOT IN ('COMPLETED','ARCHIVED')) AS active_matter_count
+       FROM businesses b
+       LEFT JOIN workspace_members wm ON wm.workspace_id=b.workspace_id AND wm.user_id=$1
+       WHERE (b.user_id = $1 OR wm.user_id IS NOT NULL) AND b.archived = false
        ORDER BY b.created_at DESC`,
       [user.id]
     );
@@ -53,9 +60,13 @@ export async function POST(request: Request) {
   const pool = getPool();
   if (!pool) return Response.json({ error: "Could not connect to the database." }, { status: 503 });
 
-  let body: { name?: string; notes?: string };
+  let body: {
+    name?: string; legal_name?: string; notes?: string; entity_number?: string;
+    business_structure?: string; business_type?: string; industry?: string;
+    municipality?: string; physical_address?: string; onboarding_mode?: "NEW" | "EXISTING";
+  };
   try { body = await request.json(); } catch { return Response.json({ error: "Invalid request body." }, { status: 400 }); }
-  const name = (body.name || "").trim();
+  const name = (body.legal_name || body.name || "").trim();
   if (!name) return Response.json({ error: "Business name is required." }, { status: 400 });
 
   // Bootstrap schema (idempotent). Surface any failure so the UI can show it.
@@ -68,6 +79,7 @@ export async function POST(request: Request) {
 
   try {
     const id = randomUUID();
+    const workspaceId = await ensureUserWorkspace(pool, user);
     // Also persist the user mirror so dashboards always have a row, even if
     // the user hits this endpoint before triggering any other capture.
     await pool.query(
@@ -77,8 +89,13 @@ export async function POST(request: Request) {
     ).catch((e) => console.error("[businesses] user upsert (non-fatal):", (e as Error).message));
 
     await pool.query(
-      `INSERT INTO businesses (id, user_id, name, notes) VALUES ($1,$2,$3,$4)`,
-      [id, user.id, name, body.notes ?? null]
+      `INSERT INTO businesses
+         (id, user_id, workspace_id, name, legal_name, notes, entity_number,
+          business_structure, business_type, industry, municipality, physical_address, onboarding_mode)
+       VALUES ($1,$2,$3,$4,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [id, user.id, workspaceId, name, body.notes ?? null, body.entity_number ?? null,
+        body.business_structure ?? null, body.business_type ?? null, body.industry ?? null,
+        body.municipality ?? null, body.physical_address ?? null, body.onboarding_mode ?? "NEW"]
     );
     return Response.json({ id, name, notes: body.notes ?? null });
   } catch (err) {

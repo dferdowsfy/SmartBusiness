@@ -64,6 +64,33 @@ an upstream xAI failure is returned as HTTP 502.
 ### Stopping
 Press `Ctrl + C` in the terminal running the launch script (it cleans up both servers).
 
+## Persistent compliance workspace
+
+Authenticated users land on `/dashboard`, a portfolio view that supports one
+business or a professional firm's client portfolio. Both entry paths converge
+on the same persistent business profile:
+
+- **File a New Business** opens the existing SmartPR intake, creates a
+  `NEW_BUSINESS_FORMATION` matter, and projects only the deterministic engine's
+  generated requirements into obligations.
+- **Manage an Existing Business** captures an established profile, evaluates it
+  through the same rules engine, and reconciles required obligations against
+  uploaded evidence and user-provided facts.
+
+Apply [`data/compliance_workspace_schema.sql`](data/compliance_workspace_schema.sql)
+to the Supabase/PostgreSQL database before deployment. The application also
+performs an idempotent runtime bootstrap for the core PostgreSQL tables; the
+checked-in migration additionally creates the optional private Supabase
+`evidence` Storage bucket and owner-scoped policy when the storage schema is
+available.
+
+The hierarchy is `workspace → businesses → matters → obligations → evidence →
+due dates/notifications`. Existing `submissions`, `workflow_snapshots`,
+`document_validations`, `readiness_scores`, and `deliverables` remain in place
+and are linked to the new records. Due dates are nullable and always carry one
+of `REGULATORY_RULE`, `DOCUMENT_EXTRACTED`, `USER_PROVIDED`,
+`EXTERNALLY_VERIFIED`, or `UNKNOWN`; SmartPR never manufactures a date.
+
 ## Design Documentation
 All original deliverables are in the `design/` folder and generated artifacts in `docs/`. The local demo was built to match the architecture, rules engine, validation workflow, and UI patterns exactly.
 

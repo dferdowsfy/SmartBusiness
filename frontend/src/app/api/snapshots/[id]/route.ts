@@ -18,7 +18,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   await ensureSchema();
   try {
     const { rows } = await pool.query(
-      `SELECT submission_id, state, updated_at, business_id
+      `SELECT submission_id, state, updated_at, business_id, matter_id
          FROM workflow_snapshots WHERE submission_id = $1 AND user_id = $2`,
       [id, user.id]
     );
@@ -37,15 +37,16 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!isEnabled()) return Response.json({ error: "no_database" }, { status: 503 });
   const pool = getPool();
   if (!pool) return Response.json({ error: "no_database" }, { status: 503 });
-  let body: { state?: unknown; business_id?: string | null };
+  let body: { state?: unknown; business_id?: string | null; matter_id?: string | null };
   try { body = await req.json(); } catch { return Response.json({ error: "bad_json" }, { status: 400 }); }
   try {
     await pool.query(
-      `INSERT INTO workflow_snapshots (submission_id, user_id, business_id, state, updated_at)
-       VALUES ($1,$2,$3,$4, now())
+      `INSERT INTO workflow_snapshots (submission_id, user_id, business_id, matter_id, state, updated_at)
+       VALUES ($1,$2,$3,$4,$5, now())
        ON CONFLICT (submission_id) DO UPDATE SET
-         state = EXCLUDED.state, business_id = EXCLUDED.business_id, updated_at = now()`,
-      [id, user.id, body.business_id ?? null, JSON.stringify(body.state ?? {})]
+         state = EXCLUDED.state, business_id = EXCLUDED.business_id,
+         matter_id = EXCLUDED.matter_id, updated_at = now()`,
+      [id, user.id, body.business_id ?? null, body.matter_id ?? null, JSON.stringify(body.state ?? {})]
     );
     return Response.json({ saved: true });
   } catch (err) {

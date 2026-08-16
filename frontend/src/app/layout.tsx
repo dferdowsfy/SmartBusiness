@@ -9,9 +9,9 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SmartPR — Regulatory intelligence for opening a business",
+  title: "SmartPR — Regulatory compliance workspace",
   description:
-    "Answer a few questions and SmartPR determines every license, permit, certification, and document your business needs.",
+    "Manage business formations, regulatory filings, evidence, readiness, renewals, and due dates in one compliance portfolio.",
 };
 
 export default function RootLayout({

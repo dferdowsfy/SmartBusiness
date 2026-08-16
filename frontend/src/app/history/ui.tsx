@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, Landmark, RefreshCw, LogOut, Settings, ShieldCheck } from "lucide-react";
+import { Building2, CalendarDays, Landmark, RefreshCw, LogOut, Settings, ShieldCheck } from "lucide-react";
 import { ACTIVE_JURISDICTION } from "../jurisdictions";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 
@@ -22,10 +22,11 @@ function signOutNow() {
 
 // Primary navigation shared across the compliance workspace. Uses the same
 // Validador app bar as the main experience so the UI is consistent everywhere.
-export function TopNav({ active }: { active: "dashboard" | "businesses" | "history" | "graph" | "admin" | "settings" }) {
+export function TopNav({ active }: { active: "dashboard" | "businesses" | "calendar" | "history" | "graph" | "admin" | "settings" }) {
   const tabs = [
     { key: "dashboard", label: "Dashboard", href: "/dashboard", Icon: Building2 },
     { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
+    { key: "calendar", label: "Calendar", href: "/calendar", Icon: CalendarDays },
     { key: "history", label: "History", href: "/history", Icon: RefreshCw },
     { key: "graph", label: "Knowledge Graph", href: "/admin/knowledge-base", Icon: ShieldCheck },
     { key: "admin", label: "Admin Review", href: "/admin/requirements", Icon: ShieldCheck },

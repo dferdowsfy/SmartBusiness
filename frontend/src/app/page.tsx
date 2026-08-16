@@ -1077,6 +1077,10 @@ export default function SmartPR() {
   const submissionIdRef = useRef<string>('');
   // The business this assessment belongs to (when signed in + /?business=<id>).
   const businessIdRef = useRef<string | null>(null);
+  // The regulatory matter this workflow belongs to. Older links without a
+  // matter remain valid; new portfolio entry points always provide one.
+  const matterIdRef = useRef<string | null>(null);
+  const formationStartAttemptedRef = useRef(false);
   // For anonymous users: email used to claim this submission on later sign-in.
   const [claimEmail, setClaimEmail] = useState<string>('');
   // Signed-in user (null when anonymous, undefined while loading).
@@ -1177,8 +1181,43 @@ export default function SmartPR() {
     fetch('/api/me').then(r => r.json()).then(d => setMe(d.user || null)).catch(() => setMe(null));
     const params = new URLSearchParams(window.location.search);
     const bizId = params.get('business');
+    const matterId = params.get('matter');
     if (bizId) businessIdRef.current = bizId;
+    if (matterId) matterIdRef.current = matterId;
   }, []);
+
+  // The authenticated portfolio's “File a New Business” action lands directly
+  // in this existing intake. Create only the persistent container records here;
+  // the existing intake/rules/document state machine remains unchanged.
+  useEffect(() => {
+    if (!me || formationStartAttemptedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('entry') !== 'new-business' || params.get('business')) return;
+    formationStartAttemptedRef.current = true;
+    void (async () => {
+      try {
+        const response = await fetch('/api/matters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            create_business: true,
+            matter_type: 'NEW_BUSINESS_FORMATION',
+            title: 'New business formation',
+          }),
+        });
+        if (!response.ok) return;
+        const created = await response.json();
+        businessIdRef.current = created.business_id;
+        matterIdRef.current = created.matter_id;
+        setBusinessId(created.business_id);
+        params.set('business', created.business_id);
+        params.set('matter', created.matter_id);
+        window.history.replaceState(null, '', `/?${params.toString()}`);
+      } catch {
+        // Intake remains usable; Save Progress will surface persistence errors.
+      }
+    })();
+  }, [me]);
 
   // Load the published knowledge-base snapshot (admin-controlled rules); the
   // bundled static KB is the fallback, so failures are harmless.
@@ -1216,6 +1255,7 @@ export default function SmartPR() {
           if (typeof st.readinessScore === 'number') setReadinessScore(st.readinessScore);
           if (typeof st.currentStep === 'number') setCurrentStep(st.currentStep);
           if (snap.business_id) businessIdRef.current = snap.business_id;
+          if (snap.matter_id) matterIdRef.current = snap.matter_id;
           return;
         }
       } catch { /* fall through */ }
@@ -1655,6 +1695,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         location_type: p.location_type || null,
         business_name: p.name || null,
         business_id: businessIdRef.current || null,
+        matter_id: matterIdRef.current || null,
         claim_email: claimEmail || null,
         answers: capturedAnswers,
         requirements: capturedReqs,
@@ -1675,6 +1716,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             business_id: businessIdRef.current,
+            matter_id: matterIdRef.current,
             state: {
               profile, discoveryAnswers,
               requirements, potentialDecisions,
@@ -1729,11 +1771,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const simulatedContent = `This is a ${reqCode.replace(/_/g, ' ')} for ${profile.name || "the business"} located in ${profile.municipality}. Issued recently. Contains business name, dates, official stamps, license/permit numbers, and agency details.`;
 
     let analysis: any = null;
-    let extracted = {
+    let extracted: Record<string, string | null> = {
       business_name: profile.name || "ABC Restaurant LLC",
       entity_name: profile.name || "ABC Restaurant LLC",
-      issue_date: "2024-03-15",
-      expiration_date: reqCode.includes("insurance") ? "2025-03-14" : "2026-01-01",
+      issue_date: null,
+      expiration_date: null,
     };
 
     // Legacy mock path (no longer used in the main upload flow — real LLM path is always preferred)
@@ -1748,10 +1790,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       validation_checks: [
         { check: "Business Name Match", result: "pass", details: "Name matches profile" },
         { check: "Required Fields Present", result: "pass", details: "Key fields found" },
-        { check: "Not Expired", result: reqCode.includes('insurance') ? "warning" : "pass", details: "" }
+        { check: "Expiration Date", result: "warning", details: "No verified date is available in this legacy simulation." }
       ],
-      overall_status: "Complete",
-      notes: "Legacy simulation (real LLM path used in current upload flow)."
+      overall_status: "Needs Review",
+      notes: "Legacy simulation has no verified issue or expiration date. Use a real upload for compliance status."
     };
 
     const newDoc = {
@@ -2101,6 +2143,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         submission_id: submissionIdRef.current,
         business_type: profile.business_type || null,
         document_type: analysis?.document_type || reqCode,
+        requirement_id: requirements.find((requirement) => requirement.code === reqCode)?.document_id || reqCode,
+        original_filename: filename,
+        mime_type: file.type || null,
+        size_bytes: file.size,
         validation_result: validationResult,
         pass_fail: validationResult === 'PASS',
         confidence: ext ? ext.classification_confidence : Math.round((analysis?.confidence || 0) * 100),
@@ -2300,12 +2346,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             recommended_action: L('Upload the missing items shown in the checklist.', language)
           });
         }
-        if (profile.industry === 'Restaurant') {
+        // Expiration findings must come from uploaded evidence. Industry alone
+        // is never evidence of a due date or an approaching expiration.
+        for (const doc of uploadedDocs) {
+          if (doc.ai_analysis?.extraction?.expiration_status !== 'Expired') continue;
           newFindings.push({
-            severity: 'warning',
-            title: L('Insurance expires soon', language),
-            description: L('One of your insurance certificates is approaching expiration.', language),
-            recommended_action: L('Renew and re-upload the certificate before submission.', language)
+            severity: 'critical',
+            title: `${doc.name} — ${L('expired', language)}`,
+            description: L('The expiration date extracted from this document has passed.', language),
+            recommended_action: L('Renew and upload current agency-issued evidence.', language),
           });
         }
         newFindings.push({

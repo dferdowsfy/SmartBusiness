@@ -32,6 +32,7 @@ export interface SubmissionEvent {
   location_type?: string | null;
   business_name?: string | null;
   business_id?: string | null;
+  matter_id?: string | null;
   claim_email?: string | null;
   answers: CapturedAnswer[];
   requirements: CapturedRequirement[];
@@ -43,6 +44,10 @@ export interface ValidationEvent {
   submission_id: string;
   business_type?: string | null;
   document_type: string;
+  requirement_id?: string | null;
+  original_filename?: string | null;
+  mime_type?: string | null;
+  size_bytes?: number | null;
   validation_result: "PASS" | "NEEDS_REVIEW" | "FAIL";
   pass_fail: boolean;
   confidence: number;          // 0..100
