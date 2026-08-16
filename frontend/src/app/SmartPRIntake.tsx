@@ -24,7 +24,6 @@ import {
   type SampleFormData,
   type SampleFormValue,
 } from './sampleApplicationForms';
-import { createSupabaseBrowser, isAuthConfigured } from '../lib/supabase/client';
 // Schema-driven government form engine (CORPREG01–CORPREG06).
 import { GovernmentFormModal } from './forms/engine/GovernmentFormModal';
 import { CoreApplicationDetails } from './forms/engine/CoreApplicationDetails';
@@ -45,13 +44,17 @@ import { requirementFormState, actionsForFormState } from './forms/engine/applic
 import { generatePreparationPdf } from './forms/engine/pdfGenerator';
 import { entityTypeRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
 import type { CanonicalApplicationData, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
+import {
+  FilingWorkflowShell,
+  type FilingStage,
+  type SmartPRLiveData,
+} from './components/filing/FilingWorkflowShell';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle,
-  LogOut, Settings
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle
 } from 'lucide-react';
 
 // SmartPR
@@ -1188,7 +1191,10 @@ export default function SmartPRIntake() {
     const params = new URLSearchParams(window.location.search);
     const bizId = params.get('business');
     const matterId = params.get('matter');
-    if (bizId) businessIdRef.current = bizId;
+    if (bizId) {
+      businessIdRef.current = bizId;
+      setBusinessId(bizId);
+    }
     if (matterId) matterIdRef.current = matterId;
   }, []);
 
@@ -1264,7 +1270,10 @@ export default function SmartPRIntake() {
           if (st.canonicalApplication) setCanonicalOverride(st.canonicalApplication);
           if (typeof st.readinessScore === 'number') setReadinessScore(st.readinessScore);
           if (typeof st.currentStep === 'number') setCurrentStep(st.currentStep);
-          if (snap.business_id) businessIdRef.current = snap.business_id;
+          if (snap.business_id) {
+            businessIdRef.current = snap.business_id;
+            setBusinessId(snap.business_id);
+          }
           if (snap.matter_id) matterIdRef.current = snap.matter_id;
           return;
         }
@@ -1285,7 +1294,10 @@ export default function SmartPRIntake() {
       setProfile(prev => ({ ...prev, ...restored }));
       const computed = computeRequirements({ ...(profile as any), ...restored }, {});
       setRequirements(computed);
-      if (su.business_id) businessIdRef.current = su.business_id;
+      if (su.business_id) {
+        businessIdRef.current = su.business_id;
+        setBusinessId(su.business_id);
+      }
       setCurrentStep(3);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1717,12 +1729,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   // Re-emit the current submission to capture (with claim_email if anonymous),
   // and store a workflow snapshot if signed in so resume restores exact state.
-  const saveProgress = async () => {
+  const saveProgress = async (): Promise<boolean> => {
     setSaveState('saving');
     try {
       captureScenario(profile, discoveryAnswers, requirements);
       if (me) {
-        await fetch(`/api/snapshots/${submissionIdRef.current}`, {
+        const writes: Promise<Response>[] = [fetch(`/api/snapshots/${submissionIdRef.current}`, {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             business_id: businessIdRef.current,
@@ -1736,30 +1748,56 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               currentStep, readinessScore,
             },
           }),
-        });
+        })];
+        if (businessIdRef.current) {
+          writes.push(fetch(`/api/businesses/${businessIdRef.current}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              legal_name: profile.name || undefined,
+              business_structure: profile.business_structure || undefined,
+              business_type: profile.business_type || undefined,
+              industry: profile.industry || undefined,
+              municipality: profile.municipality || undefined,
+            }),
+          }));
+        }
+        const responses = await Promise.all(writes);
+        if (responses.some((response) => !response.ok)) throw new Error('Could not persist filing progress.');
       }
       setSaveState('saved');
       setTimeout(() => setSaveState('idle'), 3500);
+      return true;
     } catch {
       setSaveState('error');
+      return false;
     }
   };
 
-  // Sign out: navigate to the server route IMMEDIATELY (it clears the httpOnly
-  // cookies and 302s to /auth/login). The browser-side signOut is fired
-  // best-effort WITHOUT awaiting — a hanging network call must never block the
-  // redirect, which was the cause of "nothing happens on click".
-  const handleSignOut = () => {
-    setMenuOpen(false);
-    try {
-      if (isAuthConfigured()) {
-        void createSupabaseBrowser().auth.signOut().catch(() => {});
-      }
-    } catch {
-      /* ignore — the server route below is the source of truth */
+  const handleSaveAndExit = async () => {
+    const saved = await saveProgress();
+    if (!saved) return;
+    if (me && businessIdRef.current) {
+      window.location.assign(`/businesses/${businessIdRef.current}`);
+      return;
     }
-    window.location.assign('/auth/signout');
+    window.location.assign(me ? '/dashboard' : '/');
   };
+
+  // A filing is a persistent Matter, not a temporary wizard. Debounce writes
+  // while the signed-in user types so leaving and resuming restores the latest
+  // meaningful state without issuing a request on every keystroke.
+  useEffect(() => {
+    if (!me || !businessId || !matterIdRef.current) return;
+    const timer = window.setTimeout(() => { void saveProgress(); }, 1200);
+    return () => window.clearTimeout(timer);
+    // saveProgress intentionally remains outside the dependency list: the
+    // filing state below is the source of truth for when an autosave is due.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    me, businessId, profile, discoveryAnswers, requirements, potentialDecisions,
+    sampleFormDrafts, preparedSampleApplications, govFormDrafts,
+    preparedGovApplications, canonicalOverride, currentStep, readinessScore,
+  ]);
 
   // Load / recompute requirements (powered by the design-accurate compute function)
   const loadRequirements = async () => {
@@ -2277,41 +2315,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const name = doc?.name || `${reqCode}.pdf`;
     startProcessingPipeline(reqCode, name);
     triggerFileUpload(reqCode);
-  };
-
-  // Smart single next action (TurboTax-style)
-  const getRecommendedNextAction = () => {
-    const needsReview = requirements.filter(r => r.mandatory && r.status === 'warning');
-    const uploadedCodes = new Set(uploadedDocs.map(d => d.requirement_code));
-
-    if (needsReview.length > 0) {
-      const first = needsReview[0];
-      return {
-        label: L(`${needsReview.length} document${needsReview.length > 1 ? 's' : ''} need review`, language),
-        action: () => {
-          const el = document.getElementById(`req-row-${first.code}`);
-          if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); setHighlightCode(first.code); setTimeout(() => setHighlightCode(null), 2000); }
-          setReviewingCode(first.code);
-        },
-        cta: L('Review now', language)
-      };
-    }
-
-    const missing = requirements.filter(r => r.mandatory && r.status === 'pending' && !uploadedCodes.has(r.code));
-    if (missing.length > 0) {
-      const next = missing[0];
-      return {
-        label: L(`Upload ${next.name}`, language),
-        action: () => triggerFileUploadWithPipeline(next.code),
-        cta: L('Upload', language)
-      };
-    }
-
-    return {
-      label: L('All mandatory items validated', language),
-      action: () => setCurrentStep(9),
-      cta: L('Continue to Deliverables', language)
-    };
   };
 
   // Resolve a warning item
@@ -2953,24 +2956,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   // Requirements list filter (All / To do / Done / Recommended).
   const [reqFilter, setReqFilter] = useState<'all' | 'todo' | 'done' | 'recommended'>('all');
-  // App-bar user menu open state.
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  // Close the avatar menu on outside click via a document listener — NOT via
-  // an overlay div. A full-viewport overlay sits in a different stacking
-  // context than the menu (the .appbar is position:sticky with z-index:50,
-  // which boxes the menu's z-index in), so the overlay ended up intercepting
-  // clicks on menu items including Sign out.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.closest('.user-menu') || t.closest('.avatar'))) return;
-      setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [menuOpen]);
 
   // Live rules-engine output while the user is still in intake, so the
   // intelligence panel and progress stats update as they answer.
@@ -2992,7 +2977,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   ].filter(Boolean)));
   const obligationCount = (re: RegExp) =>
     liveReqs.filter(r => re.test(r.category || '') || re.test(r.document_name)).length;
-  const liveLicenses = obligationCount(/licen/i);
   const livePermits = obligationCount(/permi/i);
 
   // Intake completion: 5 core profile fields + business and municipality
@@ -3020,15 +3004,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const recommendedCount = requirements.filter(r => !r.mandatory).length;
 
   // Current view derives from the preserved step state machine so snapshots
-  // and ?resume= links keep working: 1 = intake, 3–8 = requirements, 9 = deliverables.
-  const view: 'intake' | 'requirements' | 'deliverables' =
-    currentStep === 1 ? 'intake' : currentStep === 9 ? 'deliverables' : 'requirements';
-  const goTo = (v: 'intake' | 'requirements' | 'deliverables') =>
-    setCurrentStep(v === 'intake' ? 1 : v === 'deliverables' ? 9 : 3);
-
-  const initials = me?.name
-    ? me.name.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase()
-    : me?.email ? me.email.slice(0, 2).toUpperCase() : '·';
+  // and ?resume= links keep working: 1 = intake, 3 = requirements,
+  // 7 = document completion/validation, 9 = deliverables.
+  const view: FilingStage = currentStep === 1
+    ? 'intake'
+    : currentStep === 9
+      ? 'deliverables'
+      : currentStep >= 7
+        ? 'documents'
+        : 'requirements';
+  const goTo = (nextView: FilingStage) => {
+    if (nextView === 'intake') setCurrentStep(1);
+    else if (nextView === 'requirements') setCurrentStep(3);
+    else if (nextView === 'documents') setCurrentStep(7);
+    else setCurrentStep(9);
+  };
 
   const ringScore = readinessScore !== null ? readinessScore : checklistProgress;
   const readinessEyebrow =
@@ -3312,8 +3302,146 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const activeSampleData = activeSampleFormCode ? (sampleFormDrafts[activeSampleFormCode] || {}) : {};
   const deliverablesReady = totalMandatory > 0 && completedMandatory === totalMandatory;
 
+  const intelligenceSignals: NonNullable<SmartPRLiveData['signals']> = [
+    profile.business_type
+      ? { label: language === 'es' ? `Tipo de negocio: ${profile.business_type}` : `Business type: ${profile.business_type}`, state: 'confirmed' }
+      : { label: language === 'es' ? 'Se necesita el tipo de negocio' : 'Business type needed', state: 'needs-info' },
+    profile.municipality
+      ? { label: language === 'es' ? `Municipio: ${profile.municipality}` : `Municipality: ${profile.municipality}`, state: 'confirmed' }
+      : { label: language === 'es' ? 'Se necesita el municipio' : 'Municipality needed', state: 'needs-info' },
+    profile.location_type
+      ? { label: language === 'es' ? `Ubicación: ${profile.location_type}` : `Location: ${profile.location_type}`, state: 'confirmed' }
+      : { label: language === 'es' ? 'Se necesita el tipo de ubicación' : 'Physical location needed', state: 'needs-info' },
+  ];
+  const notApplicableDecision = potentialItems.find((item) => potentialDecisions[item.flag] === 'not_applies');
+  if (notApplicableDecision) {
+    intelligenceSignals.push({
+      label: language === 'es' ? `${notApplicableDecision.document}: no aplica` : `${notApplicableDecision.document}: not applicable`,
+      state: 'not-applicable',
+    });
+  }
+
+  const nextIntakeAction = !profile.name
+    ? (language === 'es' ? 'Ingresa el nombre legal o de trabajo del negocio.' : 'Enter the business name so this filing has a clear identity.')
+    : !profile.municipality
+      ? (language === 'es' ? 'Indica el municipio donde operará el negocio.' : 'Tell us which municipality the business will operate in.')
+      : !profile.industry
+        ? (language === 'es' ? 'Selecciona la industria del negocio.' : 'Select the business industry.')
+        : !profile.business_type
+          ? (language === 'es' ? 'Selecciona el tipo de negocio específico.' : 'Select the specific business type.')
+          : !profile.location_type
+            ? (language === 'es' ? 'Describe el tipo de ubicación física.' : 'Tell us what type of physical location the business will use.')
+            : currentQuestion
+              ? L(currentQuestion.text, language)
+              : currentPotentialQuestion
+                ? L(currentPotentialQuestion.followUp, language)
+                : (language === 'es' ? 'Revisa el perfil y genera los requisitos.' : 'Review the profile, then generate the requirements.');
+
+  const whyAsking = !profile.municipality
+    ? (language === 'es' ? 'El municipio puede afectar licencias y permisos locales.' : 'Your municipality can affect local licensing and permitting requirements.')
+    : !profile.location_type
+      ? (language === 'es' ? 'La ubicación física puede activar permisos de uso, salud o seguridad.' : 'A physical location can trigger use, health, or safety permits.')
+      : currentQuestion?.id.includes('alcohol') || currentPotentialQuestion?.flag.includes('alcohol')
+        ? (language === 'es' ? 'La venta de alcohol puede activar licencias y requisitos de agencias adicionales.' : 'Selling alcohol can trigger additional licenses and agency requirements.')
+        : currentPotentialQuestion
+          ? L(currentPotentialQuestion.why, language)
+          : (language === 'es' ? 'Cada respuesta reduce la incertidumbre antes de aplicar las reglas regulatorias.' : 'Each answer reduces uncertainty before the deterministic regulatory rules are applied.');
+
+  const requirementsAgencies = Array.from(new Set(requirements.map((requirement) => requirement.agency).filter(Boolean)));
+  const processingDocumentCount = Object.keys(processingStates).length;
+  const criticalBlockers = findings.filter((finding) => finding.severity === 'critical').length;
+  const remainingMandatory = Math.max(0, totalMandatory - completedMandatory);
+  const stageIntelligence: SmartPRLiveData = view === 'intake' ? {
+    statusText: intakeDone === 0
+      ? (language === 'es' ? 'Creando tu perfil de cumplimiento…' : 'Building your compliance profile…')
+      : intakeQuestionsComplete
+        ? (language === 'es' ? 'Perfil inicial listo para evaluar.' : 'Initial profile ready for rules evaluation.')
+        : (language === 'es' ? 'Aprendiendo sobre tu negocio…' : 'Learning about your business…'),
+    progress: intakeDone > 0 ? intakePct : null,
+    progressLabel: language === 'es' ? 'Contexto del negocio' : 'Business context',
+    readiness: null,
+    metrics: [
+      { value: liveAgencies.length, label: language === 'es' ? 'Agencias' : 'Agencies', emphasis: true },
+      { value: liveReqs.length, label: language === 'es' ? 'Requisitos identificados' : 'Requirements identified', emphasis: true },
+      { value: livePermits, label: language === 'es' ? 'Permisos' : 'Permits' },
+      { value: Math.max(0, intakeQuestionTotal - openQuestionsAnswered - answeredPotentialCount), label: language === 'es' ? 'Necesitan información' : 'Need information' },
+    ],
+    agencies: liveAgencies,
+    signals: intelligenceSignals,
+    potentialRequirements: potentialItems
+      .filter((item) => !potentialDecisions[item.flag])
+      .map((item) => language === 'es' ? L(item.document, language) : item.document),
+    nextAction: nextIntakeAction,
+    whyAsking,
+  } : view === 'requirements' ? {
+    statusText: language === 'es'
+      ? 'Las reglas regulatorias estructuradas determinaron lo que aplica.'
+      : 'Structured regulatory rules determined what applies.',
+    readiness: readinessScore,
+    progress: readinessScore == null ? checklistProgress : null,
+    progressLabel: language === 'es' ? 'Cobertura de requisitos' : 'Requirement coverage',
+    metrics: [
+      { value: totalMandatory, label: language === 'es' ? 'Requeridos' : 'Required', emphasis: true },
+      { value: recommendedCount, label: language === 'es' ? 'Potenciales' : 'Potential' },
+      { value: missingCount, label: language === 'es' ? 'Faltantes' : 'Missing' },
+      { value: reviewCount, label: language === 'es' ? 'Necesitan revisión' : 'Need review' },
+    ],
+    agencies: requirementsAgencies,
+    signals: intelligenceSignals,
+    nextAction: requirements.length
+      ? (language === 'es' ? 'Revisa por qué aplica cada requisito y continúa a documentos.' : 'Review why each requirement applies, then continue to documents.')
+      : (language === 'es' ? 'Genera los requisitos desde el perfil del negocio.' : 'Generate requirements from the business profile.'),
+  } : view === 'documents' ? {
+    statusText: processingDocumentCount > 0
+      ? (language === 'es' ? 'SmartPR está analizando evidencia…' : 'SmartPR is analyzing evidence…')
+      : (language === 'es' ? 'Revisando evidencia contra los requisitos.' : 'Reviewing evidence against the requirements.'),
+    readiness: readinessScore,
+    progress: readinessScore == null ? checklistProgress : null,
+    progressLabel: language === 'es' ? 'Cobertura de evidencia' : 'Evidence coverage',
+    metrics: [
+      { value: uploadedDocs.length, label: language === 'es' ? 'Documentos cargados' : 'Documents uploaded', emphasis: true },
+      { value: completedMandatory, label: language === 'es' ? 'Con evidencia' : 'With evidence', emphasis: true },
+      { value: missingCount, label: language === 'es' ? 'Evidencia faltante' : 'Missing evidence' },
+      { value: reviewCount + processingDocumentCount, label: language === 'es' ? 'Necesitan atención' : 'Need attention' },
+    ],
+    agencies: requirementsAgencies,
+    signals: intelligenceSignals,
+    nextAction: missingCount > 0
+      ? (language === 'es' ? 'Carga evidencia oficial para el próximo requisito faltante.' : 'Upload official evidence for the next missing requirement.')
+      : reviewCount > 0
+        ? (language === 'es' ? 'Revisa los documentos marcados para atención.' : 'Review the documents marked as needing attention.')
+        : (language === 'es' ? 'Ejecuta la validación final y revisa los entregables.' : 'Run final validation and review the deliverables.'),
+  } : {
+    statusText: deliverablesReady
+      ? (language === 'es' ? 'El paquete está listo para revisión final.' : 'The package is ready for final review.')
+      : (language === 'es' ? 'Preparando tus materiales de radicación.' : 'Preparing your filing materials.'),
+    readiness: readinessScore,
+    progress: readinessScore == null ? checklistProgress : null,
+    progressLabel: language === 'es' ? 'Preparación del paquete' : 'Package readiness',
+    metrics: [
+      { value: completedMandatory, label: language === 'es' ? 'Requisitos satisfechos' : 'Requirements satisfied', emphasis: true },
+      { value: remainingMandatory, label: language === 'es' ? 'Restantes' : 'Remaining' },
+      { value: criticalBlockers, label: language === 'es' ? 'Bloqueos críticos' : 'Critical blockers' },
+      { value: packageAssetCount, label: language === 'es' ? 'Archivos preparados' : 'Prepared files' },
+    ],
+    agencies: requirementsAgencies,
+    signals: intelligenceSignals,
+    nextAction: deliverablesReady
+      ? (language === 'es' ? 'Revisa los materiales antes de radicar con las agencias.' : 'Review the prepared materials before filing with the agencies.')
+      : (language === 'es' ? 'Regresa a documentos y completa la evidencia faltante.' : 'Return to documents and complete the missing evidence.'),
+  };
+
+  const availableStages: FilingStage[] = requirements.length > 0
+    ? ['intake', 'requirements', 'documents', 'deliverables']
+    : ['intake'];
+  const matterStatus = saveState === 'saved'
+    ? (language === 'es' ? 'Guardado' : 'Saved')
+    : currentStep === 1
+      ? (language === 'es' ? 'Borrador' : 'Draft')
+      : (language === 'es' ? 'En progreso' : 'In Progress');
+
   return (
-    <div className={view === 'intake' ? 'spr-page' : undefined} style={{ minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh' }}>
       {/* Upload result toast (LLM document analysis feedback) */}
       {uploadNotice && (
         <div className="submit-toast show" role="status" style={{ maxWidth: 480 }}>
@@ -3331,128 +3459,24 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         </div>
       )}
 
-      {/* ====================== APP BAR ====================== */}
-      {view !== 'intake' && <header className="appbar">
-        <div className="appbar-inner">
-          <div className="appbar-left">
-            <div className="brand">
-              <div className="brand-mark">{(ACTIVE_JURISDICTION.meta.productName || 'V').slice(0, 1)}</div>
-              <div className="brand-name">{ACTIVE_JURISDICTION.meta.productName}</div>
-            </div>
-            <div className="vdiv" />
-            <div className="project-pill">
-              <span className="dot" />
-              <span className="name">{profile.name || L('Your Business', language)}</span>
-              {profile.municipality && <><span className="sep">·</span><span>{profile.municipality}</span></>}
-            </div>
-          </div>
-
-          <nav className="nav-tabs" aria-label="Sections">
-            <button className="nav-tab" onClick={() => goTo('intake')}>
-              <FileText className="tab-icon" /> {L('Intake', language)}
-            </button>
-            <button className={`nav-tab ${view === 'requirements' ? 'active' : ''}`} disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
-              <ScrollText className="tab-icon" /> {L('Requirements', language)}
-            </button>
-            <button className={`nav-tab ${view === 'deliverables' ? 'active' : ''}`} disabled={requirements.length === 0} onClick={() => goTo('deliverables')}>
-              <Archive className="tab-icon" /> {L('Deliverables', language)}
-            </button>
-            <a className="nav-tab" href="/history">
-              <RefreshCw className="tab-icon" /> {L('History', language)}
-            </a>
-            {me?.isAdmin && (
-              <a className="nav-tab" href="/admin/knowledge-base">
-                <ShieldCheck className="tab-icon" /> {L('Admin', language)}
-              </a>
-            )}
-          </nav>
-
-          <div className="appbar-actions">
-            {saveState === 'saved' && <span className="saved-pill">{L('Saved', language)}</span>}
-            <div className="lang-toggle">
-              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
-              <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
-            </div>
-            {me === null ? (
-              <a className="nav-tab auth-entry" href="/auth/login">{L('Sign in', language)}</a>
-            ) : me ? (
-              <>
-                <button className="avatar" onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }} title="Account settings" aria-label="Account settings">{initials}</button>
-                <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={e => e.stopPropagation()}>
-                  <div className="uhead">
-                    <div className="uname">{me.name || me.email}</div>
-                    <div className="uemail">{me.email}</div>
-                  </div>
-                  <a className="uitem" href="/settings"><Settings className="i" /> {L('Settings', language)}</a>
-                  {me.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
-                  {me.isAdmin && <a className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> {L('Admin Review', language)}</a>}
-                  <button type="button" className="uitem" onClick={handleSignOut}><LogOut className="i" /> {L('Sign out', language)}</button>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      </header>}
+      <FilingWorkflowShell
+        businessName={profile.name}
+        businessId={businessId}
+        municipality={profile.municipality}
+        matterTitle={language === 'es' ? 'Formación de negocio nuevo' : 'New Business Formation'}
+        matterStatus={matterStatus}
+        stage={view}
+        availableStages={availableStages}
+        saveState={saveState}
+        language={language}
+        onLanguageChange={setLanguage}
+        onStageChange={goTo}
+        onSaveExit={() => { void handleSaveAndExit(); }}
+        intelligence={stageIntelligence}
+      >
 
       {/* ====================== INTAKE ====================== */}
       {view === 'intake' && (
-        <main className="spr-workspace">
-          <aside className="spr-sidebar">
-            <div className="spr-sidebar-head">
-              <div className="spr-brand">
-                <div className="spr-brand-name" aria-label="SmartPR">
-                  <span className="spr-brand-smart">Smart</span><span className="spr-brand-pr">PR</span>
-                </div>
-                <div className="spr-brand-place">PUERTO RICO</div>
-              </div>
-
-              <div className="spr-account">
-                {me === null ? (
-                  <a className="spr-sign-in" href="/auth/login">{L('Sign in', language)}</a>
-                ) : me ? (
-                  <>
-                    <button className="avatar" onClick={(event) => { event.stopPropagation(); setMenuOpen((open) => !open); }}
-                      title="Account settings" aria-label="Account settings">{initials}</button>
-                    <div className={`user-menu ${menuOpen ? 'open' : ''}`} onClick={(event) => event.stopPropagation()}>
-                      <div className="uhead">
-                        <div className="uname">{me.name || me.email}</div>
-                        <div className="uemail">{me.email}</div>
-                      </div>
-                      <a className="uitem" href="/settings"><Settings className="i" /> {L('Settings', language)}</a>
-                      {me.isAdmin && <a className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> {L('Admin', language)}</a>}
-                      <button type="button" className="uitem" onClick={handleSignOut}><LogOut className="i" /> {L('Sign out', language)}</button>
-                    </div>
-                  </>
-                ) : null}
-              </div>
-            </div>
-
-            <nav className="spr-steps" aria-label={L('Sections', language)}>
-              <button className="spr-step active" onClick={() => goTo('intake')}>
-                <span className="spr-step-number">1</span>
-                <span>{L('Intake', language)}</span>
-              </button>
-              <button className="spr-step" disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
-                <span className="spr-step-number">2</span>
-                <span>{L('Requirements', language)}</span>
-              </button>
-              <button className="spr-step" disabled={requirements.length === 0} onClick={() => goTo('requirements')}>
-                <span className="spr-step-number">3</span>
-                <span>{L('Documents', language)}</span>
-              </button>
-              <button className="spr-step" disabled={requirements.length === 0} onClick={() => goTo('deliverables')}>
-                <span className="spr-step-number">4</span>
-                <span>{L('Deliverables', language)}</span>
-              </button>
-            </nav>
-
-            <div className="spr-language" aria-label={L('Language', language)}>
-              <button className={language === 'en' ? 'active' : ''} onClick={() => setLanguage('en')}>EN</button>
-              <button className={language === 'es' ? 'active' : ''} onClick={() => setLanguage('es')}>ES</button>
-            </div>
-
-          </aside>
-
           <section className="spr-intake-panel">
             <div className="spr-intake-scroll">
               <div className="spr-kicker">
@@ -3698,44 +3722,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
           </section>
 
-          <aside className="spr-review-panel">
-            <div className="spr-live"><span className="spr-live-dot" />{L('Reviewing live', language)}</div>
-            <div className="spr-readiness-row">
-              <span>{L('Launch readiness', language)}</span>
-              <strong>{intakePct}%</strong>
-            </div>
-            <div className="spr-progress"><span style={{ width: `${intakePct}%` }} /></div>
-
-            <div className="spr-metrics">
-              <div className="spr-metric highlighted"><strong>{liveAgencies.length}</strong><span>{L('Agencies', language)}</span></div>
-              <div className="spr-metric highlighted"><strong>{liveReqs.length + liveConfirmedPotentialItems.length}</strong><span>{L('Requirements', language)}</span></div>
-              <div className="spr-metric"><strong>{liveLicenses}</strong><span>{L('Licenses', language)}</span></div>
-              <div className="spr-metric"><strong>{livePermits}</strong><span>{L('Permits', language)}</span></div>
-            </div>
-
-            <div className="spr-review-section">
-              <h2>{L('Agencies involved', language)}</h2>
-              <div className="spr-agency-list">
-                {liveAgencies.slice(0, 6).map(a => <span key={a}>{a}</span>)}
-              </div>
-            </div>
-
-            <div className="spr-review-section">
-              <h2>{L('Live recommendations', language)}</h2>
-              <div className="spr-recommendations">
-                {municipalNotices.map((n, i) => <p key={`n-${i}`}>{L(n, language)}</p>)}
-                {potentialItems.slice(0, 3).map(p => <p key={p.flag}><strong>{p.document}</strong><span>{L(p.why, language)}</span></p>)}
-              </div>
-            </div>
-          </aside>
-        </main>
       )}
 
       {/* ====================== REQUIREMENTS ====================== */}
-      {view === 'requirements' && (
+      {(view === 'requirements' || view === 'documents') && (
         <main className="shell">
-          <button className="section-back" onClick={() => goTo('intake')}>
-            ← {L('Back to intake', language)}
+          <button className="section-back" onClick={() => goTo(view === 'documents' ? 'requirements' : 'intake')}>
+            ← {view === 'documents' ? L('Back to requirements', language) : L('Back to intake', language)}
           </button>
 
           {/* Prominent Attention banner (Problem 5) — surfaces AI findings at the top */}
@@ -3759,32 +3752,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </div>
             );
           })()}
-
-          {/* Sticky Guidance / Next Action panel (Problems 3,4,7) — desktop friendly, uses Validador sticky patterns */}
-          <div style={{ position: 'sticky', top: 80, zIndex: 40, marginBottom: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 14, boxShadow: 'var(--shadow-sm)' }}>
-            {(() => {
-              const nxt = getRecommendedNextAction();
-              const rc = requirements.filter(r => r.mandatory && r.status === 'warning').length;
-              const mc = requirements.filter(r => r.mandatory && r.status === 'pending').length;
-              const dc = doneCount;
-              return (
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div>
-                    <div style={{ fontSize: 11, opacity: 0.6 }}>GUIDANCE</div>
-                    <div style={{ fontWeight: 700 }}>{nxt.label}</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
-                    <span>Done: <strong>{dc}</strong></span>
-                    <span style={{ color: 'var(--warn)' }}>Review: <strong>{rc}</strong></span>
-                    <span>Missing: <strong>{mc}</strong></span>
-                  </div>
-                  <button onClick={nxt.action} style={{ marginLeft: 'auto', padding: '8px 18px', borderRadius: 10, background: 'var(--navy)', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
-                    {nxt.cta}
-                  </button>
-                </div>
-              );
-            })()}
-          </div>
 
           {/* Compact readiness banner */}
           <div className="req-banner">
@@ -3831,8 +3798,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           <div className="req-section">
             <div className="req-head">
               <div className="left">
-                <h2>{L('Your requirements', language)}</h2>
-                <p>{L('Every license, permit, inspection, and document discovered for your business — grouped by what to do next.', language)}</p>
+                <h2>{view === 'documents' ? L('Required documents', language) : L('Your requirements', language)}</h2>
+                <p>{view === 'documents'
+                  ? L('Upload official evidence, review extracted information, and resolve anything that needs attention.', language)
+                  : L('Every license, permit, inspection, and document discovered for your business — grouped by what to do next.', language)}</p>
               </div>
               <div className="filter">
                 <button className={reqFilter === 'all' ? 'active' : ''} onClick={() => setReqFilter('all')}>
@@ -3947,14 +3916,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <small>{L('They move your readiness score the most and unblock everything downstream.', language)}</small>
             </div>
             <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
-              {requirements.length > 0 && currentStep < 7 && (
+              {requirements.length > 0 && view === 'documents' && (
                 <button className="btn btn-secondary" onClick={runValidation} disabled={isLoading}>
                   {L('Run Validation Engine', language)}
                   {isLoading && <RefreshCw className="i" style={{ width: 13, height: 13, animation: 'vspin .7s linear infinite' }} />}
                 </button>
               )}
-              <button className="btn btn-primary" onClick={() => goTo('deliverables')}>
-                {L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
+              <button className="btn btn-primary" onClick={() => goTo(view === 'requirements' ? 'documents' : 'deliverables')}>
+                {view === 'requirements' ? L('Continue to documents', language) : L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
               </button>
             </div>
           </div>
@@ -3964,8 +3933,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       {/* ====================== DELIVERABLES ====================== */}
       {view === 'deliverables' && (
         <main className="shell">
-          <button className="section-back" onClick={() => goTo('requirements')}>
-            ← {L('Back to Checklist', language)}
+          <button className="section-back" onClick={() => goTo('documents')}>
+            ← {L('Back to documents', language)}
           </button>
 
           <div className="section-head">
@@ -4160,15 +4129,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <div className="help-ic"><RefreshCw className="i-lg i" /></div>
             <div className="help-text">
               <b>{L('Need to make changes?', language)}</b>
-              <small>{L('Go back to the checklist to upload more documents, or start a new assessment.', language)}</small>
+              <small>{L('Go back to documents to upload more evidence, or edit the business profile.', language)}</small>
             </div>
             <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary" onClick={() => goTo('requirements')}>← {L('Back to Checklist', language)}</button>
-              <button className="btn btn-secondary" onClick={() => goTo('intake')}>{L('Start New Business', language)}</button>
+              <button className="btn btn-secondary" onClick={() => goTo('documents')}>← {L('Back to documents', language)}</button>
+              <button className="btn btn-secondary" onClick={() => goTo('intake')}>{L('Edit business profile', language)}</button>
             </div>
           </div>
         </main>
       )}
+      </FilingWorkflowShell>
 
       {activeGovForm && getDefinition(activeGovForm.formId) && (
         <GovernmentFormModal

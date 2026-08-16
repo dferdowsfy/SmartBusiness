@@ -6,7 +6,7 @@ import { Building2, CalendarDays, Landmark, RefreshCw, LogOut, Settings, ShieldC
 import { ACTIVE_JURISDICTION } from "../jurisdictions";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 
-interface MeUser { id: string; email: string | null; name: string | null; avatar: string | null }
+interface MeUser { id: string; email: string | null; name: string | null; avatar: string | null; isAdmin?: boolean }
 
 // Sign out: navigate to the server route immediately (clears httpOnly cookies
 // and 302s to /auth/login). The browser-side signOut is best-effort and is NOT
@@ -28,8 +28,6 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
     { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
     { key: "calendar", label: "Calendar", href: "/calendar", Icon: CalendarDays },
     { key: "history", label: "History", href: "/history", Icon: RefreshCw },
-    { key: "graph", label: "Knowledge Graph", href: "/admin/knowledge-base", Icon: ShieldCheck },
-    { key: "admin", label: "Admin Review", href: "/admin/requirements", Icon: ShieldCheck },
   ];
   const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
   const [menuOpen, setMenuOpen] = useState(false);
@@ -75,6 +73,8 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
                   <div className="uemail">{user.email}</div>
                 </div>
                 <Link className="uitem" href="/settings"><Settings className="i" /> Settings</Link>
+                {user.isAdmin && <Link className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> Knowledge Graph</Link>}
+                {user.isAdmin && <Link className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> Admin Review</Link>}
                 <button type="button" className="uitem" onClick={signOutNow}><LogOut className="i" /> Sign out</button>
               </div>
             </>
