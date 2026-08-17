@@ -3151,7 +3151,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <>
                   {prepared && (
                     <span className="tag" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
-                      {L('Application prepared', language)}
+                      {fState === 'submitted' ? L('Marked as submitted', language) : L('Application prepared', language)}
                     </span>
                   )}
                   {actions.includes('start_form') && (
@@ -3172,6 +3172,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   {actions.includes('review_updates') && (
                     <button className="req-action primary" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
                       <RefreshCw className="i" style={{ width: 13, height: 13 }} /> {L('Review Updates', language)}
+                    </button>
+                  )}
+                  {actions.includes('view_submission') && (
+                    <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'view')}>
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View Submission', language)}
                     </button>
                   )}
                 </>
@@ -4027,7 +4032,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div key={app.id} className="pkg-item ok prepared-application-item">
                     <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
                     <span>{app.officialFormNumber} — {app.title}
-                      <small>{app.status === 'needs_refresh' ? L('Needs refresh — shared data changed', language) : L('Application prepared — official evidence still required', language)}</small>
+                      <small>{app.status === 'needs_refresh'
+                        ? L('Needs refresh — shared data changed', language)
+                        : app.status === 'submitted'
+                          ? L('Marked as submitted — official evidence still required', language)
+                          : L('Application prepared — official evidence still required', language)}</small>
                     </span>
                     <button className="btn btn-secondary" onClick={() => openGovForm(app.formId, app.requirementId, 'view')}>
                       <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View', language)}
@@ -4149,6 +4158,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           initialData={preparedGovApplications[activeGovForm.formId]?.data as GovFormData ?? govFormDrafts[activeGovForm.formId]}
           initialMode={activeGovForm.mode}
           existingApplicationId={preparedGovApplications[activeGovForm.formId]?.id}
+          applicationStatus={preparedGovApplications[activeGovForm.formId]?.status}
           onClose={() => setActiveGovForm(null)}
           onSaveDraft={(formId, data) => {
             setGovFormDrafts((cur) => ({ ...cur, [formId]: data }));
@@ -4175,8 +4185,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           onComplete={(app, data) => {
             setPreparedGovApplications((cur) => ({ ...cur, [app.formId]: app }));
             setGovFormDrafts((cur) => ({ ...cur, [app.formId]: data }));
-            setActiveGovForm(null);
+            // The modal stays open on its "Application Ready" step, which shows
+            // the government filing fee and the link to the agency portal.
             setSampleFormNotice(L('Application prepared and added to deliverables.', language));
+          }}
+          onMarkSubmitted={(formId) => {
+            // The applicant's own statement that they filed with the agency.
+            // It records a submission — it does NOT satisfy the requirement,
+            // which still waits on the official government document.
+            setPreparedGovApplications((cur) => {
+              const app = cur[formId];
+              if (!app) return cur;
+              return { ...cur, [formId]: { ...app, status: 'submitted', submittedAt: new Date().toISOString() } };
+            });
+            setSampleFormNotice(L('Marked as submitted. Upload the official document once the agency issues it.', language));
           }}
         />
       )}

@@ -8,7 +8,7 @@
 
 import React from "react";
 import { evaluateConditions } from "./formConditions.ts";
-import { feeEstimateFor } from "./fees.ts";
+import { governmentFeeText } from "../submission/pr.ts";
 import type {
   CanonicalAddress,
   CanonicalApplicationData,
@@ -43,7 +43,7 @@ export interface GovernmentFormPreviewProps {
 export function GovernmentFormPreview(props: GovernmentFormPreviewProps) {
   const { definition, formData, canonical, lang, preparedAt } = props;
   const L = (en: string, es: string) => (lang === "es" ? es : en);
-  const fee = feeEstimateFor(definition, canonical);
+  const fee = governmentFeeText(definition.id, canonical, lang);
   const row: React.CSSProperties = { display: "grid", gridTemplateColumns: "40% 60%", gap: 8, fontSize: 12.5, padding: "3px 0", borderBottom: "1px solid #f1f5f9" };
 
   return (
@@ -102,7 +102,7 @@ export function GovernmentFormPreview(props: GovernmentFormPreviewProps) {
       <div style={{ marginTop: 14, borderTop: "1px solid #e2e8f0", paddingTop: 10, fontSize: 11, color: "#64748b", display: "grid", gap: 3 }}>
         <div>{L("Schema version", "Versión del esquema")}: {definition.version} · {L("Source", "Fuente")}: {definition.sourceDocument}</div>
         <div>{L("Submission method", "Método de presentación")}: {definition.submissionMethod}</div>
-        {fee !== null && <div>{L("Estimated government fee", "Tarifa gubernamental estimada")}: ${fee} ({L("requires portal verification", "requiere verificación en el portal")})</div>}
+        {fee !== null && <div>{L("Government filing fee", "Tarifa gubernamental de radicación")}: {fee} ({L("paid to the agency at submission", "se paga a la agencia al presentar")})</div>}
         <div>{L("Prepared", "Preparado")}: {preparedAt ? new Date(preparedAt).toLocaleString() : new Date().toLocaleString()}</div>
       </div>
     </div>

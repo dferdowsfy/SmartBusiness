@@ -44,6 +44,32 @@ function CalendarContent() {
     }).sort((a, b) => a.due_date!.localeCompare(b.due_date!));
   }, [data, horizon, business]);
 
+  // How many items fall inside each horizon, so the pills carry a count
+  // instead of just a label — same business filter as the list below.
+  const horizonCounts = useMemo(() => {
+    const today = new Date();
+    const withinBusiness = (data?.items ?? []).filter((item) => {
+      if (!item.due_date || item.status === "COMPLETED") return false;
+      if (business && item.business_id !== business) return false;
+      return true;
+    });
+    const counts = new Map<number, number>();
+    for (const days of HORIZONS) {
+      counts.set(
+        days,
+        withinBusiness.filter((item) => {
+          const remaining = Math.ceil((new Date(`${item.due_date}T23:59:59`).getTime() - today.getTime()) / 86400000);
+          return remaining <= days;
+        }).length
+      );
+    }
+    return counts;
+  }, [data, business]);
+  const overdueCount = useMemo(() => events.filter((item) => {
+    const days = Math.ceil((new Date(`${item.due_date}T23:59:59`).getTime() - new Date().getTime()) / 86400000);
+    return days < 0;
+  }).length, [events]);
+
   return (
     <div className="min-h-screen bg-[#f6f8fb]">
       <TopNav active="calendar" />
@@ -52,7 +78,20 @@ function CalendarContent() {
           <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0D9488]">Due dates</p><h1 className="mt-1 text-3xl font-bold text-[#0A2540]">Compliance calendar</h1><p className="mt-1 text-sm text-slate-500">Portfolio-level deadlines linked to the relevant business and obligation.</p></div>
           <select value={business} onChange={(event) => setBusiness(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-[#0A2540]"><option value="">All businesses</option>{data?.businesses?.map((item) => <option key={item.id} value={item.id}>{item.legal_name}</option>)}</select>
         </div>
-        <div className="mt-6 flex flex-wrap gap-2">{HORIZONS.map((days) => <button key={days} onClick={() => setHorizon(days)} className={`rounded-full px-4 py-2 text-sm font-semibold ${horizon === days ? "bg-[#0A2540] text-white" : "border border-slate-300 bg-white text-slate-600"}`}>{days === 365 ? "Annual horizon" : `${days} days`}</button>)}</div>
+        <div className="mt-6 flex flex-wrap gap-2">{HORIZONS.map((days) => {
+          const active = horizon === days;
+          const count = horizonCounts.get(days) ?? 0;
+          return (
+            <button key={days} onClick={() => setHorizon(days)} className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold ${active ? "bg-[#0A2540] text-white" : "border border-slate-300 bg-white text-slate-600"}`}>
+              <span>{days === 365 ? "Annual horizon" : `${days} days`}</span>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>{count}</span>
+            </button>
+          );
+        })}</div>
+        <div className="mt-4 flex items-center gap-4 text-sm text-slate-500">
+          <span><span className="font-bold text-[#0A2540] tabular-nums">{events.length}</span> item{events.length === 1 ? "" : "s"} in this horizon</span>
+          {overdueCount > 0 && <span className="flex items-center gap-1.5 font-semibold text-red-700"><span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold tabular-nums">{overdueCount}</span> overdue</span>}
+        </div>
         <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white">
           {data === null ? <div className="py-14 text-center text-slate-500">Loading calendar…</div> : events.length === 0 ? <div className="py-14 text-center"><CalendarDays className="mx-auto mb-3 h-9 w-9 text-slate-300" /><div className="font-semibold text-[#0A2540]">No known due dates in this horizon.</div><p className="mt-1 text-sm text-slate-500">Unknown dates stay unknown until documentation or a sourced date is provided.</p></div> : <div className="divide-y divide-slate-100">{events.map((item) => {
             const date = new Date(`${item.due_date}T00:00:00`);
