@@ -31,6 +31,7 @@ import { CoreApplicationDetails } from './forms/engine/CoreApplicationDetails';
 // fills EXISTING intake fields — the rules engine still decides requirements.
 import { NaturalLanguageIntake } from './components/NaturalLanguageIntake';
 import { mirrorAnswersToProfile, questionIdForAnswerKey } from './ai/intake/questionKeyMap';
+import { mergeDiscoveryAnswers, resumeQuestionIndex } from './intakeQuestionFlow';
 // Intake is a connected fact model: the resolver derives every fact that is
 // logically certain from what the user already told us, so SmartPR never asks a
 // question it can answer. It produces facts only — requirements still come
@@ -1467,11 +1468,19 @@ export default function SmartPRIntake() {
         profile.location_type
       );
       setQuestionList(list);
-      setCurrentQuestionIndex(0);
+      // Resume where the user actually is, NOT at question one. This effect
+      // re-runs mid-flow — answering "yes, a food truck" rewrites
+      // location_type, and the published KB snapshot can land at any moment —
+      // and rewinding to 0 replayed every question they had already answered.
+      setCurrentQuestionIndex(resumeQuestionIndex(list, discoveryAnswers, aiPrefilledKeys));
     } else {
       setQuestionList([]);
       setCurrentQuestionIndex(0);
     }
+    // discoveryAnswers/aiPrefilledKeys are read to find the resume point, but
+    // must not re-trigger the rebuild — answering a question would rebuild the
+    // list on every click.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.business_type, profile.location_type, kbReady]);
 
   // ==========================================================================
@@ -1651,8 +1660,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
     // Discovery + requirements are computed entirely client-side.
     setBusinessId('local-' + Date.now());
-    setDiscoveryAnswers(answers);
-    const baseRequirements = computeRequirements(profile, answers);
+    // MERGE, never replace. `answers` above is a fixed set of profile-derived
+    // keys; assigning it over the map used to discard every per-business-type
+    // answer the user had just given (for a restaurant: food prepared, on-site
+    // consumption, delivery, employees on site, food truck), so coming back to
+    // the intake asked all of them a second time.
+    const mergedAnswers = mergeDiscoveryAnswers(discoveryAnswers, answers);
+    setDiscoveryAnswers(mergedAnswers);
+    const baseRequirements = computeRequirements(profile, mergedAnswers);
     const computed = mergeConfirmedPotentialRequirements(
       baseRequirements,
       potentialItemsForProfile(profile, baseRequirements),
@@ -1661,7 +1676,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setRequirements(computed);
 
     // --- Knowledge-graph capture (observational, fire-and-forget) ---
-    captureScenario(profile, answers, computed);
+    captureScenario(profile, mergedAnswers, computed);
 
     setCurrentStep(3);
     setIsLoading(false);
