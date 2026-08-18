@@ -1,0 +1,22 @@
+{
+  "formCode": "CORPREG01",
+  "sourceFile": "RealForms/1-CORPREG01.pdf",
+  "checksum": "sha256:e40952687b3f87eedf22a80a7f760978783822f5e7ce164ca78485888bb02559",
+  "pageCount": 2,
+  "pageSizes": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 792
+    },
+    {
+      "page": 2,
+      "width": 612,
+      "height": 792
+    }
+  ],
+  "hasAcroForm": false,
+  "fieldCount": 0,
+  "fields": [],
+  "inspectedAt": "2026-08-18T20:23:04.413Z"
+}

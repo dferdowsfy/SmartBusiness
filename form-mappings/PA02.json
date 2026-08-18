@@ -1,0 +1,19 @@
+{
+  "formCode": "PA02",
+  "sourceFile": null,
+  "artifactType": "genericized_municipal_template",
+  "populationMethod": "none",
+  "templateChecksum": null,
+  "pageCount": 0,
+  "hasAcroForm": false,
+  "inspectedAt": null,
+  "status": "pending_source",
+  "notes": [
+    "No source file in RealForms yet — SmartPR reports requirements only for this artifact.",
+    "Layout originated from a Municipio de Bayamón form; municipality-specific wording was removed locally.",
+    "Classified genericized_municipal_template: usable for field mapping, UI demonstration and data-population testing only.",
+    "Must not be presented to a user as the official filing form for any municipality until that municipality's acceptance is separately verified.",
+    "Source file PA02-Solicitud-de-Patente-Provisional.pdf is not present in RealForms; the canonical municipal field model is currently carried by PA03/PA04 plus the canonical catalog."
+  ],
+  "fields": []
+}

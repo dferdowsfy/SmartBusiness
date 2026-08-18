@@ -1,0 +1,424 @@
+{
+  "formCode": "SC2309",
+  "sourceFile": "RealForms/sc_2309_0.pdf",
+  "artifactType": "official_pdf_form",
+  "populationMethod": "pdf_overlay",
+  "templateChecksum": "sha256:fcd687fce99a2fcebea904bef3e08808da6ae66a2e01a6c61c2082351fff606a",
+  "templateRevision": "Rev. 28 ago 14 (Rep. 26 jun 17)",
+  "pageCount": 4,
+  "hasAcroForm": false,
+  "inspectedAt": "2026-08-18T20:23:04.420Z",
+  "status": "mapped",
+  "notes": [
+    "Conditional: applies only when an activity requires a Hacienda internal-revenue license.",
+    "Never attach to every food-service business — see applicability.ts for the trigger set."
+  ],
+  "fields": [
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_nombre",
+      "canonicalField": "business.legal_name",
+      "confidence": 0.9,
+      "placement": {
+        "page": 1,
+        "x": 24,
+        "y": 869,
+        "width": 300,
+        "height": 12,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_numero_registro_comerciante",
+      "canonicalField": "business.merchant_registration_number",
+      "confidence": 0.86,
+      "placement": {
+        "page": 1,
+        "x": 458,
+        "y": 869,
+        "width": 125,
+        "height": 12,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_numero_seguro_social",
+      "canonicalField": null,
+      "confidence": 0,
+      "reviewNote": "Individual social security number — entered by the filer on the artifact, never auto-filled.",
+      "placement": {
+        "page": 1,
+        "x": 339,
+        "y": 869,
+        "width": 110,
+        "height": 12,
+        "fontSize": 9
+      }
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_nombre_comercial",
+      "canonicalField": "business.trade_name",
+      "confidence": 0.88,
+      "placement": {
+        "page": 1,
+        "x": 24,
+        "y": 845,
+        "width": 285,
+        "height": 12,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_numero_identificacion_patronal",
+      "canonicalField": "business.ein",
+      "confidence": 0.84,
+      "placement": {
+        "page": 1,
+        "x": 322,
+        "y": 845,
+        "width": 120,
+        "height": 12,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_numero_telefono",
+      "canonicalField": "business.phone",
+      "confidence": 0.7,
+      "placement": {
+        "page": 1,
+        "x": 466,
+        "y": 845,
+        "width": 118,
+        "height": 12,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_direccion_postal",
+      "canonicalField": "location.mailing_address",
+      "confidence": 0.86,
+      "placement": {
+        "page": 1,
+        "x": 24,
+        "y": 820,
+        "width": 280,
+        "height": 22,
+        "fontSize": 8,
+        "maxLines": 2,
+        "lineHeight": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_localizacion_negocio",
+      "canonicalField": "location.physical_address",
+      "confidence": 0.86,
+      "placement": {
+        "page": 1,
+        "x": 314,
+        "y": 820,
+        "width": 270,
+        "height": 22,
+        "fontSize": 8,
+        "maxLines": 2,
+        "lineHeight": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_tipo_individuo",
+      "canonicalField": "business.entity_type",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "business.entity_type",
+        "equalsAny": [
+          "sole_proprietorship"
+        ]
+      },
+      "confidence": 0.72,
+      "placement": {
+        "page": 1,
+        "x": 115,
+        "y": 896,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_tipo_sociedad",
+      "canonicalField": "business.entity_type",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "business.entity_type",
+        "equalsAny": [
+          "partnership",
+          "limited_liability_partnership"
+        ]
+      },
+      "confidence": 0.72,
+      "placement": {
+        "page": 1,
+        "x": 171,
+        "y": 896,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_tipo_corporacion",
+      "canonicalField": "business.entity_type",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "business.entity_type",
+        "equalsAny": [
+          "stock_corporation",
+          "close_corporation",
+          "professional_corporation",
+          "nonprofit_nonstock_corporation",
+          "foreign_corporation"
+        ]
+      },
+      "confidence": 0.72,
+      "placement": {
+        "page": 1,
+        "x": 228,
+        "y": 896,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte1_tipo_llc",
+      "canonicalField": "business.entity_type",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "business.entity_type",
+        "equalsAny": [
+          "limited_liability_company"
+        ]
+      },
+      "confidence": 0.72,
+      "placement": {
+        "page": 1,
+        "x": 296,
+        "y": 896,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_bebidas_alcoholicas",
+      "canonicalField": "activities.alcohol_sales",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.alcohol_sales",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.88,
+      "placement": {
+        "page": 1,
+        "x": 35,
+        "y": 546,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_gasolina",
+      "canonicalField": "activities.fuel_sales",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.fuel_sales",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.85,
+      "placement": {
+        "page": 1,
+        "x": 134,
+        "y": 546,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_cigarrillos",
+      "canonicalField": "activities.cigarette_sales",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.cigarette_sales",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.85,
+      "placement": {
+        "page": 1,
+        "x": 195,
+        "y": 546,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_promotor_espectaculos",
+      "canonicalField": "activities.public_show_promoter",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.public_show_promoter",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 1,
+        "x": 381,
+        "y": 546,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_metales_preciosos",
+      "canonicalField": "activities.precious_metals",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.precious_metals",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 1,
+        "x": 35,
+        "y": 531,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_armas_municiones",
+      "canonicalField": "activities.weapons_sales",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.weapons_sales",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 1,
+        "x": 198,
+        "y": 531,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte2_maquinas_monedas",
+      "canonicalField": "activities.coin_operated_machines",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "activities.coin_operated_machines",
+        "equalsAny": [
+          "true"
+        ]
+      },
+      "confidence": 0.8,
+      "placement": {
+        "page": 1,
+        "x": 35,
+        "y": 516,
+        "width": 10,
+        "height": 10,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "parte3_comentarios",
+      "canonicalField": "business.activity_description",
+      "confidence": 0.6,
+      "reviewNote": "Comentarios is a free-text block; confirm the district office accepts the activity description here.",
+      "placement": {
+        "page": 1,
+        "x": 80,
+        "y": 489,
+        "width": 500,
+        "height": 10,
+        "fontSize": 7.5
+      }
+    }
+  ]
+}

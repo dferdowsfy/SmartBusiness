@@ -1,0 +1,978 @@
+{
+  "formCode": "PA03",
+  "sourceFile": "RealForms/PA03-Solicitud-de-Prorroga-de-Declaracion.pdf",
+  "artifactType": "genericized_municipal_template",
+  "populationMethod": "acroform",
+  "templateChecksum": "sha256:5d96a35afd6198a0897a96dcde4c5d6f3e0b0717f990ebf457d2a3abc8cad139",
+  "pageCount": 2,
+  "hasAcroForm": true,
+  "inspectedAt": "2026-08-18T20:23:04.467Z",
+  "status": "mapped",
+  "notes": [
+    "Layout originated from a Municipio de Bayamón form; municipality-specific wording was removed locally.",
+    "Classified genericized_municipal_template: usable for field mapping, UI demonstration and data-population testing only.",
+    "Must not be presented to a user as the official filing form for any municipality until that municipality's acceptance is separately verified.",
+    "Ongoing compliance / renewal artifact — never part of a new-business formation package."
+  ],
+  "fields": [
+    {
+      "pdfField": "Fecha (Página 2)",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 516.6,
+        "y": 40.56,
+        "width": 44.4,
+        "height": 18
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Razón por la cual se denegó la prórroga",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 265.69,
+        "y": 95.28,
+        "width": 320.99,
+        "height": 81.32
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Nombre Corto (Página 2)",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 52.18,
+        "y": 22.92,
+        "width": 204.86,
+        "height": 17.81
+      },
+      "canonicalField": "business.trade_name",
+      "transform": "none",
+      "confidence": 0.62,
+      "reviewed": false,
+      "reviewNote": "Could be the trade name or an abbreviation the municipality assigns."
+    },
+    {
+      "pdfField": "Número de Contribuyente (Página 2)",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 49.62,
+        "y": 61.2,
+        "width": 207.66,
+        "height": 15.73
+      },
+      "canonicalField": "operations.municipal_taxpayer_id",
+      "transform": "none",
+      "confidence": 0.86,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Fecha de vencimiento de la prórroga",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 52.28,
+        "y": 127.15,
+        "width": 144.3,
+        "height": 24.53
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Tiempo de Prórroga Concedido",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 51.48,
+        "y": 158.82,
+        "width": 145.1,
+        "height": 19.55
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Razon por la cual se solicita prórroga",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 24,
+        "y": 548.09,
+        "width": 555.96,
+        "height": 109.51
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Periodo Solicitado (Desde)",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 195.48,
+        "y": 694.8,
+        "width": 124.56,
+        "height": 18
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Periodo Solicitado (Hasta)",
+      "pdfFieldType": "text",
+      "page": 2,
+      "rect": {
+        "x": 373.08,
+        "y": 694.8,
+        "width": 164.52,
+        "height": 18
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Número AFF",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 480.84,
+        "y": 213.24,
+        "width": 94.32,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Ciudad donde recide el Juramentado",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 145.08,
+        "y": 164.71,
+        "width": 227.64,
+        "height": 13.95
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Ciudad donde se esta Juramentando",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 467.4,
+        "y": 144.24,
+        "width": 83.16,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Año de Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 354.72,
+        "y": 144.24,
+        "width": 38.76,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Mes de Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 270,
+        "y": 144.24,
+        "width": 66.6,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Día de Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 220.22,
+        "y": 144.24,
+        "width": 33.24,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Titulo del Oficinista que Administra",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 348.12,
+        "y": 63.72,
+        "width": 199.92,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Volumen de Negocio (Linea 1)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 511.78,
+        "y": 379.2,
+        "width": 77.54,
+        "height": 12.6
+      },
+      "canonicalField": "operations.estimated_gross_receipts",
+      "transform": "currency",
+      "confidence": 0.8,
+      "reviewed": false,
+      "reviewNote": "Gross receipts are usually reported for a closed fiscal year — confirm the period before filing."
+    },
+    {
+      "pdfField": "Tipo de Patente (Linea 2)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 510.7,
+        "y": 364.59,
+        "width": 78.64,
+        "height": 12.48
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Descuento (Linea 4)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 509.91,
+        "y": 311.08,
+        "width": 79.31,
+        "height": 12.48
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Credito por Contribuciones (Linea 5)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 509.94,
+        "y": 296.29,
+        "width": 80.27,
+        "height": 12.48
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Zona Postal Direccion Postal Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 421.62,
+        "y": 463.59,
+        "width": 74.01,
+        "height": 13.01
+      },
+      "canonicalField": "location.mailing_postal_code",
+      "transform": "none",
+      "confidence": 0.78,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Postal Oficina Principal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 17.98,
+        "y": 405.58,
+        "width": 404.11,
+        "height": 15.46
+      },
+      "canonicalField": "location.mailing_address",
+      "transform": "none",
+      "confidence": 0.7,
+      "reviewed": false,
+      "reviewNote": "Principal-office address may differ from the business mailing address."
+    },
+    {
+      "pdfField": "Dirección Postal del Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 18.47,
+        "y": 463.68,
+        "width": 405.09,
+        "height": 13.21
+      },
+      "canonicalField": "location.mailing_address",
+      "transform": "none",
+      "confidence": 0.84,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Zona Postal Dirección Residencial del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 423.25,
+        "y": 435,
+        "width": 71.56,
+        "height": 13.83
+      },
+      "canonicalField": "owner.postal_code",
+      "transform": "none",
+      "confidence": 0.74,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Zona Postal Direccion Postal Oficina Principal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 422.43,
+        "y": 406.4,
+        "width": 72.38,
+        "height": 14.65
+      },
+      "canonicalField": "location.mailing_postal_code",
+      "transform": "none",
+      "confidence": 0.78,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Residencial del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 18.24,
+        "y": 435.6,
+        "width": 404.49,
+        "height": 13.21
+      },
+      "canonicalField": "owner.address",
+      "transform": "none",
+      "confidence": 0.72,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Año Solicitud de Prórroga",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 101.24,
+        "y": 684.77,
+        "width": 24.65,
+        "height": 14.23
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Municipio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 501.24,
+        "y": 681.84,
+        "width": 87,
+        "height": 47.69
+      },
+      "defaultValue": "",
+      "canonicalField": "location.municipality",
+      "transform": "none",
+      "confidence": 0.9,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Nombre del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 17.98,
+        "y": 491.37,
+        "width": 208.83,
+        "height": 13.83
+      },
+      "canonicalField": "owner.full_name",
+      "transform": "none",
+      "confidence": 0.9,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Posición del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 228.78,
+        "y": 491.37,
+        "width": 154.08,
+        "height": 13.83
+      },
+      "canonicalField": "owner.title",
+      "transform": "none",
+      "confidence": 0.84,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Radico usted el año pasado?",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 457.57,
+        "y": 492.92,
+        "width": 9.01,
+        "height": 10.65
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Si | No. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Clase de Industria, Negocio o Servicio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.2,
+        "y": 519.72,
+        "width": 145.32,
+        "height": 21.41
+      },
+      "canonicalField": "business.activity_description",
+      "transform": "none",
+      "confidence": 0.76,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Tipo de Negocio",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 206.99,
+        "y": 538.5,
+        "width": 14.73,
+        "height": 12.28
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Individuo | Sociedad | Corporación. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Número de Empleados",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 325.32,
+        "y": 519.72,
+        "width": 83.28,
+        "height": 20.59
+      },
+      "canonicalField": "operations.employee_count",
+      "transform": "integer",
+      "confidence": 0.94,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Nómina Anual",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 411,
+        "y": 519.72,
+        "width": 60.48,
+        "height": 20.63
+      },
+      "canonicalField": "operations.estimated_payroll",
+      "transform": "currency",
+      "confidence": 0.9,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Fecha en que se establecio el negocio (Mes)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 494.68,
+        "y": 520.79,
+        "width": 20.08,
+        "height": 18.73
+      },
+      "canonicalField": "business.start_date",
+      "transform": "date_month",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Fecha en que se establecio el negocio (Día)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 528.18,
+        "y": 518.34,
+        "width": 24.17,
+        "height": 22
+      },
+      "canonicalField": "business.start_date",
+      "transform": "date_day",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Fecha en que se establecio el negocio (Año)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 569.04,
+        "y": 518.34,
+        "width": 20.9,
+        "height": 22
+      },
+      "canonicalField": "business.start_date",
+      "transform": "date_year",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Física del Negocio u Oficina de Servicio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 18.32,
+        "y": 566.16,
+        "width": 403.6,
+        "height": 13.21
+      },
+      "canonicalField": "location.physical_address",
+      "transform": "none",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Física Negocio Zona Postal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 423.25,
+        "y": 565.73,
+        "width": 72.38,
+        "height": 13.01
+      },
+      "canonicalField": "location.postal_code",
+      "transform": "none",
+      "confidence": 0.82,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Negocio Cambio",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 537.64,
+        "y": 566.46,
+        "width": 15.55,
+        "height": 12.28
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: No. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Seg. Soc. del Dueño y/o Reg. Inc",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 424.44,
+        "y": 594.24,
+        "width": 164.16,
+        "height": 20.47
+      },
+      "canonicalField": "owner.tax_id",
+      "transform": "none",
+      "confidence": 0.6,
+      "reviewed": false,
+      "reviewNote": "Government identifier of a person — SmartPR never auto-fills it; the filer enters it on the artifact.",
+      "sensitive": true
+    },
+    {
+      "pdfField": "Núm. de Identificación Municipal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 289.44,
+        "y": 594.24,
+        "width": 132.6,
+        "height": 19.65
+      },
+      "canonicalField": "operations.municipal_taxpayer_id",
+      "transform": "none",
+      "confidence": 0.86,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Núm. de Teléfono del Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 289.25,
+        "y": 630.28,
+        "width": 134.48,
+        "height": 14.65
+      },
+      "canonicalField": "business.phone",
+      "transform": "none",
+      "confidence": 0.86,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Nombre del Individuo, Industria, Negocio u Oficina de Servicio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.2,
+        "y": 594.24,
+        "width": 267.84,
+        "height": 20.47
+      },
+      "canonicalField": "business.legal_name",
+      "transform": "none",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Número de Seguro Social Patronal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 424.07,
+        "y": 631.09,
+        "width": 163.89,
+        "height": 13.83
+      },
+      "canonicalField": "business.ein",
+      "transform": "none",
+      "confidence": 0.72,
+      "reviewed": false,
+      "reviewNote": "Employer identifier: confirm the municipality expects the federal EIN here."
+    },
+    {
+      "pdfField": "Año Fiscal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 229.71,
+        "y": 631.56,
+        "width": 57.21,
+        "height": 17.17
+      },
+      "canonicalField": "operations.fiscal_year_end",
+      "transform": "none",
+      "confidence": 0.6,
+      "reviewed": false,
+      "reviewNote": "Fiscal-year field on a municipal declaration — confirm whether the municipality wants the year or the closing date."
+    },
+    {
+      "pdfField": "Porciento",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 113.64,
+        "y": 631.56,
+        "width": 42.83,
+        "height": 22.89
+      },
+      "defaultValue": "0",
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Tipo de Patente",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 52.11,
+        "y": 632.64,
+        "width": 12.28,
+        "height": 12.28
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Normal | Exenta. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Año Rango de Prórroga (Desde)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 315.12,
+        "y": 685.58,
+        "width": 22.2,
+        "height": 13.42
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Mes Rango Prórroga (Desde)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 245.13,
+        "y": 684.21,
+        "width": 51.13,
+        "height": 15.46
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Mes Rango Prórroga (Hasta)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 367.32,
+        "y": 685.58,
+        "width": 62.4,
+        "height": 13.42
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Año Rango Prórroga (Hasta)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 450,
+        "y": 685.46,
+        "width": 33.36,
+        "height": 13.42
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Total a Pagar (Linea 6)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 510.95,
+        "y": 266.11,
+        "width": 78.53,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Patente a Pagar (Linea 3)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 508.82,
+        "y": 324.89,
+        "width": 79.91,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Jurado Por (Nombre)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 165.6,
+        "y": 190.2,
+        "width": 194.4,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Jurado Por (Apellido)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 378.72,
+        "y": 190.2,
+        "width": 205.32,
+        "height": 12.6
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Cambio Dirección Negocio",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 513.13,
+        "y": 566.46,
+        "width": 12.28,
+        "height": 11.46
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Si. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Cambio Dirección Postal",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 512.31,
+        "y": 465.14,
+        "width": 9.83,
+        "height": 11.46
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Si | No. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Cambio Dirección Residencial",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 512.31,
+        "y": 438.18,
+        "width": 9.01,
+        "height": 9.83
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Si | No. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Cambio Dirección Oficina",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 513.5,
+        "y": 409.58,
+        "width": 8.2,
+        "height": 10.65
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Si | No. Needs an explicit option mapping."
+    }
+  ]
+}

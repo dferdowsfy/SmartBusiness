@@ -85,6 +85,10 @@ export interface CanonicalApplicationData {
     purpose?: string;
     activityDescription?: string;
     naicsCode?: string;
+    /** Hacienda merchant registration (Registro de Comerciante) number. */
+    merchantRegistrationNumber?: string;
+    /** Department of State registry number issued after formation. */
+    registryNumber?: string;
     operationsStartDate?: string;
     employeeCount?: number;
     email?: string;
@@ -123,6 +127,37 @@ export interface CanonicalApplicationData {
     effectiveDateChoice?: "filing_date" | "future_date";
     futureEffectiveDate?: string;
   };
+  /**
+   * Operating profile shared by municipal and Hacienda artifacts. Added for the
+   * government-artifact engine (see forms/artifacts) — the municipal patente
+   * family asks for headcount and payroll that no Department of State form does.
+   */
+  operations: {
+    employeeCount?: number;
+    estimatedAnnualPayroll?: number;
+    estimatedAnnualGrossReceipts?: number;
+    municipalTaxpayerId?: string;
+    fiscalYearEnd?: string;
+  };
+  /**
+   * Regulated-activity flags. These mirror the knowledge-base question ids
+   * (Q_ALCOHOL_SOLD, Q_OUTDOOR_SEATING, ...) so the deterministic rules engine
+   * stays the single authority on which requirements exist; the artifact engine
+   * only reads them to decide which government artifact applies.
+   */
+  activities: {
+    foodService?: boolean;
+    outdoorSeating?: boolean;
+    alcoholSales?: boolean;
+    entertainment?: boolean;
+    signage?: boolean;
+    coinOperatedMachines?: boolean;
+    fuelSales?: boolean;
+    cigaretteSales?: boolean;
+    weaponsSales?: boolean;
+    preciousMetals?: boolean;
+    publicShowPromoter?: boolean;
+  };
   version: number;
 }
 
@@ -145,6 +180,8 @@ export function emptyCanonicalData(): CanonicalApplicationData {
       authorizedSigners: [],
     },
     filingPreferences: {},
+    operations: {},
+    activities: {},
     version: 1,
   };
 }

@@ -1,0 +1,16 @@
+{
+  "formCode": "SS4",
+  "sourceFile": null,
+  "artifactType": "official_pdf_form",
+  "populationMethod": "none",
+  "templateChecksum": null,
+  "pageCount": 0,
+  "hasAcroForm": false,
+  "inspectedAt": null,
+  "status": "pending_source",
+  "notes": [
+    "No source file in RealForms yet — SmartPR reports requirements only for this artifact.",
+    "Source file fss4.pdf is not present in RealForms; population method becomes acroform once the official file is added."
+  ],
+  "fields": []
+}
