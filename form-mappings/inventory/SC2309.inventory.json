@@ -1,0 +1,32 @@
+{
+  "formCode": "SC2309",
+  "sourceFile": "RealForms/sc_2309_0.pdf",
+  "checksum": "sha256:fcd687fce99a2fcebea904bef3e08808da6ae66a2e01a6c61c2082351fff606a",
+  "pageCount": 4,
+  "pageSizes": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 1008
+    },
+    {
+      "page": 2,
+      "width": 612,
+      "height": 1008
+    },
+    {
+      "page": 3,
+      "width": 612,
+      "height": 1008
+    },
+    {
+      "page": 4,
+      "width": 612,
+      "height": 1008
+    }
+  ],
+  "hasAcroForm": false,
+  "fieldCount": 0,
+  "fields": [],
+  "inspectedAt": "2026-08-18T20:23:04.420Z"
+}

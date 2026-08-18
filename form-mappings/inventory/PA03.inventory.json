@@ -1,0 +1,788 @@
+{
+  "formCode": "PA03",
+  "sourceFile": "RealForms/PA03-Solicitud-de-Prorroga-de-Declaracion.pdf",
+  "checksum": "sha256:5d96a35afd6198a0897a96dcde4c5d6f3e0b0717f990ebf457d2a3abc8cad139",
+  "pageCount": 2,
+  "pageSizes": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 792
+    },
+    {
+      "page": 2,
+      "width": 612,
+      "height": 792
+    }
+  ],
+  "hasAcroForm": true,
+  "fieldCount": 61,
+  "fields": [
+    {
+      "name": "Fecha (Página 2)",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 516.6,
+        "y": 40.56,
+        "width": 44.4,
+        "height": 18
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Razón por la cual se denegó la prórroga",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 265.69,
+        "y": 95.28,
+        "width": 320.99,
+        "height": 81.32
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre Corto (Página 2)",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 52.18,
+        "y": 22.92,
+        "width": 204.86,
+        "height": 17.81
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número de Contribuyente (Página 2)",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 49.62,
+        "y": 61.2,
+        "width": 207.66,
+        "height": 15.73
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha de vencimiento de la prórroga",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 52.28,
+        "y": 127.15,
+        "width": 144.3,
+        "height": 24.53
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tiempo de Prórroga Concedido",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 51.48,
+        "y": 158.82,
+        "width": 145.1,
+        "height": 19.55
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Razon por la cual se solicita prórroga",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 24,
+        "y": 548.09,
+        "width": 555.96,
+        "height": 109.51
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Periodo Solicitado (Desde)",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 195.48,
+        "y": 694.8,
+        "width": 124.56,
+        "height": 18
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Periodo Solicitado (Hasta)",
+      "type": "text",
+      "page": 2,
+      "rect": {
+        "x": 373.08,
+        "y": 694.8,
+        "width": 164.52,
+        "height": 18
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número AFF",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 480.84,
+        "y": 213.24,
+        "width": 94.32,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Ciudad donde recide el Juramentado",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 145.08,
+        "y": 164.71,
+        "width": 227.64,
+        "height": 13.95
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Ciudad donde se esta Juramentando",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 467.4,
+        "y": 144.24,
+        "width": 83.16,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año de Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 354.72,
+        "y": 144.24,
+        "width": 38.76,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Mes de Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 270,
+        "y": 144.24,
+        "width": 66.6,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Día de Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 220.22,
+        "y": 144.24,
+        "width": 33.24,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Titulo del Oficinista que Administra",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 348.12,
+        "y": 63.72,
+        "width": 199.92,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Volumen de Negocio (Linea 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 511.78,
+        "y": 379.2,
+        "width": 77.54,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Patente (Linea 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 510.7,
+        "y": 364.59,
+        "width": 78.64,
+        "height": 12.48
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Descuento (Linea 4)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 509.91,
+        "y": 311.08,
+        "width": 79.31,
+        "height": 12.48
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Credito por Contribuciones (Linea 5)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 509.94,
+        "y": 296.29,
+        "width": 80.27,
+        "height": 12.48
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Direccion Postal Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 421.62,
+        "y": 463.59,
+        "width": 74.01,
+        "height": 13.01
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Postal Oficina Principal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 17.98,
+        "y": 405.58,
+        "width": 404.11,
+        "height": 15.46
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Postal del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 18.47,
+        "y": 463.68,
+        "width": 405.09,
+        "height": 13.21
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Dirección Residencial del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 423.25,
+        "y": 435,
+        "width": 71.56,
+        "height": 13.83
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Direccion Postal Oficina Principal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 422.43,
+        "y": 406.4,
+        "width": 72.38,
+        "height": 14.65
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Residencial del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 18.24,
+        "y": 435.6,
+        "width": 404.49,
+        "height": 13.21
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año Solicitud de Prórroga",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 101.24,
+        "y": 684.77,
+        "width": 24.65,
+        "height": 14.23
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Municipio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 501.24,
+        "y": 681.84,
+        "width": 87,
+        "height": 47.69
+      },
+      "currentValue": "",
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 17.98,
+        "y": 491.37,
+        "width": 208.83,
+        "height": 13.83
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Posición del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 228.78,
+        "y": 491.37,
+        "width": 154.08,
+        "height": 13.83
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Radico usted el año pasado?",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 457.57,
+        "y": 492.92,
+        "width": 9.01,
+        "height": 10.65
+      },
+      "options": [
+        "Si",
+        "No"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Clase de Industria, Negocio o Servicio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.2,
+        "y": 519.72,
+        "width": 145.32,
+        "height": 21.41
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Negocio",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 206.99,
+        "y": 538.5,
+        "width": 14.73,
+        "height": 12.28
+      },
+      "options": [
+        "Individuo",
+        "Sociedad",
+        "Corporación"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Número de Empleados",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 325.32,
+        "y": 519.72,
+        "width": 83.28,
+        "height": 20.59
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nómina Anual",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 411,
+        "y": 519.72,
+        "width": 60.48,
+        "height": 20.63
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha en que se establecio el negocio (Mes)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 494.68,
+        "y": 520.79,
+        "width": 20.08,
+        "height": 18.73
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha en que se establecio el negocio (Día)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 528.18,
+        "y": 518.34,
+        "width": 24.17,
+        "height": 22
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha en que se establecio el negocio (Año)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 569.04,
+        "y": 518.34,
+        "width": 20.9,
+        "height": 22
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Física del Negocio u Oficina de Servicio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 18.32,
+        "y": 566.16,
+        "width": 403.6,
+        "height": 13.21
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Física Negocio Zona Postal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 423.25,
+        "y": 565.73,
+        "width": 72.38,
+        "height": 13.01
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Negocio Cambio",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 537.64,
+        "y": 566.46,
+        "width": 15.55,
+        "height": 12.28
+      },
+      "options": [
+        "No"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Seg. Soc. del Dueño y/o Reg. Inc",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 424.44,
+        "y": 594.24,
+        "width": 164.16,
+        "height": 20.47
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Núm. de Identificación Municipal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 289.44,
+        "y": 594.24,
+        "width": 132.6,
+        "height": 19.65
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Núm. de Teléfono del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 289.25,
+        "y": 630.28,
+        "width": 134.48,
+        "height": 14.65
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Individuo, Industria, Negocio u Oficina de Servicio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.2,
+        "y": 594.24,
+        "width": 267.84,
+        "height": 20.47
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número de Seguro Social Patronal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 424.07,
+        "y": 631.09,
+        "width": 163.89,
+        "height": 13.83
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año Fiscal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 229.71,
+        "y": 631.56,
+        "width": 57.21,
+        "height": 17.17
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Porciento",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 113.64,
+        "y": 631.56,
+        "width": 42.83,
+        "height": 22.89
+      },
+      "currentValue": "0",
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Patente",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 52.11,
+        "y": 632.64,
+        "width": 12.28,
+        "height": 12.28
+      },
+      "options": [
+        "Normal",
+        "Exenta"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Año Rango de Prórroga (Desde)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 315.12,
+        "y": 685.58,
+        "width": 22.2,
+        "height": 13.42
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Mes Rango Prórroga (Desde)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 245.13,
+        "y": 684.21,
+        "width": 51.13,
+        "height": 15.46
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Mes Rango Prórroga (Hasta)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 367.32,
+        "y": 685.58,
+        "width": 62.4,
+        "height": 13.42
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año Rango Prórroga (Hasta)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 450,
+        "y": 685.46,
+        "width": 33.36,
+        "height": 13.42
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Total a Pagar (Linea 6)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 510.95,
+        "y": 266.11,
+        "width": 78.53,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Patente a Pagar (Linea 3)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 508.82,
+        "y": 324.89,
+        "width": 79.91,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Jurado Por (Nombre)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 165.6,
+        "y": 190.2,
+        "width": 194.4,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Jurado Por (Apellido)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 378.72,
+        "y": 190.2,
+        "width": 205.32,
+        "height": 12.6
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Cambio Dirección Negocio",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 513.13,
+        "y": 566.46,
+        "width": 12.28,
+        "height": 11.46
+      },
+      "options": [
+        "Si"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Cambio Dirección Postal",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 512.31,
+        "y": 465.14,
+        "width": 9.83,
+        "height": 11.46
+      },
+      "options": [
+        "Si",
+        "No"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Cambio Dirección Residencial",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 512.31,
+        "y": 438.18,
+        "width": 9.01,
+        "height": 9.83
+      },
+      "options": [
+        "Si",
+        "No"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Cambio Dirección Oficina",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 513.5,
+        "y": 409.58,
+        "width": 8.2,
+        "height": 10.65
+      },
+      "options": [
+        "Si",
+        "No"
+      ],
+      "readOnly": false
+    }
+  ],
+  "inspectedAt": "2026-08-18T20:23:04.467Z"
+}

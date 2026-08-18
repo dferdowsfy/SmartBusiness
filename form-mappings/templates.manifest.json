@@ -1,0 +1,53 @@
+{
+  "generatedAt": "2026-08-18T20:23:04.490Z",
+  "templates": [
+    {
+      "formCode": "CORPREG01",
+      "sourceFile": "RealForms/1-CORPREG01.pdf",
+      "checksum": "sha256:e40952687b3f87eedf22a80a7f760978783822f5e7ce164ca78485888bb02559",
+      "byteLength": 139819,
+      "pageCount": 2,
+      "hasAcroForm": false,
+      "nativeFieldCount": 0,
+      "populationMethod": "pdf_overlay",
+      "artifactType": "official_pdf_form",
+      "sourceStatus": "official_source"
+    },
+    {
+      "formCode": "SC2309",
+      "sourceFile": "RealForms/sc_2309_0.pdf",
+      "checksum": "sha256:fcd687fce99a2fcebea904bef3e08808da6ae66a2e01a6c61c2082351fff606a",
+      "byteLength": 120344,
+      "pageCount": 4,
+      "hasAcroForm": false,
+      "nativeFieldCount": 0,
+      "populationMethod": "pdf_overlay",
+      "artifactType": "official_pdf_form",
+      "sourceStatus": "official_source"
+    },
+    {
+      "formCode": "PA03",
+      "sourceFile": "RealForms/PA03-Solicitud-de-Prorroga-de-Declaracion.pdf",
+      "checksum": "sha256:5d96a35afd6198a0897a96dcde4c5d6f3e0b0717f990ebf457d2a3abc8cad139",
+      "byteLength": 212971,
+      "pageCount": 2,
+      "hasAcroForm": true,
+      "nativeFieldCount": 61,
+      "populationMethod": "acroform",
+      "artifactType": "genericized_municipal_template",
+      "sourceStatus": "genericized_working_copy"
+    },
+    {
+      "formCode": "PA04",
+      "sourceFile": "RealForms/PA04-Mant-Contribuyente-Deudor.pdf",
+      "checksum": "sha256:c3adabc97f1429a2e88cc4f1f9c746be134b4233b432bcb3be135f5b03e45ea8",
+      "byteLength": 110045,
+      "pageCount": 1,
+      "hasAcroForm": true,
+      "nativeFieldCount": 40,
+      "populationMethod": "acroform",
+      "artifactType": "genericized_municipal_template",
+      "sourceStatus": "genericized_working_copy"
+    }
+  ]
+}

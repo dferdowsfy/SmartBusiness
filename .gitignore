@@ -40,6 +40,12 @@ deliverables/
 *.zip
 *.pdf
 
+# The canonical government template library is source, not generated output.
+!RealForms/*.pdf
+
+# Populated working copies and mapping previews produced by `npm run forms:demo`
+generated-filings-demo/
+
 
 # The deliverables API route is source code, not generated output
 !frontend/src/app/api/deliverables/

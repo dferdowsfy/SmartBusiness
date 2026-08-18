@@ -1,0 +1,17 @@
+{
+  "formCode": "CORPLLC02",
+  "sourceFile": null,
+  "artifactType": "official_pdf_form",
+  "populationMethod": "none",
+  "templateChecksum": null,
+  "pageCount": 0,
+  "hasAcroForm": false,
+  "inspectedAt": null,
+  "status": "pending_source",
+  "notes": [
+    "No source file in RealForms yet — SmartPR reports requirements only for this artifact.",
+    "Source file 34-CORPLLC02.pdf is not present in RealForms; SmartPR reports requirements only until it is added.",
+    "Applies when business.entity_type is a limited liability company."
+  ],
+  "fields": []
+}

@@ -1,0 +1,518 @@
+{
+  "formCode": "PA04",
+  "sourceFile": "RealForms/PA04-Mant-Contribuyente-Deudor.pdf",
+  "checksum": "sha256:c3adabc97f1429a2e88cc4f1f9c746be134b4233b432bcb3be135f5b03e45ea8",
+  "pageCount": 1,
+  "pageSizes": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 792
+    }
+  ],
+  "hasAcroForm": true,
+  "fieldCount": 40,
+  "fields": [
+    {
+      "name": "CAR RT",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 391.29,
+        "y": 510.96,
+        "width": 196.2,
+        "height": 17.4
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Mantenimiento",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 27.78,
+        "y": 702.91,
+        "width": 18,
+        "height": 18
+      },
+      "options": [
+        "Añadir",
+        "Modificar",
+        "Eliminar"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Municipio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 475.68,
+        "y": 702,
+        "width": 111,
+        "height": 33.35
+      },
+      "currentValue": "",
+      "readOnly": false
+    },
+    {
+      "name": "ID Contribuyente",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 102.51,
+        "y": 651.6,
+        "width": 172.29,
+        "height": 25.46
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Status",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 382.31,
+        "y": 651.6,
+        "width": 54.61,
+        "height": 12.39
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha de Incorporación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 444.05,
+        "y": 595.56,
+        "width": 97.93,
+        "height": 13.21
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Referencia",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 327.99,
+        "y": 595.56,
+        "width": 108.93,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 52.93,
+        "y": 595.56,
+        "width": 86.87,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 208.06,
+        "y": 596.38,
+        "width": 65.93,
+        "height": 24.65
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Física del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 24.96,
+        "y": 557.88,
+        "width": 562.32,
+        "height": 17.4
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Teléfono",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 69.49,
+        "y": 510.96,
+        "width": 163.67,
+        "height": 17.4
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Comentarion (Sección Contribuyente)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 25.08,
+        "y": 441.72,
+        "width": 562.08,
+        "height": 20.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Pueblo o Ciudad (Sección Contribuyente)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 96.44,
+        "y": 529.8,
+        "width": 277.48,
+        "height": 26.28
+      },
+      "currentValue": "",
+      "readOnly": false
+    },
+    {
+      "name": "Estado (Sección Contribuyente)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 411.17,
+        "y": 529.8,
+        "width": 84.31,
+        "height": 26.28
+      },
+      "currentValue": "",
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Alterna",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 200.58,
+        "y": 482.88,
+        "width": 222.9,
+        "height": 14.02
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal (Seccion Contribuyente)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 503.12,
+        "y": 529.8,
+        "width": 83.8,
+        "height": 12.39
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha Firma del CAC",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 216,
+        "y": 47.4,
+        "width": 93.12,
+        "height": 21.45
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha Firma Representante Autorizado",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 507.12,
+        "y": 47.4,
+        "width": 67.68,
+        "height": 21.45
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Negocio, Dueño/Deudor o Representante (Sección Contribuyente)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 237.67,
+        "y": 623.64,
+        "width": 199.25,
+        "height": 26.16
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre Corto (Sección Contribuyente)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 439.34,
+        "y": 623.64,
+        "width": 147.58,
+        "height": 13.09
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección del Hogar",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 30.63,
+        "y": 482.88,
+        "width": 163.17,
+        "height": 12.39
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Teléfono (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 508.51,
+        "y": 391.44,
+        "width": 78.41,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Negocio, Dueño/Deudor o Representante (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 238.49,
+        "y": 363.36,
+        "width": 225.43,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre Corto (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 472.05,
+        "y": 363.36,
+        "width": 114.86,
+        "height": 14.02
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección del Hogar (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 120.51,
+        "y": 391.44,
+        "width": 343.41,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Pueblo o Ciudad (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 94.25,
+        "y": 307.2,
+        "width": 324.67,
+        "height": 26.16
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Estado (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 455.35,
+        "y": 307.2,
+        "width": 67.13,
+        "height": 26.16
+      },
+      "currentValue": "PR",
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal (Sección Hogar 1)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 525.73,
+        "y": 307.53,
+        "width": 60.94,
+        "height": 13.83
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Hogar (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 119.69,
+        "y": 256.8,
+        "width": 344.23,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Teléfono (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 508.51,
+        "y": 256.8,
+        "width": 78.41,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre Corto (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 526.8,
+        "y": 228.72,
+        "width": 60.12,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección del Hogar (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 109.3,
+        "y": 200.76,
+        "width": 477.62,
+        "height": 26.16
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Estado (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 455.35,
+        "y": 169.8,
+        "width": 67.13,
+        "height": 28.8
+      },
+      "currentValue": "PR",
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 524.64,
+        "y": 169.8,
+        "width": 62.64,
+        "height": 16.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Pueblo o Ciudad (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 94.25,
+        "y": 169.8,
+        "width": 324.67,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Negocio, Dueño/Deudor o Representante (Sección Hogar 2)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 237.67,
+        "y": 228.72,
+        "width": 226.25,
+        "height": 26.28
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número de Seguro Social",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 442.86,
+        "y": 651.52,
+        "width": 141.01,
+        "height": 13.01
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Enviar a",
+      "type": "dropdown",
+      "page": 1,
+      "rect": {
+        "x": 425.7,
+        "y": 482.75,
+        "width": 98.15,
+        "height": 12.65
+      },
+      "currentValue": "C",
+      "options": [
+        "C-Negocio",
+        "H-Hogar",
+        "A-Alterna"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Ciclo",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 527.37,
+        "y": 482.39,
+        "width": 56.03,
+        "height": 13.01
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Contribuyente",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 313.39,
+        "y": 662.24,
+        "width": 13.92,
+        "height": 12.28
+      },
+      "options": [
+        "Patente",
+        "CAC"
+      ],
+      "readOnly": false
+    }
+  ],
+  "inspectedAt": "2026-08-18T20:23:04.489Z"
+}
