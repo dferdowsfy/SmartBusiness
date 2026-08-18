@@ -256,6 +256,32 @@ export function buildEngineInput(
     Q_NONPROFIT_STATUS: on("nonprofit_status"),
     Q_RENOVATIONS: on("renovations"),
     Q_VEHICLE_REPAIR: on("vehicles_repaired", "vehicle_repair"),
+
+    // The remaining questions the guided wizard asks. They carry no rule in
+    // rules.json today, so translating them changes no requirement — but the
+    // intake can now record them, which is what lets the interpreter answer
+    // them from the description instead of asking the user again.
+    Q_PHYSICAL_OFFICE: on("physical_office"),
+    Q_CUSTOMERS_VISIT: on("customers_visit"),
+    Q_CLIENTS_VISIT: on("clients_visit"),
+    Q_PATIENTS_VISIT: on("patients_visit"),
+    Q_CUSTOMERS_RECEIVE_SERVICES: on("customers_receive_services"),
+    Q_ON_SITE_CONSUMPTION: on("customers_consume_on_site"),
+    Q_FOOD_DELIVERY: on("food_delivered"),
+    Q_FOOD_TRUCK_MOBILE: on("food_truck_or_mobile"),
+    Q_DIAGNOSTIC_TESTING: on("diagnostic_testing"),
+    Q_NEEDLES_INVASIVE: on("needles_or_invasive"),
+    Q_HAZMAT_TRANSPORT: on("hazardous_materials_transported"),
+    Q_PRODUCTS_DISTRIBUTED: on("products_distributed"),
+    Q_GOODS_STORED: on("goods_stored", "equipment_stored"),
+    Q_INVENTORY_STORED: on("inventory_stored", "products_stored"),
+    Q_DELIVERIES: on("deliveries_made"),
+    Q_HARDWARE_SOLD: on("hardware_sold"),
+    Q_GUESTS_OVERNIGHT: on("guests_stay_overnight"),
+    Q_WATER_ACTIVITIES: on("water_activities"),
+    Q_EXCURSIONS: on("excursions"),
+    Q_CLASSES_ON_SITE: on("classes_on_site"),
+    Q_PROPERTY_MANAGEMENT: on("properties_managed"),
   };
 
   // Pass through direct KB-question answers (admin-created questions are

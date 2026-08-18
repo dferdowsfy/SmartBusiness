@@ -13,7 +13,7 @@ import { dirname, join } from "node:path";
 
 import { runRulesEngine, type EngineInput, type KnowledgeBase } from "../../rulesEngine.ts";
 import { buildKbCandidates } from "./kbCandidates.ts";
-import { QUESTION_KEY_MAP } from "./questionKeyMap.ts";
+import { QUESTION_KEY_MAP, applicableQuestionIds, isApplicableQuestionId } from "./questionKeyMap.ts";
 import {
   validateInterpretation,
   toIntakePatch,
@@ -21,7 +21,8 @@ import {
   coerceAnswerValue,
   type RawInterpretation,
 } from "./validateInterpretation.ts";
-import { mirrorAnswersToProfile } from "./questionKeyMap.ts";
+import { mirrorAnswersToProfile, questionIdForAnswerKey } from "./questionKeyMap.ts";
+import { resolveIntakeFacts } from "./relationships.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const kbDir = join(here, "..", "..", "..", "kb");
@@ -61,6 +62,28 @@ function interpret(raw: RawInterpretation) {
   // The UI passes the active KB so the patch can reconcile contradictory model
   // answers and drop chips that restate a fact another chip already implies.
   return { validated, patch: toIntakePatch(validated, { kb: KB, allowedIndustries: INDUSTRIES }) };
+}
+
+/**
+ * The wizard's own suppression rule (`isQuestionSuppressed` in SmartPRIntake),
+ * reproduced over a patch: a question is settled when the interpreter filled it
+ * in, or when the relationship resolver derived it with certainty.
+ */
+function resolveFor(patch: ReturnType<typeof toIntakePatch>): Set<string> {
+  const profile: Record<string, unknown> = {
+    ...patch.profile,
+    ...mirrorAnswersToProfile(patch.answers),
+  };
+  return resolveIntakeFacts(
+    { profile, answers: patch.answers, explicitKeys: Object.keys(patch.answers) },
+    { kb: KB, allowedIndustries: INDUSTRIES }
+  ).resolvedQuestionIds;
+}
+
+function suppressed(wizardKey: string, patch: ReturnType<typeof toIntakePatch>): boolean {
+  if (Object.prototype.hasOwnProperty.call(patch.answers, wizardKey)) return true;
+  const questionId = questionIdForAnswerKey(wizardKey);
+  return questionId !== null && resolveFor(patch).has(questionId);
 }
 
 // --- 1–2: business type + municipality resolution --------------------------
@@ -418,4 +441,138 @@ test("only true answers mirror onto the profile (false never asserts a negative)
   const mirrored = mirrorAnswersToProfile({ outdoor_seating: true, alcohol_sold: false });
   assert.equal(mirrored.outdoor_seating, true);
   assert.equal(mirrored.alcohol_sold, undefined);
+});
+
+// --- Coverage: every wizard question must be answerable from a description ---
+//
+// The reported failure: "fast food restaurant that serves alcohol, outdoor
+// seating, delivery/pick up and by the beach" still asked "Will food be
+// delivered?" and "Will alcohol be sold?".
+
+const RESTAURANT_SENTENCE =
+  "Want to open a fast food restaurant that serves alcohol, outdoor seating, delivery/pick up and by the beach.";
+
+test("REPRO: the restaurant wizard's questions are all offered to the model", () => {
+  const candidates = buildKbCandidates(KB, RESTAURANT_SENTENCE);
+  const offered = new Set(candidates.questions.map((q) => q.id));
+  // The exact questions hardcodedQuestionsForBusinessType() asks a restaurant.
+  const asked = [
+    "Q_FOOD_PREPARED", "Q_ON_SITE_CONSUMPTION", "Q_ALCOHOL_SOLD", "Q_OUTDOOR_SEATING",
+    "Q_LIVE_ENTERTAINMENT", "Q_FOOD_DELIVERY", "Q_EMPLOYEES_HIRED", "Q_FOOD_TRUCK_MOBILE",
+  ];
+  const unreachable = asked.filter((id) => !offered.has(id));
+  assert.deepEqual(unreachable, [], `model is never offered: ${unreachable.join(", ")}`);
+});
+
+test("REPRO: \"delivery/pick up\" answers the wizard's delivery question", () => {
+  const { patch } = interpret({
+    businessType: { id: "BT_FAST_FOOD_RESTAURANT", name: "Fast Food Restaurant", confidence: 0.95 },
+    answers: [{ questionId: "Q_FOOD_DELIVERY", value: true, confidence: 0.93 }],
+  });
+  assert.equal(patch.answers.food_delivered, true, "food_delivered must be pre-filled, not asked");
+});
+
+test("REPRO: \"serves alcohol\" settles the wizard's \"alcohol sold\" question", () => {
+  const { patch } = interpret({
+    businessType: { id: "BT_FAST_FOOD_RESTAURANT", name: "Fast Food Restaurant", confidence: 0.95 },
+    answers: [{ questionId: "Q_ALCOHOL_SERVED", value: true, confidence: 0.93 }],
+  });
+  assert.equal(patch.answers.alcohol_served, true);
+  // The wizard asks "Will alcohol be sold?" (wizard key `alcohol_sold`). It is
+  // suppressed the same way the UI decides: the resolver derived the fact.
+  assert.equal(suppressed("alcohol_sold", patch), true, "\"Will alcohol be sold?\" must not be asked again");
+});
+
+test("the whole reported sentence leaves no restaurant question unanswered", () => {
+  // What the model returns for the reported sentence once every question is
+  // offered to it (see the candidate test above).
+  const { patch } = interpret({
+    businessType: { id: "BT_FAST_FOOD_RESTAURANT", name: "Fast Food Restaurant", confidence: 0.95 },
+    answers: [
+      { questionId: "Q_ALCOHOL_SERVED", value: true, confidence: 0.93 },
+      { questionId: "Q_OUTDOOR_SEATING", value: true, confidence: 0.95 },
+      { questionId: "Q_FOOD_DELIVERY", value: true, confidence: 0.94 },
+    ],
+  });
+  // Every question hardcodedQuestionsForBusinessType() asks a restaurant,
+  // except the one the sentence genuinely does not address.
+  for (const wizardKey of [
+    "customers_consume_on_site", // derived: outdoor seating
+    "alcohol_sold",              // derived: alcohol is served
+    "outdoor_seating",           // stated
+    "food_delivered",            // stated
+  ]) {
+    assert.equal(suppressed(wizardKey, patch), true, `${wizardKey} should not be asked`);
+  }
+
+  // Still asked, and correctly so — the sentence does not settle these.
+  // "Will food be prepared on-site?" stays a question on purpose: it drives
+  // three health-permit rules, and a fast-food outlet that only reheats is not
+  // preparing food, so the registry keeps it a strong inference rather than a
+  // certainty. SmartPR asks rather than assuming its way into a permit.
+  assert.equal(suppressed("food_prepared_on_site", patch), false);
+  assert.equal(suppressed("live_entertainment", patch), false);
+});
+
+test("relationships chain: outdoor seating -> on-site consumption -> customers visit", () => {
+  const { patch } = interpret({
+    answers: [{ questionId: "Q_OUTDOOR_SEATING", value: true, confidence: 0.95 }],
+  });
+  const resolved = resolveFor(patch);
+  assert.ok(resolved.has("Q_ON_SITE_CONSUMPTION"), "seating implies on-site consumption");
+  assert.ok(resolved.has("Q_CUSTOMERS_VISIT"), "on-site consumption implies customers visit");
+  assert.ok(resolved.has("Q_FOOD_SERVED"), "on-site consumption implies food served");
+});
+
+test("INVARIANT: every question the wizard can ask is extractable by the AI", () => {
+  // The original defect was structural, not a prompt problem: a question the
+  // wizard shows but QUESTION_KEY_MAP omits can never be pre-filled, because
+  // this map gates BOTH candidate retrieval and validation. Any new wizard
+  // question must be added here too, or it silently becomes un-answerable.
+  const wizardSource = readFileSync(join(here, "..", "..", "SmartPRIntake.tsx"), "utf8");
+  const start = wizardSource.indexOf("function hardcodedQuestionsForBusinessType");
+  const end = wizardSource.indexOf("\nfunction ", start + 10);
+  const block = wizardSource.slice(start, end);
+  const wizardKeys = [...new Set([...block.matchAll(/\{\s*id:\s*"([a-z0-9_]+)"\s*,\s*text:/g)].map((m) => m[1]))];
+  assert.ok(wizardKeys.length > 30, `expected the wizard question list, found ${wizardKeys.length}`);
+
+  const unreachable = wizardKeys.filter((key) => {
+    const questionId = questionIdForAnswerKey(key);
+    return questionId === null || !isApplicableQuestionId(questionId);
+  });
+  assert.deepEqual(unreachable, [], `wizard questions the AI can never answer: ${unreachable.join(", ")}`);
+});
+
+test("INVARIANT: every extractable question exists in the knowledge base", () => {
+  const known = new Set(KB.questions.map((q) => q.id));
+  const missing = applicableQuestionIds().filter((id) => !known.has(id));
+  assert.deepEqual(missing, [], `not in the KB: ${missing.join(", ")}`);
+});
+
+test("REGRESSION: the newly-extractable questions change no requirement", () => {
+  // None of them carry a rule, so recording them must not move engine output.
+  const base = runEngineWithAnswers({ Q_FOOD_SOLD: true }, "Restaurant");
+  const withNew = runEngineWithAnswers(
+    {
+      Q_FOOD_SOLD: true, Q_FOOD_DELIVERY: true, Q_ON_SITE_CONSUMPTION: true,
+      Q_CUSTOMERS_VISIT: true, Q_CLIENTS_VISIT: true, Q_PATIENTS_VISIT: true,
+      Q_GOODS_STORED: true, Q_INVENTORY_STORED: true, Q_DELIVERIES: true,
+      Q_HARDWARE_SOLD: true, Q_GUESTS_OVERNIGHT: true, Q_WATER_ACTIVITIES: true,
+      Q_EXCURSIONS: true, Q_CLASSES_ON_SITE: true, Q_PROPERTY_MANAGEMENT: true,
+      Q_PHYSICAL_OFFICE: true, Q_FOOD_TRUCK_MOBILE: true, Q_DIAGNOSTIC_TESTING: true,
+      Q_NEEDLES_INVASIVE: true, Q_HAZMAT_TRANSPORT: true, Q_PRODUCTS_DISTRIBUTED: true,
+      Q_CUSTOMERS_RECEIVE_SERVICES: true,
+    },
+    "Restaurant"
+  );
+  assert.deepEqual(withNew.sort(), base.sort());
+});
+
+test("REGRESSION: serving alcohol yields the same requirements as selling it", () => {
+  // The new served -> sold relationship only states what the wizard's own
+  // profile mirror already did, so engine output must be identical.
+  assert.deepEqual(
+    runEngineWithAnswers({ Q_ALCOHOL_SERVED: true, Q_ALCOHOL_SOLD: true }, "Restaurant").sort(),
+    runEngineWithAnswers({ Q_ALCOHOL_SOLD: true }, "Restaurant").sort()
+  );
 });

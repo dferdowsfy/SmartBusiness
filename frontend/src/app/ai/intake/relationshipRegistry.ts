@@ -391,6 +391,28 @@ export const INTAKE_RELATIONSHIPS: IntakeRelationship[] = [
     "Delivered food is normally sold, but a charity meal service is not selling."
   ),
   whenTrue(
+    "REL_ALCOHOL_SERVED_IMPLIES_SOLD",
+    "Q_ALCOHOL_SERVED",
+    [det("Q_ALCOHOL_SOLD", true)],
+    // SmartPR has always equated these in this direction: handleQuestionAnswer
+    // sets profile.alcohol_sold when `alcohol_served` is answered, and
+    // PROFILE_MIRROR does the same on the AI path. This states that existing
+    // rule once, so "serves alcohol" also settles "Will alcohol be sold?".
+    "A business serving alcohol commercially is selling it."
+  ),
+  whenTrue(
+    "REL_OUTDOOR_SEATING_IMPLIES_ON_SITE_CONSUMPTION",
+    "Q_OUTDOOR_SEATING",
+    [det("Q_ON_SITE_CONSUMPTION", true)],
+    "Seating exists so customers can consume what they bought on the premises."
+  ),
+  whenTrue(
+    "REL_ON_SITE_CONSUMPTION_IMPLIES_CUSTOMERS_VISIT",
+    "Q_ON_SITE_CONSUMPTION",
+    [det("Q_CUSTOMERS_VISIT", true)],
+    "Customers consuming on-site are, by definition, visiting the location."
+  ),
+  whenTrue(
     "REL_PATIENTS_VISIT_IMPLIES_HEALTHCARE",
     "Q_PATIENTS_VISIT",
     [det("Q_HEALTHCARE_SERVICES", true)],

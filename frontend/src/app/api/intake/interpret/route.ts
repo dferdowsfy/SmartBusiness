@@ -140,11 +140,33 @@ EXTRACT EVERY FACT THE SENTENCE STATES. If the user states a headcount, a
 vehicle or unit count, an entity type, an industry, or a location type, return
 it — do not return only the business type and municipality.
 
+Work through the SMARTPR CONTEXT — QUESTIONS list above one by one and answer
+EVERY question the description settles. A question you leave out is a question
+SmartPR has to ask the user again, even though they already told you. Short
+descriptions routinely settle five or six of them at once.
+
+A phrase settles a question even when it is worded differently. For example:
+- "delivery", "pick up", "takeout", "to go", "curbside" -> the food-delivery question
+- "serves alcohol", "full bar", "beer and wine" -> the alcohol questions
+- "outdoor seating", "patio", "terrace", "sidewalk tables" -> outdoor seating
+- "dine-in", "sit-down", "tables" -> the on-site consumption question
+- "walk-ins", "customers come in", "storefront" -> the customers-visit question
+- "food truck", "mobile unit", "cart" -> the food-truck question
+- "live music", "DJ", "bands" -> live entertainment
+- "overnight guests", "nightly stays" -> the overnight-guest question
+
 Example: "I want to open a bar with 10 employees in Bayamón"
 -> businessType BT_BAR, municipality Bayamón,
    profileValues [{ number_of_employees: 10 }], answers [].
    (SmartPR derives the industry, the employee bracket, and that employees will
-   be hired — all from those facts.)${
+   be hired — all from those facts.)
+
+Example: "a fast food restaurant that serves alcohol, outdoor seating, and
+delivery/pick up"
+-> businessType the fast-food id, and answers for ALL THREE stated facts:
+   the alcohol-served question, the outdoor-seating question, and the
+   food-delivery question. Returning only the business type would leave the
+   user answering questions they already gave you.${
     isEs ? '\n\nWrite the "summary" field in Spanish. Keep all ids and JSON keys exactly as specified.' : ""
   }
 

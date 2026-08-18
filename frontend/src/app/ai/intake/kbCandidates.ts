@@ -31,7 +31,13 @@ export interface KbCandidates {
 
 export const MAX_BUSINESS_TYPES = 14;
 export const MAX_MUNICIPALITIES = 10;
-export const MAX_QUESTIONS = 26;
+/**
+ * Room for every question SmartPR can consume (see `applicableQuestionIds`).
+ * Only questions with a relevance signal are offered, so this is a ceiling
+ * rather than a target — but it must never be the reason a question the wizard
+ * is about to ask was withheld from the model.
+ */
+export const MAX_QUESTIONS = 60;
 
 /** Lowercase, strip accents/punctuation — "Bayamón" and "bayamon" must match. */
 export function normalize(text: string): string {
@@ -107,6 +113,27 @@ const QUESTION_HINTS: Record<string, string[]> = {
   Q_HOME_BASED: ["home", "house", "home-based", "from home", "casa", "desde casa"],
   Q_ONLINE_ONLY: ["online", "e-commerce", "ecommerce", "website", "virtual", "remote", "en linea"],
   Q_PHYSICAL_LOCATION: ["location", "storefront", "shop", "store", "office", "space", "local", "tienda"],
+  Q_PHYSICAL_OFFICE: ["office", "workspace", "desk", "oficina"],
+  Q_CUSTOMERS_VISIT: ["customer", "walk-in", "walk in", "foot traffic", "visit", "cliente"],
+  Q_CLIENTS_VISIT: ["client", "meeting", "consultation", "visit", "cliente"],
+  Q_PATIENTS_VISIT: ["patient", "clinic", "appointment", "paciente"],
+  Q_CUSTOMERS_RECEIVE_SERVICES: ["service", "treatment", "appointment", "servicio"],
+  Q_ON_SITE_CONSUMPTION: ["dine in", "dine-in", "eat in", "sit down", "seating", "table", "on-site", "on site", "comer aqui"],
+  Q_FOOD_DELIVERY: ["delivery", "deliver", "takeout", "take out", "take-out", "pick up", "pickup", "pick-up", "to go", "togo", "carry out", "carryout", "curbside", "entrega", "para llevar"],
+  Q_FOOD_TRUCK_MOBILE: ["food truck", "mobile", "cart", "trailer", "kiosk", "movil"],
+  Q_DIAGNOSTIC_TESTING: ["diagnostic", "testing", "x-ray", "xray", "imaging", "lab work", "bloodwork"],
+  Q_NEEDLES_INVASIVE: ["needle", "injection", "invasive", "surgery", "piercing", "tattoo", "acupuncture"],
+  Q_HAZMAT_TRANSPORT: ["transport", "haul", "carry", "hazardous", "fuel", "chemical"],
+  Q_PRODUCTS_DISTRIBUTED: ["distribute", "distribution", "wholesale", "supplier", "distribuir"],
+  Q_GOODS_STORED: ["storage", "store", "warehouse", "stock", "equipment", "almacen"],
+  Q_INVENTORY_STORED: ["inventory", "stock", "warehouse", "storage", "inventario"],
+  Q_DELIVERIES: ["delivery", "deliver", "ship", "shipping", "courier", "entrega"],
+  Q_HARDWARE_SOLD: ["hardware", "equipment", "device", "computer", "parts"],
+  Q_GUESTS_OVERNIGHT: ["overnight", "guest", "stay", "night", "lodging", "airbnb", "hotel", "huesped"],
+  Q_WATER_ACTIVITIES: ["water", "beach", "boat", "kayak", "snorkel", "dive", "diving", "surf", "playa", "mar"],
+  Q_EXCURSIONS: ["excursion", "tour", "guided", "trip", "expedition", "excursion"],
+  Q_CLASSES_ON_SITE: ["class", "classes", "lesson", "training", "workshop", "teach", "clase"],
+  Q_PROPERTY_MANAGEMENT: ["property management", "manage properties", "landlord", "tenant", "administracion"],
 };
 
 /** Questions always offered — they shape the core of every requirement set. */

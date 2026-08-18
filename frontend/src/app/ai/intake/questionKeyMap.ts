@@ -64,6 +64,37 @@ export const QUESTION_KEY_MAP: Record<string, QuestionKeyBinding> = {
   Q_NONPROFIT_STATUS: { writeKey: "nonprofit_status" },
   Q_RENOVATIONS: { writeKey: "renovations" },
   Q_VEHICLE_REPAIR: { writeKey: "vehicle_repair", aliases: ["vehicles_repaired"] },
+
+  // The rest of what the guided wizard actually asks.
+  //
+  // These were previously absent, which silently made them un-extractable: the
+  // list below gates candidate retrieval AND validation, so a question missing
+  // here was never offered to the model, and was discarded if the model
+  // volunteered it anyway. The user then got asked something their description
+  // had already answered — "delivery/pick up" followed by "Will food be
+  // delivered?". Every question `hardcodedQuestionsForBusinessType()` can show
+  // now has an entry, and a test holds that line.
+  Q_PHYSICAL_OFFICE: { writeKey: "physical_office" },
+  Q_CUSTOMERS_VISIT: { writeKey: "customers_visit" },
+  Q_CLIENTS_VISIT: { writeKey: "clients_visit" },
+  Q_PATIENTS_VISIT: { writeKey: "patients_visit" },
+  Q_CUSTOMERS_RECEIVE_SERVICES: { writeKey: "customers_receive_services" },
+  Q_ON_SITE_CONSUMPTION: { writeKey: "customers_consume_on_site" },
+  Q_FOOD_DELIVERY: { writeKey: "food_delivered" },
+  Q_FOOD_TRUCK_MOBILE: { writeKey: "food_truck_or_mobile" },
+  Q_DIAGNOSTIC_TESTING: { writeKey: "diagnostic_testing" },
+  Q_NEEDLES_INVASIVE: { writeKey: "needles_or_invasive" },
+  Q_HAZMAT_TRANSPORT: { writeKey: "hazardous_materials_transported" },
+  Q_PRODUCTS_DISTRIBUTED: { writeKey: "products_distributed" },
+  Q_GOODS_STORED: { writeKey: "goods_stored", aliases: ["equipment_stored"] },
+  Q_INVENTORY_STORED: { writeKey: "inventory_stored", aliases: ["products_stored"] },
+  Q_DELIVERIES: { writeKey: "deliveries_made" },
+  Q_HARDWARE_SOLD: { writeKey: "hardware_sold" },
+  Q_GUESTS_OVERNIGHT: { writeKey: "guests_stay_overnight" },
+  Q_WATER_ACTIVITIES: { writeKey: "water_activities" },
+  Q_EXCURSIONS: { writeKey: "excursions" },
+  Q_CLASSES_ON_SITE: { writeKey: "classes_on_site" },
+  Q_PROPERTY_MANAGEMENT: { writeKey: "properties_managed" },
 };
 
 /**
@@ -120,6 +151,26 @@ const PROFILE_MIRROR: Record<string, string> = {
   import_export: "import_export",
   commercial_signage: "commercial_signage",
   short_term_rental: "short_term_rental",
+  // Mirrors for the wizard questions added above. Each line matches what
+  // `handleQuestionAnswer` already does for the same key, so an AI-filled
+  // answer and a hand-clicked one leave the profile in the same state.
+  customers_consume_on_site: "customers_visit",
+  customers_visit: "customers_visit",
+  clients_visit: "customers_visit",
+  patients_visit: "customers_visit",
+  customers_receive_services: "customers_visit",
+  food_delivered: "food_prepared_or_sold",
+  physical_office: "physical_location",
+  inventory_stored: "physical_location",
+  goods_stored: "physical_location",
+  guests_stay_overnight: "physical_location",
+  water_activities: "physical_location",
+  classes_on_site: "physical_location",
+  properties_managed: "physical_location",
+  hardware_sold: "products_manufactured",
+  diagnostic_testing: "healthcare_services",
+  needles_or_invasive: "hazardous_materials",
+  hazardous_materials_transported: "hazardous_materials",
 };
 
 /**
