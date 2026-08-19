@@ -2867,26 +2867,45 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       // a cached Blob URL. Where SmartPR holds the actual agency file with a
       // verified mapping, this is the real PDF populated server-side — never
       // the SmartPR-drafted preparation summary standing in for it.
+      const worksheetSubstitutions: string[] = [];
       for (const app of Object.values(preparedGovApplications)) {
         const definition = getDefinition(app.formId);
         if (!definition) continue;
         const safeTitle = `${app.officialFormNumber}_${definition.variantKey}`.replace(/[^a-z0-9_]+/gi, '_');
         const template = getTemplate(definition.officialFormNumber);
+        const official = Boolean(template && isOfficialArtifact(template));
         let blob: Blob | null = null;
-        if (template && isOfficialArtifact(template)) {
-          try {
-            const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ profile: canonicalApplication }),
-            });
-            if (res.ok) blob = await res.blob();
-          } catch {
-            // Fall through to the SmartPR-drafted preparation PDF below.
+        if (official) {
+          // One retry: a single hiccup should not cost the applicant the real
+          // agency PDF, which is the whole point of the package.
+          for (let attempt = 0; attempt < 2 && !blob; attempt++) {
+            try {
+              const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ profile: canonicalApplication }),
+              });
+              if (res.ok) blob = await res.blob();
+            } catch {
+              // Retry, then fall through to the clearly-named worksheet below.
+            }
           }
         }
-        if (!blob) blob = generatePreparationPdf(definition, app.data as GovFormData, canonicalApplication, language);
-        zip.file(`Prepared_Applications/${safeTitle}.pdf`, blob);
+        if (blob) {
+          zip.file(`Prepared_Applications/${safeTitle}.pdf`, blob);
+          continue;
+        }
+        // Population failed for a form SmartPR does hold. The worksheet still
+        // goes in so the applicant's work is not lost, but under a name that
+        // cannot be mistaken for the agency's form — and it is reported below,
+        // because silently swapping the document is how someone ends up filing
+        // a SmartPR summary at the Department of State.
+        const suffix = official ? '_PREPARATION_WORKSHEET_NOT_THE_OFFICIAL_FORM' : '';
+        if (official) worksheetSubstitutions.push(app.officialFormNumber);
+        zip.file(
+          `Prepared_Applications/${safeTitle}${suffix}.pdf`,
+          generatePreparationPdf(definition, app.data as GovFormData, canonicalApplication, language)
+        );
       }
 
       // Collect validated docs that have real file blobs, sorted by submission priority
@@ -2917,6 +2936,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       void archiveDeliverable('submission', filename, zipBlob);
+      if (worksheetSubstitutions.length > 0) {
+        setSampleFormNotice(
+          `${worksheetSubstitutions.join(', ')}: the official agency PDF could not be produced, so the package contains a SmartPR preparation worksheet instead. Reopen the form and download the official PDF before filing.`
+        );
+      }
     } finally {
       setIsLoading(false);
     }

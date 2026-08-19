@@ -12,7 +12,7 @@
 // never at the start of the form.
 // ============================================================================
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GovernmentFormRenderer } from "./GovernmentFormRenderer.tsx";
 import { GovernmentFormPreview } from "./GovernmentFormPreview.tsx";
 import { GovernmentFormActions } from "./GovernmentFormActions.tsx";
@@ -32,6 +32,13 @@ import type {
   Lang,
 } from "./types.ts";
 import { localize } from "./types.ts";
+
+/** The official government PDF as the populate route returns it. */
+interface PopulatedArtifact {
+  blob: Blob;
+  populated: number;
+  unanswered: number;
+}
 
 export interface GovernmentFormModalProps {
   definition: DigitalFormDefinition;
@@ -62,6 +69,8 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
   // onComplete — until the applicant confirms the preview below. This is what
   // actually gets added to deliverables; nothing commits before that click.
   const [pendingApp, setPendingApp] = useState<{ app: GeneratedApplication; data: FormData } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const fee = useMemo(() => governmentFeeText(definition.id, canonical, lang), [definition.id, canonical, lang]);
 
@@ -81,24 +90,64 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
   }, [readyPreviewUrl]);
 
   // Whether SmartPR actually holds this agency's official PDF and can
-  // populate it directly — currently true only for CORPREG01. Pure catalog
-  // lookup (no filesystem access), safe to run in the browser.
+  // populate it directly. Pure catalog lookup (no filesystem access), safe to
+  // run in the browser.
   const hasRealArtifact = useMemo(() => {
     const template = getTemplate(definition.officialFormNumber);
     return Boolean(template && isOfficialArtifact(template));
   }, [definition.officialFormNumber]);
+
+  // Every mode whose footer renders the download button. Kept next to that
+  // footer condition so the two cannot drift apart.
+  const offersDownload = mode === "review" || mode === "view" || mode === "ready";
 
   // The literal government PDF, populated server-side (population reads the
   // source file from disk, so this has to be a request, not a client render).
   // Not reset when a new request starts: while a refetch (e.g. after "Back to
   // edit" → complete again) is in flight, the previous result stays on screen
   // rather than flashing a loading state, and is replaced once the new one lands.
-  const [realArtifact, setRealArtifact] = useState<{ blob: Blob; populated: number; unanswered: number } | null>(null);
+  const [realArtifact, setRealArtifact] = useState<PopulatedArtifact | null>(null);
   const [realArtifactError, setRealArtifactError] = useState<string | null>(null);
-  // Shown fresh after completing (mode "ready") and again when reopening an
-  // already-prepared application to review it (mode "view") — not while still
-  // mid-edit, where there is nothing finished yet worth populating.
-  const wantsRealArtifact = (mode === "ready" || mode === "view") && hasRealArtifact;
+
+  // One in-flight population per (form, profile), shared by the preview below
+  // and the download button. Without this the download would either fire its
+  // own duplicate request or — worse — proceed with no official PDF at all.
+  const pendingPopulation = useRef<{ key: string; promise: Promise<PopulatedArtifact> } | null>(null);
+  const populationKey = `${definition.officialFormNumber}:${JSON.stringify(canonical)}`;
+
+  const requestOfficialPdf = useCallback((): Promise<PopulatedArtifact> => {
+    const cached = pendingPopulation.current;
+    if (cached?.key === populationKey) return cached.promise;
+    const promise = (async () => {
+      const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ profile: canonical }),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(errBody.error ?? `HTTP ${res.status}`);
+      }
+      return {
+        blob: await res.blob(),
+        populated: Number(res.headers.get("x-smartpr-populated-fields") ?? 0),
+        unanswered: Number(res.headers.get("x-smartpr-unanswered-fields") ?? 0),
+      };
+    })();
+    // A rejected promise must not be cached, or every later retry replays the
+    // same failure instead of actually asking again.
+    promise.catch(() => {
+      if (pendingPopulation.current?.promise === promise) pendingPopulation.current = null;
+    });
+    pendingPopulation.current = { key: populationKey, promise };
+    return promise;
+  }, [populationKey, definition.officialFormNumber, canonical]);
+
+  // Warmed for every mode that offers a download — including "review", where
+  // the download button is on screen but no preview is. Fetching only in
+  // "ready"/"view" is what used to leave the download with nothing official to
+  // hand over, so it silently produced the SmartPR worksheet instead.
+  const wantsRealArtifact = offersDownload && hasRealArtifact;
   // Derived, not stored: loading is exactly "expecting a real artifact but
   // don't have one or a failure yet".
   const realArtifactLoading = wantsRealArtifact && !realArtifact && !realArtifactError;
@@ -108,32 +157,14 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
     // A superseded request (deps changed again before this one resolved) must
     // never overwrite a fresher result — `cancelled` guards every setState.
     let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ profile: canonical }),
-        });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}) as { error?: string });
-          throw new Error(errBody.error ?? `HTTP ${res.status}`);
-        }
-        const blob = await res.blob();
-        if (cancelled) return;
-        setRealArtifact({
-          blob,
-          populated: Number(res.headers.get("x-smartpr-populated-fields") ?? 0),
-          unanswered: Number(res.headers.get("x-smartpr-unanswered-fields") ?? 0),
-        });
-      } catch (err) {
-        if (!cancelled) setRealArtifactError(err instanceof Error ? err.message : String(err));
-      }
-    })();
+    void requestOfficialPdf().then(
+      (artifact) => { if (!cancelled) { setRealArtifact(artifact); setRealArtifactError(null); } },
+      (err: unknown) => { if (!cancelled) setRealArtifactError(err instanceof Error ? err.message : String(err)); }
+    );
     return () => {
       cancelled = true;
     };
-  }, [wantsRealArtifact, definition.officialFormNumber, canonical]);
+  }, [wantsRealArtifact, requestOfficialPdf]);
 
   const realArtifactUrl = useMemo(() => (realArtifact ? URL.createObjectURL(realArtifact.blob) : null), [realArtifact]);
   useEffect(() => {
@@ -190,17 +221,42 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
     onClose();
   };
 
-  const downloadPdf = () => {
-    // When the real government PDF is on screen, download exactly that —
-    // never a different document than the one just reviewed.
-    const url = showingRealArtifact && realArtifactUrl ? realArtifactUrl : URL.createObjectURL(generatePreparationPdf(definition, data, canonical, lang));
+  const saveBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${definition.officialFormNumber}_${localize(definition.title, lang).replace(/\s+/g, "_")}.pdf`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    if (!(showingRealArtifact && realArtifactUrl)) setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const downloadPdf = async () => {
+    const filename = `${definition.officialFormNumber}_${localize(definition.title, lang).replace(/\s+/g, "_")}.pdf`;
+
+    // No official file in the template library for this form: the SmartPR
+    // preparation worksheet is genuinely the deliverable, and the button says so.
+    if (!hasRealArtifact) {
+      saveBlob(generatePreparationPdf(definition, data, canonical, lang), filename);
+      return;
+    }
+
+    // SmartPR holds the agency's own PDF, so the download is that PDF —
+    // waiting for the population to finish if it is still in flight. It must
+    // never quietly substitute the SmartPR-drafted worksheet: the applicant
+    // asked for the official form and would file whatever this hands them.
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const artifact = await requestOfficialPdf();
+      setRealArtifact(artifact);
+      saveBlob(artifact.blob, filename);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const readOnly = mode === "view";
@@ -318,13 +374,23 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
         {/* Footer actions */}
         <div style={{ padding: "14px 20px", borderTop: "1px solid #e2e8f0", display: "flex", flexDirection: "column", gap: 8 }}>
-          {(mode === "review" || mode === "view" || mode === "ready") && (
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-start" }}>
-              <button type="button" onClick={downloadPdf} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>
-                {showingRealArtifact
-                  ? L("Download populated official form", "Descargar formulario oficial completado")
-                  : L("Download preparation PDF", "Descargar PDF de preparación")}
+          {offersDownload && (
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap" }}>
+              <button type="button" onClick={() => void downloadPdf()} disabled={downloading} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid #cbd5e1", background: "white", cursor: downloading ? "default" : "pointer", opacity: downloading ? 0.6 : 1 }}>
+                {downloading
+                  ? L("Populating the official PDF…", "Completando el PDF oficial…")
+                  : hasRealArtifact
+                    ? L("Download populated official form", "Descargar formulario oficial completado")
+                    : L("Download preparation PDF", "Descargar PDF de preparación")}
               </button>
+              {downloadError && (
+                <span style={{ fontSize: 11.5, color: "#991b1b" }}>
+                  {L(
+                    "Couldn't produce the official PDF — nothing was downloaded. Try again.",
+                    "No se pudo generar el PDF oficial — no se descargó nada. Inténtelo de nuevo."
+                  )}
+                </span>
+              )}
             </div>
           )}
           {mode === "ready" ? (

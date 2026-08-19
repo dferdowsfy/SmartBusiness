@@ -20,7 +20,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { resolveApplicableArtifacts } from "./applicability.ts";
-import { getTemplate } from "./catalog.ts";
+import { getTemplate, isOfficialArtifact } from "./catalog.ts";
+import { FORM_REGISTRY, getDefinition } from "../engine/registry.ts";
 import { ArtifactGenerationError, generateWorkingCopy } from "./library.ts";
 import { extractPdfText, pdfTextContains, readAcroFormValues } from "./pdfReadback.ts";
 import { resolveRepoPath, sha256 } from "./paths.ts";
@@ -302,6 +303,43 @@ test("SS-4 line 9a: an LLC is not assigned a federal tax classification", async 
   assert.ok(llcFields.has("topmostSubform[0].Page1[0].c1_1[0]"), "8a should be Yes for an LLC");
   const nineA = [...llcFields].filter((f) => f.includes("c1_3["));
   assert.deepEqual(nineA, [], "no 9a entity-type box may be checked for an LLC");
+});
+
+// --- What the UI download promises -------------------------------------------
+
+test("every displayable form holding an official template can actually produce it", async () => {
+  // The form modal decides what to download from exactly this catalog lookup:
+  // when an official template exists it waits for the populated agency PDF and
+  // refuses to substitute the SmartPR worksheet. That promise only holds if
+  // every such form is genuinely producible — otherwise the download is a dead
+  // end. This walks the same registry the UI walks.
+  const displayable = FORM_REGISTRY.filter((entry) => entry.displayForm);
+  assert.ok(displayable.length > 0, "no displayable forms in the registry");
+
+  const checked: string[] = [];
+  for (const entry of displayable) {
+    const definition = getDefinition(entry.id);
+    assert.ok(definition, `${entry.id} is displayable but has no definition`);
+    const template = getTemplate(definition.officialFormNumber);
+    if (!template || !isOfficialArtifact(template)) continue;
+
+    const profile = definition.variantKey === "limited_liability_company" ? llcProfile() : applicantProfile();
+    const result = await generateWorkingCopy({
+      formCode: definition.officialFormNumber,
+      profile,
+      purpose: "filing",
+    });
+    assert.ok(result.bytes.length > 0, `${definition.officialFormNumber} produced no bytes`);
+    assert.ok(
+      result.populated.length > 0,
+      `${definition.officialFormNumber} produced an entirely blank form — the download would hand over an empty PDF`
+    );
+    checked.push(definition.officialFormNumber);
+  }
+
+  // Guards against the set silently emptying (e.g. a catalog rename), which
+  // would make this test vacuously pass.
+  assert.deepEqual(checked.sort(), ["CORPLLC02", "CORPREG01", "SS4"]);
 });
 
 // --- Safety invariants -------------------------------------------------------
