@@ -17,22 +17,26 @@ cd frontend && npm run forms:inspect
 | File | Form code | Agency | Artifact type | Scope | Population |
 |------|-----------|--------|---------------|-------|------------|
 | `1-CORPREG01.pdf` | CORPREG01 | PR Department of State | `official_pdf_form` | statewide | `pdf_overlay` (no native fields) |
+| `34-CORPLLC02.pdf` | CORPLLC02 | PR Department of State | `official_pdf_form` | statewide | `pdf_overlay` (no native fields) |
+| `fss4.pdf` | SS4 | Internal Revenue Service | `official_pdf_form` | federal | `acroform` (89 native fields) |
 | `sc_2309_0.pdf` | SC2309 | Departamento de Hacienda | `official_pdf_form` | statewide | `pdf_overlay` (no native fields) |
+| `PA02-Solicitud-de-Patente-Provisional.pdf` | PA02 | Municipal finance office | `genericized_municipal_template` | municipality-specific | `acroform` (45 native fields) |
 | `PA03-Solicitud-de-Prorroga-de-Declaracion.pdf` | PA03 | Municipal finance office | `genericized_municipal_template` | municipality-specific | `acroform` (61 native fields) |
 | `PA04-Mant-Contribuyente-Deudor.pdf` | PA04 | Municipal finance office | `genericized_municipal_template` | municipality-specific | `acroform` (40 native fields) |
 
-## Files still to be supplied
+Every form code in the catalog now has its source file. Run
+`cd frontend && npm run forms:verify` to populate all seven and confirm the
+applicant's data is readable back out of each produced PDF.
 
-| File | Form code | Why it matters |
-|------|-----------|----------------|
-| `34-CORPLLC02.pdf` | CORPLLC02 | LLC Certificate of Organization — required whenever `business.entity_type` is an LLC |
-| `fss4.pdf` | SS4 | IRS Form SS-4 — EIN application; prefer native AcroForm population |
-| `PA02-Solicitud-de-Patente-Provisional.pdf` | PA02 | Provisional municipal patent — the reference layout for the canonical municipal field model |
+## A note on field names
 
-Until those files land, SmartPR reports **requirements prepared** for them and
-collects the canonical information they need (see
-`frontend/src/app/forms/artifacts/informationModels.ts`). Drop the file in this
-directory, add its `sourceFile` to `catalog.ts`, and re-run `npm run forms:inspect`.
+`fss4.pdf` is an XFA-derived form whose fields are named `f1_2[0]`, `c1_3[4]`
+and so on — names that convey nothing for a label matcher to work from. Its
+mappings are therefore hand-written in
+`frontend/src/app/forms/artifacts/acroformMaps.ts`, resolved by matching each
+widget rectangle against the printed line numbers in the page's own text layer.
+The PA-family forms name their fields after the printed Spanish labels, so the
+semantic matcher proposes those automatically.
 
 ## Municipal template classification (important)
 

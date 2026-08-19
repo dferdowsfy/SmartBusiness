@@ -91,10 +91,25 @@ function applicantProfile(): CanonicalApplicationData {
 /** Values expected to reach each form, given what that form actually asks for. */
 const EXPECTED_VALUES: Record<string, string[]> = {
   CORPREG01: [APPLICANT.legalName, APPLICANT.agent, APPLICANT.street, APPLICANT.postalCode, APPLICANT.email],
+  // CORPLLC02 is only reachable with an LLC profile; see llcProfile() below.
+  CORPLLC02: [APPLICANT.legalName, APPLICANT.agent, APPLICANT.street, APPLICANT.email],
+  SS4: [APPLICANT.legalName, APPLICANT.tradeName, APPLICANT.agent, APPLICANT.municipality],
   SC2309: [APPLICANT.legalName, APPLICANT.merchantNumber, APPLICANT.ein, APPLICANT.tradeName],
+  PA02: [APPLICANT.legalName, APPLICANT.municipality, APPLICANT.taxpayerId],
   PA03: [APPLICANT.legalName, APPLICANT.municipality, APPLICANT.taxpayerId],
   PA04: [APPLICANT.legalName, APPLICANT.municipality, APPLICANT.taxpayerId],
 };
+
+/**
+ * The LLC certificate is the one artifact whose content depends on entity
+ * type, so it is generated from an LLC variant of the same applicant rather
+ * than the corporation profile every other form uses.
+ */
+function llcProfile(): CanonicalApplicationData {
+  const profile = applicantProfile();
+  profile.business.entityType = "limited_liability_company";
+  return profile;
+}
 
 interface Row {
   formCode: string;
@@ -130,7 +145,11 @@ async function run(): Promise<void> {
 
     let result;
     try {
-      result = await generateWorkingCopy({ formCode, profile, purpose });
+      result = await generateWorkingCopy({
+        formCode,
+        profile: formCode === "CORPLLC02" ? llcProfile() : profile,
+        purpose,
+      });
     } catch (error) {
       failures.push(`${formCode}: generation threw — ${(error as Error).message}`);
       continue;

@@ -1,0 +1,574 @@
+{
+  "formCode": "PA02",
+  "sourceFile": "RealForms/PA02-Solicitud-de-Patente-Provisional.pdf",
+  "checksum": "sha256:494e67a6a3be72304e966bbc4d0efa10d1e2142a66b7d99e8528aa12eb2ffdfa",
+  "pageCount": 2,
+  "pageSizes": [
+    {
+      "page": 1,
+      "width": 612,
+      "height": 792
+    },
+    {
+      "page": 2,
+      "width": 612,
+      "height": 792
+    }
+  ],
+  "hasAcroForm": true,
+  "fieldCount": 45,
+  "fields": [
+    {
+      "name": "Municipio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 502.32,
+        "y": 718.68,
+        "width": 83.28,
+        "height": 21.67
+      },
+      "currentValue": "",
+      "readOnly": false
+    },
+    {
+      "name": "Año Natural",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 102.24,
+        "y": 720.79,
+        "width": 23.83,
+        "height": 14.19
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Mes desde Rango",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 244.31,
+        "y": 721.97,
+        "width": 51.95,
+        "height": 14.65
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Mes hasta Rango",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 367.32,
+        "y": 722.24,
+        "width": 60.77,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año hasta Rango",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 450,
+        "y": 723.12,
+        "width": 33.36,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Porciento Patente Exenta",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 125.43,
+        "y": 657.79,
+        "width": 49.87,
+        "height": 25.09
+      },
+      "currentValue": "0",
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Patente",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 52.29,
+        "y": 659.61,
+        "width": 15.55,
+        "height": 16.37
+      },
+      "options": [
+        "Normal",
+        "Exenta"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Número de Teléfono del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 307.22,
+        "y": 656.42,
+        "width": 118.95,
+        "height": 15.46
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número de Seguro Social Patronal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 430.44,
+        "y": 656.16,
+        "width": 155.16,
+        "height": 25.92
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año desde Rango",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 315,
+        "y": 722.06,
+        "width": 25.47,
+        "height": 15.31
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 190.32,
+        "y": 656.16,
+        "width": 114.6,
+        "height": 25.92
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número de Identificación Municipal",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 277.32,
+        "y": 613.2,
+        "width": 150.6,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Seguro Social del Dueño y/o Reg Inc",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 430.56,
+        "y": 613.2,
+        "width": 154.92,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Individuo, Industria, Negocio u Oficina de Servicio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 613.2,
+        "width": 255.36,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Física del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 570.12,
+        "width": 474.48,
+        "height": 27.98
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Dirección Física",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 570.12,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Clase de Industria, Negocio o Servicio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.32,
+        "y": 523.68,
+        "width": 120.6,
+        "height": 22.92
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número de Empleados",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 284.76,
+        "y": 523.68,
+        "width": 74.28,
+        "height": 20.47
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nómina Anual",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 361.32,
+        "y": 523.68,
+        "width": 84.12,
+        "height": 22.92
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Negocio",
+      "type": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 164.69,
+        "y": 541.95,
+        "width": 11.46,
+        "height": 14.73
+      },
+      "options": [
+        "Individuo",
+        "Sociedad",
+        "Corporación"
+      ],
+      "readOnly": false
+    },
+    {
+      "name": "Fecha de Establecimiento (Mes)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 470.99,
+        "y": 524.06,
+        "width": 17.63,
+        "height": 19.55
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha de Establecimiento (Dia)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 502.85,
+        "y": 524.06,
+        "width": 22.53,
+        "height": 20.37
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Fecha de Establecimiento (Año)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 542.89,
+        "y": 524.06,
+        "width": 41.33,
+        "height": 21.18
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.32,
+        "y": 486.36,
+        "width": 425.28,
+        "height": 23.04
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Posición del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 511.65,
+        "y": 486.36,
+        "width": 73.59,
+        "height": 21.39
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Postal del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 443.4,
+        "width": 474.48,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Dirección Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 443.4,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección Residencial del Dueño o Representante",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 400.32,
+        "width": 474.48,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Dirección Postal Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 400.32,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Dirección de la Oficina Principal del Negocio, Industria u Oficina de Servicio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 357.12,
+        "width": 474.48,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Postal Dirección Oficina Pricinpal del Negocio",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 357.12,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Número AFF",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 443.76,
+        "y": 323.88,
+        "width": 102.24,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Ciudad Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 382.32,
+        "y": 268.68,
+        "width": 93.36,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Año Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 291.12,
+        "y": 268.68,
+        "width": 31.08,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Mes Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 223.2,
+        "y": 268.68,
+        "width": 53.52,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Día Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 183.84,
+        "y": 268.68,
+        "width": 26.76,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Ciudad donde Habita Juramentación",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 122.16,
+        "y": 287.04,
+        "width": 182.28,
+        "height": 17.4
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Comentario",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 348.24,
+        "y": 99.6,
+        "width": 235.44,
+        "height": 50.16
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre Corto",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 210.76,
+        "y": 40.68,
+        "width": 134.48,
+        "height": 22.56
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Nombre del Contribuyente",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 147.89,
+        "y": 64.04,
+        "width": 197.39,
+        "height": 19.55
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Zona Geográfica",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 145.32,
+        "y": 99.6,
+        "width": 200.16,
+        "height": 28.8
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Tipo de Negocio (Sección Uso Oficial)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 214.08,
+        "y": 136.76,
+        "width": 130.39,
+        "height": 25.27
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Titulo del Oficial que Juramento",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 348.12,
+        "y": 196.2,
+        "width": 159.96,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Jurado Por (Nombre)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 138.72,
+        "y": 305.85,
+        "width": 155.76,
+        "height": 17.76
+      },
+      "readOnly": false
+    },
+    {
+      "name": "Jurado por (Apellido)",
+      "type": "text",
+      "page": 1,
+      "rect": {
+        "x": 297.74,
+        "y": 305.4,
+        "width": 279.49,
+        "height": 17.52
+      },
+      "readOnly": false
+    }
+  ],
+  "inspectedAt": "2026-08-19T16:27:40.712Z"
+}

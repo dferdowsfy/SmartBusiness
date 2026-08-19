@@ -8,8 +8,8 @@
 // only proves the code took a branch. These tests instead reopen the produced
 // bytes with an independent reader and pull the content back out:
 //
-//   pdf_overlay (CORPREG01, SC2309) → pdf.js text extraction
-//   acroform    (PA03, PA04)        → pdf-lib form-field read-back
+//   pdf_overlay (CORPREG01, CORPLLC02, SC2309) → pdf.js text extraction
+//   acroform    (SS4, PA02, PA03, PA04)        → pdf-lib form-field read-back
 //
 // Each populated value is also checked against the BLANK template, so a match
 // proves population put it there rather than it being government boilerplate.
@@ -104,6 +104,13 @@ function applicantProfile(): CanonicalApplicationData {
   return profile;
 }
 
+/** The same applicant, formed as an LLC — the only entity type CORPLLC02 serves. */
+function llcProfile(): CanonicalApplicationData {
+  const profile = applicantProfile();
+  profile.business.entityType = "limited_liability_company";
+  return profile;
+}
+
 /** Text of the untouched original on disk, for "was it already there?" checks. */
 async function blankTemplateText(formCode: string): Promise<string> {
   const template = getTemplate(formCode);
@@ -194,8 +201,8 @@ test("the engine does not over-report: every field it claims to have written is 
 
 // --- AcroForm artifacts ------------------------------------------------------
 
-test("PA03/PA04: values read back through the PDF form API", async () => {
-  for (const formCode of ["PA03", "PA04"]) {
+test("PA02/PA03/PA04: values read back through the PDF form API", async () => {
+  for (const formCode of ["PA02", "PA03", "PA04"]) {
     // Genericized municipal layouts are development-only artifacts; the guard
     // covering that is asserted separately below.
     const result = await generateWorkingCopy({
@@ -223,10 +230,84 @@ test("PA03/PA04: values read back through the PDF form API", async () => {
   }
 });
 
+test("CORPLLC02: the LLC certificate is populated from an LLC profile", async () => {
+  const profile = llcProfile();
+
+  const applicable = resolveApplicableArtifacts(profile).map((a) => a.formCode);
+  assert.ok(applicable.includes("CORPLLC02"), "an LLC should reach its own certificate");
+  assert.ok(!applicable.includes("CORPREG01"), "an LLC must not be handed the stock-corporation form");
+
+  const result = await generateWorkingCopy({ formCode: "CORPLLC02", profile, purpose: "filing" });
+  assert.equal(result.populationMethod, "pdf_overlay");
+
+  const delivered = await extractPdfText(result.bytes);
+  const blank = await blankTemplateText("CORPLLC02");
+  for (const value of [APPLICANT.legalName, APPLICANT.agent, APPLICANT.street, APPLICANT.email]) {
+    assert.ok(pdfTextContains(delivered, value), `"${value}" is missing from the delivered CORPLLC02`);
+    assert.ok(!pdfTextContains(blank, value), `"${value}" was already in the blank CORPLLC02`);
+  }
+});
+
+test("CORPLLC02: the signature and attestation-date blanks are never auto-filled", async () => {
+  const result = await generateWorkingCopy({ formCode: "CORPLLC02", profile: llcProfile(), purpose: "filing" });
+  const written = result.populated.map((f) => f.pdfField);
+  for (const field of written) {
+    assert.doesNotMatch(field, /signature|attestation_(day|month|year)/i, `${field} must be left for the filer to sign`);
+  }
+});
+
+test("SS-4: the EIN application is populated on the real IRS form", async () => {
+  const result = await generateWorkingCopy({ formCode: "SS4", profile: applicantProfile(), purpose: "filing" });
+  assert.equal(result.populationMethod, "acroform");
+
+  const values = await readAcroFormValues(result.bytes);
+  const readBack = Object.values(values).join(" | ");
+  for (const value of [APPLICANT.legalName, APPLICANT.tradeName, APPLICANT.agent, APPLICANT.municipality]) {
+    assert.ok(pdfTextContains(readBack, value), `SS-4: "${value}" did not read back out of the form fields`);
+  }
+
+  // Line 12 asks for the closing MONTH, so an "MM-DD" year end must be trimmed.
+  const closingMonth = result.populated.find((f) => f.pdfField.endsWith("f1_32[0]"));
+  assert.equal(closingMonth?.value, "12", "line 12 should carry the month alone, not a month-day pair");
+});
+
+test("SS-4: identifiers and determinations SmartPR cannot make are left blank", async () => {
+  const result = await generateWorkingCopy({ formCode: "SS4", profile: applicantProfile(), purpose: "filing" });
+  const written = new Set(result.populated.map((f) => f.pdfField));
+
+  // 7b SSN/ITIN — a government identifier SmartPR never stores.
+  assert.ok(!written.has("topmostSubform[0].Page1[0].f1_11[0]"), "the responsible party's SSN/ITIN must stay blank");
+  // 8c / 9b — federal tax determinations for the filer or their CPA.
+  for (const field of ["c1_2[0]", "c1_2[1]", "f1_21[0]", "f1_22[0]"]) {
+    assert.ok(
+      !written.has(`topmostSubform[0].Page1[0].${field}`),
+      `${field} is a tax determination and must not be auto-answered`
+    );
+  }
+  // Nothing at all is written on page 2, which is the signature block.
+  assert.ok(!result.populated.some((f) => f.pdfField.includes("Page2")), "page 2 carries the signature block");
+});
+
+test("SS-4 line 9a: an LLC is not assigned a federal tax classification", async () => {
+  const corp = await generateWorkingCopy({ formCode: "SS4", profile: applicantProfile(), purpose: "filing" });
+  const corpFields = new Set(corp.populated.map((f) => f.pdfField));
+  // A stock corporation checks 9a "Corporation" and answers 8a "No".
+  assert.ok(corpFields.has("topmostSubform[0].Page1[0].c1_3[4]"));
+  assert.ok(corpFields.has("topmostSubform[0].Page1[0].c1_1[1]"));
+
+  const llc = await generateWorkingCopy({ formCode: "SS4", profile: llcProfile(), purpose: "filing" });
+  const llcFields = new Set(llc.populated.map((f) => f.pdfField));
+  // An LLC answers 8a "Yes" but leaves every 9a box alone: the right one
+  // depends on its federal tax election, which the profile does not carry.
+  assert.ok(llcFields.has("topmostSubform[0].Page1[0].c1_1[0]"), "8a should be Yes for an LLC");
+  const nineA = [...llcFields].filter((f) => f.includes("c1_3["));
+  assert.deepEqual(nineA, [], "no 9a entity-type box may be checked for an LLC");
+});
+
 // --- Safety invariants -------------------------------------------------------
 
 test("generating a deliverable never modifies the canonical original on disk", async () => {
-  const codes = ["CORPREG01", "SC2309", "PA03", "PA04"];
+  const codes = ["CORPREG01", "CORPLLC02", "SS4", "SC2309", "PA02", "PA03", "PA04"];
   const before = codes.map((code) => {
     const template = getTemplate(code);
     return sha256(new Uint8Array(readFileSync(resolveRepoPath(template!.sourceFile!))));
@@ -235,9 +316,9 @@ test("generating a deliverable never modifies the canonical original on disk", a
   for (const code of codes) {
     await generateWorkingCopy({
       formCode: code,
-      profile: applicantProfile(),
+      profile: code === "CORPLLC02" ? llcProfile() : applicantProfile(),
       // Official codes accept "filing"; genericized ones only "development".
-      purpose: code === "PA03" || code === "PA04" ? "development" : "filing",
+      purpose: code.startsWith("PA") ? "development" : "filing",
     });
   }
 
@@ -249,7 +330,7 @@ test("generating a deliverable never modifies the canonical original on disk", a
 });
 
 test("a genericized municipal template cannot be delivered as a filing artifact", async () => {
-  for (const formCode of ["PA03", "PA04"]) {
+  for (const formCode of ["PA02", "PA03", "PA04"]) {
     await assert.rejects(
       () => generateWorkingCopy({ formCode, profile: applicantProfile(), purpose: "filing" }),
       ArtifactGenerationError,

@@ -39,7 +39,7 @@ import { resolveIntakeFacts, type ResolutionResult } from './ai/intake/relations
 import type { IntakePatch } from './ai/intake/validateInterpretation';
 import { getDefinition } from './forms/engine/registry';
 import { selectFormForRequirement } from './forms/engine/routing';
-import { buildCanonicalFromIntake } from './forms/engine/intake';
+import { buildCanonicalFromIntake, entityTypeFromLegacyStructure } from './forms/engine/intake';
 import { requirementFormState, actionsForFormState } from './forms/engine/application';
 import { generatePreparationPdf } from './forms/engine/pdfGenerator';
 import { getTemplate, isOfficialArtifact } from './forms/artifacts/catalog';
@@ -861,11 +861,34 @@ function computeRequirements(profile: BusinessProfile, answers: Record<string, a
   // Database-driven: requirements come entirely from the SmartPR Knowledge
   // Base tables via the rules engine (no hardcoded business rules here). The
   // resolver only supplies additional ANSWERS — it never decides requirements.
-  return computeRequirementsFromKB(
+  const fromKb = computeRequirementsFromKB(
     profile as any,
     answers,
     resolveFactsFor(profile, answers).questionValues
   ) as Requirement[];
+
+  // The KB keys off municipality / business type / answers and has no concept
+  // of entity TYPE, so the documents that follow purely from the entity the
+  // user picked (LLC certificate of organization, foreign-corp authorization,
+  // LLP registration) are appended here. Additive only — nothing from the KB
+  // is removed or reordered.
+  const entityType = entityTypeFromLegacyStructure(profile.business_structure);
+  const augments = entityTypeRequirements<Requirement>(
+    { business: { entityType } } as CanonicalApplicationData,
+    fromKb,
+    (d) =>
+      ({
+        document_id: d.document_id,
+        code: d.code,
+        name: d.name,
+        reason: d.reason,
+        agency: 'Department of State',
+        category: 'formation',
+        mandatory: true,
+        status: 'pending',
+      }) as unknown as Requirement
+  );
+  return augments.length > 0 ? [...fromKb, ...augments] : fromKb;
 }
 
 // Advisory historical insights shape (from /api/graph/similar).
