@@ -42,6 +42,7 @@ import { selectFormForRequirement } from './forms/engine/routing';
 import { buildCanonicalFromIntake } from './forms/engine/intake';
 import { requirementFormState, actionsForFormState } from './forms/engine/application';
 import { generatePreparationPdf } from './forms/engine/pdfGenerator';
+import { getTemplate, isOfficialArtifact } from './forms/artifacts/catalog';
 import { entityTypeRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
 import type { CanonicalApplicationData, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
 import {
@@ -2839,13 +2840,29 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         zip.file(`Prepared_Applications/${prepared.filename}`, generateSampleApplicationPdf(definition, prepared.data));
       }
 
-      // Add schema-driven government-form preparation PDFs (CORPREG01–06).
-      // Regenerated from the durable structured data — never a cached Blob URL.
+      // Add government-form PDFs (CORPREG01–06). Regenerated fresh here, never
+      // a cached Blob URL. Where SmartPR holds the actual agency file with a
+      // verified mapping, this is the real PDF populated server-side — never
+      // the SmartPR-drafted preparation summary standing in for it.
       for (const app of Object.values(preparedGovApplications)) {
         const definition = getDefinition(app.formId);
         if (!definition) continue;
-        const blob = generatePreparationPdf(definition, app.data as GovFormData, canonicalApplication, language);
         const safeTitle = `${app.officialFormNumber}_${definition.variantKey}`.replace(/[^a-z0-9_]+/gi, '_');
+        const template = getTemplate(definition.officialFormNumber);
+        let blob: Blob | null = null;
+        if (template && isOfficialArtifact(template)) {
+          try {
+            const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ profile: canonicalApplication }),
+            });
+            if (res.ok) blob = await res.blob();
+          } catch {
+            // Fall through to the SmartPR-drafted preparation PDF below.
+          }
+        }
+        if (!blob) blob = generatePreparationPdf(definition, app.data as GovFormData, canonicalApplication, language);
         zip.file(`Prepared_Applications/${safeTitle}.pdf`, blob);
       }
 
