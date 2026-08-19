@@ -12,7 +12,7 @@
 // never at the start of the form.
 // ============================================================================
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { GovernmentFormRenderer } from "./GovernmentFormRenderer.tsx";
 import { GovernmentFormPreview } from "./GovernmentFormPreview.tsx";
 import { GovernmentFormActions } from "./GovernmentFormActions.tsx";
@@ -57,8 +57,26 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
   const [data, setData] = useState<FormData>(() => prefillFromCanonical(definition, canonical, initialData ?? {}));
   const [mode, setMode] = useState<"edit" | "review" | "view" | "ready">(initialMode ?? "edit");
   const [errors, setErrors] = useState<FieldError[]>([]);
+  // Built by handleComplete once the form validates, held here — NOT handed to
+  // onComplete — until the applicant confirms the preview below. This is what
+  // actually gets added to deliverables; nothing commits before that click.
+  const [pendingApp, setPendingApp] = useState<{ app: GeneratedApplication; data: FormData } | null>(null);
 
   const fee = useMemo(() => governmentFeeText(definition.id, canonical, lang), [definition.id, canonical, lang]);
+
+  // Regenerate the literal PDF — the same generator used for download and the
+  // submission ZIP — so the preview is never an approximation of what gets saved.
+  const readyPreviewUrl = useMemo(() => {
+    if (mode !== "ready" || !pendingApp) return null;
+    const blob = generatePreparationPdf(definition, pendingApp.data, canonical, lang);
+    return URL.createObjectURL(blob);
+  }, [mode, pendingApp, definition, canonical, lang]);
+
+  useEffect(() => {
+    return () => {
+      if (readyPreviewUrl) URL.revokeObjectURL(readyPreviewUrl);
+    };
+  }, [readyPreviewUrl]);
 
   // The submission step belongs to a prepared application only: right after the
   // applicant completes it, or when they reopen one they already prepared.
@@ -89,10 +107,18 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
     setErrors([]);
     const updated = persistCanonical();
     const app = buildGeneratedApplication(definition, data, updated, { id: existingApplicationId, status: "prepared", lang });
-    onComplete(app, data);
-    // Completing hands off to the submission step. The application stays
-    // "prepared" — reaching the government portal is not a filing.
+    // Hold the built application and hand off to the preview step — it is
+    // NOT added to deliverables yet. That happens only in handleConfirmSave,
+    // once the applicant has actually seen the produced document.
+    setPendingApp({ app, data });
     setMode("ready");
+  };
+
+  const handleConfirmSave = () => {
+    if (!pendingApp) return;
+    onComplete(pendingApp.app, pendingApp.data);
+    setPendingApp(null);
+    onClose();
   };
 
   const downloadPdf = () => {
@@ -134,6 +160,27 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
         {/* Body */}
         <div style={{ padding: 20, maxHeight: "62vh", overflowY: "auto" }}>
+          {mode === "ready" && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "#475569", marginBottom: 6 }}>
+                {L(
+                  "This is the exact document that will be added to your deliverables — nothing is saved until you confirm below.",
+                  "Este es el documento exacto que se añadirá a sus entregables — no se guarda nada hasta que confirme abajo."
+                )}
+              </div>
+              {readyPreviewUrl ? (
+                <iframe
+                  src={readyPreviewUrl}
+                  title={L("Document preview", "Vista previa del documento")}
+                  style={{ width: "100%", height: "50vh", border: "1px solid #e2e8f0", borderRadius: 8, background: "white" }}
+                />
+              ) : (
+                <div style={{ padding: 24, textAlign: "center", color: "#64748b", fontSize: 13 }}>
+                  {L("Generating preview…", "Generando vista previa…")}
+                </div>
+              )}
+            </div>
+          )}
           {showSubmissionPanel && (
             <div style={{ marginBottom: 16 }}>
               <GovernmentSubmissionPanel
@@ -171,8 +218,8 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
           )}
           {mode === "ready" ? (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setMode("edit")} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>{L("Back to edit", "Volver a editar")}</button>
-              <button type="button" onClick={onClose} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-1, #0a2540)", color: "white", cursor: "pointer" }}>{L("Done", "Listo")}</button>
+              <button type="button" onClick={() => { setPendingApp(null); setMode("edit"); }} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>{L("Back to edit", "Volver a editar")}</button>
+              <button type="button" disabled={!pendingApp} onClick={handleConfirmSave} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-1, #0a2540)", color: "white", cursor: pendingApp ? "pointer" : "default", opacity: pendingApp ? 1 : 0.6 }}>{L("Confirm and Add to Deliverables", "Confirmar y añadir a entregables")}</button>
             </div>
           ) : readOnly ? (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>

@@ -54,7 +54,7 @@ import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle, Eye
 } from 'lucide-react';
 
 // SmartPR
@@ -1065,8 +1065,20 @@ export default function SmartPRIntake() {
   const [sampleFormDrafts, setSampleFormDrafts] = useState<Record<string, SampleFormData>>({});
   const [preparedSampleApplications, setPreparedSampleApplications] = useState<Record<string, PreparedSampleApplication>>({});
   const [activeSampleFormCode, setActiveSampleFormCode] = useState<string | null>(null);
+  // 'edit' shows the raw editable fields; 'preview' renders the actual PDF that
+  // "Add PDF to deliverables" will save — nothing commits until seen from there.
+  const [sampleFormMode, setSampleFormMode] = useState<'edit' | 'preview'>('edit');
   const [sampleFormErrors, setSampleFormErrors] = useState<string[]>([]);
   const [sampleFormNotice, setSampleFormNotice] = useState<string | null>(null);
+  // On-page preview for generated PDFs on the Deliverables page (readiness
+  // report, prepared application worksheets) — shown before any download.
+  const [docPreview, setDocPreview] = useState<{ title: string; filename: string; blob: Blob; kind?: 'report' | 'submission' } | null>(null);
+  const docPreviewUrl = useMemo(() => (docPreview ? URL.createObjectURL(docPreview.blob) : null), [docPreview]);
+  useEffect(() => {
+    return () => {
+      if (docPreviewUrl) URL.revokeObjectURL(docPreviewUrl);
+    };
+  }, [docPreviewUrl]);
   // Schema-driven government-form engine state (CORPREG01–CORPREG06).
   const [govFormDrafts, setGovFormDrafts] = useState<Record<string, GovFormData>>({});
   const [preparedGovApplications, setPreparedGovApplications] = useState<Record<string, GeneratedApplication>>({});
@@ -2704,6 +2716,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setSampleFormDrafts((current) => ({ ...current, [requirementCode]: nextData }));
     setSampleFormErrors([]);
     setSampleFormNotice(null);
+    setSampleFormMode('edit');
     setActiveSampleFormCode(requirementCode);
   };
 
@@ -2725,6 +2738,42 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     persistSampleForms(nextDrafts, preparedSampleApplications);
     setSampleFormNotice('Draft saved on this device. It does not complete the requirement.');
   };
+
+  // Validates, persists the draft, then switches to a preview of the actual
+  // generated PDF. "Add PDF to deliverables" only becomes available from there.
+  const reviewSampleForm = () => {
+    if (!activeSampleFormCode) return;
+    const definition = getSampleApplication(activeSampleFormCode);
+    if (!definition) return;
+    const data = sampleFormDrafts[activeSampleFormCode] || {};
+    const missing = missingRequiredSampleFields(definition, data);
+    if (missing.length > 0) {
+      setSampleFormErrors(missing);
+      setSampleFormNotice(null);
+      return;
+    }
+    setSampleFormErrors([]);
+    setSampleFormNotice(null);
+    persistSampleForms(sampleFormDrafts, preparedSampleApplications);
+    setSampleFormMode('preview');
+  };
+
+  // Regenerates the literal PDF (the same generator used for download and the
+  // submission ZIP) whenever the preview is open, so it is never stale or an
+  // approximation of what "Add PDF to deliverables" is about to save.
+  const sampleFormPreviewUrl = useMemo(() => {
+    if (sampleFormMode !== 'preview' || !activeSampleFormCode) return null;
+    const definition = getSampleApplication(activeSampleFormCode);
+    if (!definition) return null;
+    const blob = generateSampleApplicationPdf(definition, sampleFormDrafts[activeSampleFormCode] || {});
+    return URL.createObjectURL(blob);
+  }, [sampleFormMode, activeSampleFormCode, sampleFormDrafts]);
+
+  useEffect(() => {
+    return () => {
+      if (sampleFormPreviewUrl) URL.revokeObjectURL(sampleFormPreviewUrl);
+    };
+  }, [sampleFormPreviewUrl]);
 
   const addSampleFormToDeliverables = () => {
     if (!activeSampleFormCode) return;
@@ -2752,30 +2801,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setSampleFormErrors([]);
   };
 
-  const downloadPreparedSampleApplication = (prepared: PreparedSampleApplication) => {
+  // Renders the exact PDF in an on-page preview before it can be downloaded —
+  // clicking "PDF" no longer fires a silent, easy-to-miss browser download.
+  const previewPreparedSampleApplication = (prepared: PreparedSampleApplication) => {
     const definition = getSampleApplication(prepared.requirementCode);
     if (!definition) return;
     const blob = generateSampleApplicationPdf(definition, prepared.data);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = prepared.filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    setDocPreview({ title: prepared.title, filename: prepared.filename, blob });
   };
 
-  const downloadReadinessReport = async () => {
+  const previewReadinessReport = async () => {
     try {
       setIsLoading(true);
       const pdfBlob = await generateReadinessReportPDF();
       const filename = `SmartPR-Readiness-Report-${(profile.name || 'Business').replace(/\s+/g, '-')}.pdf`;
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      void archiveDeliverable('report', filename, pdfBlob);
+      setDocPreview({ title: L('Readiness Report', language), filename, blob: pdfBlob, kind: 'report' });
     } finally {
       setIsLoading(false);
     }
@@ -2832,8 +2872,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       void archiveDeliverable('submission', filename, zipBlob);
     } finally {
       setIsLoading(false);
@@ -3994,8 +4036,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </div>
               <div className="pkg-foot">
                 <span className="pkg-sub">{language === 'es' ? 'Español' : 'English'} · PDF</span>
-                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={downloadReadinessReport} disabled={isLoading}>
-                  <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download PDF Report', language)}
+                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={previewReadinessReport} disabled={isLoading}>
+                  <Eye className="i" style={{ width: 14, height: 14 }} /> {L('Preview PDF Report', language)}
                 </button>
               </div>
             </div>
@@ -4022,8 +4064,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div key={application.requirementCode} className="pkg-item ok prepared-application-item">
                     <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
                     <span>{application.title}<small>{L('Draft — official output still required', language)}</small></span>
-                    <button className="btn btn-secondary" onClick={() => downloadPreparedSampleApplication(application)}>
-                      <Download className="i" style={{ width: 13, height: 13 }} /> {L('PDF', language)}
+                    <button className="btn btn-secondary" onClick={() => previewPreparedSampleApplication(application)}>
+                      <Eye className="i" style={{ width: 13, height: 13 }} /> {L('PDF', language)}
                     </button>
                   </div>
                 ))}
@@ -4225,51 +4267,68 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </span>
             </div>
 
-            <div className="sample-form-body">
-              {activeSampleDefinition.sections.map((section) => (
-                <fieldset key={section.title} className="sample-form-section">
-                  <legend>{section.title}</legend>
-                  <div className="sample-form-grid">
-                    {section.fields.map((field) => {
-                      const value = activeSampleData[field.key] ?? (field.type === 'checkbox' ? false : '');
-                      const hasError = sampleFormErrors.includes(field.label);
-                      return (
-                        <label key={field.key} className={`sample-form-field ${field.type === 'textarea' ? 'wide' : ''} ${hasError ? 'error' : ''}`}>
-                          <span>{field.label}{field.required && <b aria-hidden="true"> *</b>}</span>
-                          {field.type === 'textarea' ? (
-                            <textarea
-                              value={String(value)}
-                              placeholder={field.placeholder}
-                              onChange={(event) => updateSampleFormField(field.key, event.target.value)}
-                            />
-                          ) : field.type === 'select' ? (
-                            <select value={String(value)} onChange={(event) => updateSampleFormField(field.key, event.target.value)}>
-                              <option value="">{L('Select an option', language)}</option>
-                              {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                            </select>
-                          ) : field.type === 'checkbox' ? (
-                            <input
-                              type="checkbox"
-                              checked={Boolean(value)}
-                              onChange={(event) => updateSampleFormField(field.key, event.target.checked)}
-                            />
-                          ) : (
-                            <input
-                              type={field.type}
-                              value={String(value)}
-                              placeholder={field.placeholder}
-                              onChange={(event) => updateSampleFormField(field.key, event.target.value)}
-                            />
-                          )}
-                          {field.help && <small>{field.help}</small>}
-                          {hasError && <small className="field-error">{L('Required field', language)}</small>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
+            {sampleFormMode === 'edit' ? (
+              <div className="sample-form-body">
+                {activeSampleDefinition.sections.map((section) => (
+                  <fieldset key={section.title} className="sample-form-section">
+                    <legend>{section.title}</legend>
+                    <div className="sample-form-grid">
+                      {section.fields.map((field) => {
+                        const value = activeSampleData[field.key] ?? (field.type === 'checkbox' ? false : '');
+                        const hasError = sampleFormErrors.includes(field.label);
+                        return (
+                          <label key={field.key} className={`sample-form-field ${field.type === 'textarea' ? 'wide' : ''} ${hasError ? 'error' : ''}`}>
+                            <span>{field.label}{field.required && <b aria-hidden="true"> *</b>}</span>
+                            {field.type === 'textarea' ? (
+                              <textarea
+                                value={String(value)}
+                                placeholder={field.placeholder}
+                                onChange={(event) => updateSampleFormField(field.key, event.target.value)}
+                              />
+                            ) : field.type === 'select' ? (
+                              <select value={String(value)} onChange={(event) => updateSampleFormField(field.key, event.target.value)}>
+                                <option value="">{L('Select an option', language)}</option>
+                                {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                              </select>
+                            ) : field.type === 'checkbox' ? (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(value)}
+                                onChange={(event) => updateSampleFormField(field.key, event.target.checked)}
+                              />
+                            ) : (
+                              <input
+                                type={field.type}
+                                value={String(value)}
+                                placeholder={field.placeholder}
+                                onChange={(event) => updateSampleFormField(field.key, event.target.value)}
+                              />
+                            )}
+                            {field.help && <small>{field.help}</small>}
+                            {hasError && <small className="field-error">{L('Required field', language)}</small>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+            ) : (
+              <div className="sample-form-body">
+                <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 10px' }}>
+                  {L('This is the exact PDF that will be added to your deliverables — nothing is saved until you confirm below.', language)}
+                </p>
+                {sampleFormPreviewUrl ? (
+                  <iframe
+                    src={sampleFormPreviewUrl}
+                    title={L('Document preview', language)}
+                    style={{ width: '100%', height: '55vh', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, background: 'white' }}
+                  />
+                ) : (
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>{L('Generating preview…', language)}</div>
+                )}
+              </div>
+            )}
 
             <div className="sample-form-foot">
               <div className="sample-form-feedback" role="status">
@@ -4277,10 +4336,67 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 {sampleFormNotice}
               </div>
               <div className="sample-form-actions">
-                <button className="btn btn-secondary" onClick={saveSampleFormDraft}>{L('Save draft', language)}</button>
-                <button className="btn btn-primary" onClick={addSampleFormToDeliverables}>
-                  <Archive className="i" style={{ width: 14, height: 14 }} /> {L('Add PDF to deliverables', language)}
-                </button>
+                {sampleFormMode === 'edit' ? (
+                  <>
+                    <button className="btn btn-secondary" onClick={saveSampleFormDraft}>{L('Save draft', language)}</button>
+                    <button className="btn btn-primary" onClick={reviewSampleForm}>
+                      <Eye className="i" style={{ width: 14, height: 14 }} /> {L('Review document', language)}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn btn-secondary" onClick={() => setSampleFormMode('edit')}>{L('Back to edit', language)}</button>
+                    <button className="btn btn-primary" onClick={addSampleFormToDeliverables}>
+                      <Archive className="i" style={{ width: 14, height: 14 }} /> {L('Add PDF to deliverables', language)}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* On-page PDF preview for the Deliverables page (readiness report,
+          prepared application worksheets) — shown before any download. */}
+      {docPreview && (
+        <div className="sample-form-overlay" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setDocPreview(null);
+        }}>
+          <section className="sample-form-modal" role="dialog" aria-modal="true" aria-labelledby="doc-preview-title">
+            <div className="sample-form-head">
+              <div>
+                <div className="spr-kicker">{L('Document preview', language)}</div>
+                <h2 id="doc-preview-title">{docPreview.title}</h2>
+              </div>
+              <button className="sample-form-close" onClick={() => setDocPreview(null)} aria-label={L('Close preview', language)}>×</button>
+            </div>
+            <div className="sample-form-body">
+              {docPreviewUrl ? (
+                <iframe
+                  src={docPreviewUrl}
+                  title={docPreview.title}
+                  style={{ width: '100%', height: '65vh', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, background: 'white' }}
+                />
+              ) : (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>{L('Generating preview…', language)}</div>
+              )}
+            </div>
+            <div className="sample-form-foot">
+              <div className="sample-form-actions">
+                <button className="btn btn-secondary" onClick={() => setDocPreview(null)}>{L('Close', language)}</button>
+                {docPreviewUrl && (
+                  <a
+                    className="btn btn-primary"
+                    href={docPreviewUrl}
+                    download={docPreview.filename}
+                    onClick={() => {
+                      if (docPreview.kind === 'report') void archiveDeliverable('report', docPreview.filename, docPreview.blob);
+                    }}
+                  >
+                    <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download PDF', language)}
+                  </a>
+                )}
               </div>
             </div>
           </section>
