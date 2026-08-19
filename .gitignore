@@ -43,8 +43,9 @@ deliverables/
 # The canonical government template library is source, not generated output.
 !RealForms/*.pdf
 
-# Populated working copies and mapping previews produced by `npm run forms:demo`
+# Populated working copies produced by `npm run forms:demo` / `npm run forms:verify`
 generated-filings-demo/
+generated-filings-verified/
 
 
 # The deliverables API route is source code, not generated output
