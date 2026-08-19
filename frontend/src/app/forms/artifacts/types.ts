@@ -153,6 +153,7 @@ export type MappingTransform =
   | "date_year"
   | "date_month"
   | "date_day"
+  | "month_number"
   | "integer"
   | "currency"
   | "first_name"

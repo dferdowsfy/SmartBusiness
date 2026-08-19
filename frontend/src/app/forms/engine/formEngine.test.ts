@@ -47,20 +47,26 @@ test("5. professional corporation routes to CORPREG05", () => {
 test("6. LLP routes to CORPREG06", () => {
   assert.equal(resolveFormId("DOC_LLP_REGISTRATION", canonical({ entityType: "limited_liability_partnership" })), "FORM_PR_DOS_CORPREG06");
 });
-test("7. LLC does NOT route to CORPREG06 (or any form yet)", () => {
-  assert.equal(resolveFormId("DOC_ARTICLES_ORGANIZATION", canonical({ entityType: "limited_liability_company" })), null);
-  assert.equal(resolveFormId("DOC_LLP_REGISTRATION", canonical({ entityType: "limited_liability_company" })), null);
-  // The real LLC Certificate of Organization stays needs_source and non-displayable.
-  const entry = getRegistryEntry("FORM_PR_DOS_ARTICLES_ORGANIZATION");
-  assert.equal(entry?.verificationStatus, "needs_source");
-  assert.equal(entry?.displayForm, false);
+test("7. LLC routes to its own CORPLLC02, never to the LLP form", () => {
+  const llc = canonical({ entityType: "limited_liability_company" });
+  // The official source (34-CORPLLC02.pdf) is now in the template library, so
+  // the LLC certificate resolves to its own schema...
+  assert.equal(resolveFormId("DOC_ARTICLES_ORGANIZATION", llc), "FORM_PR_DOS_CORPLLC02");
+  // ...and still never borrows CORPREG06, which is an LLP registration.
+  assert.equal(resolveFormId("DOC_LLP_REGISTRATION", llc), null);
+  const entry = getRegistryEntry("FORM_PR_DOS_CORPLLC02");
+  assert.equal(entry?.verificationStatus, "extracted_from_official_pdf");
+  assert.equal(entry?.displayForm, true);
 });
 
 test("selectFormsForRequirements shows only the applicable variant, not all six", () => {
   const c = canonical({ entityType: "stock_corporation" });
   const selected = selectFormsForRequirements(["DOC_CERT_INCORPORATION", "DOC_EIN", "DOC_MERCHANT_REGISTRATION"], c);
-  assert.equal(selected.length, 1);
-  assert.equal(selected[0].entry.id, "FORM_PR_DOS_CORPREG01");
+  // Exactly one Department of State variant (never all six), plus the federal
+  // EIN application, which applies to every entity type.
+  assert.deepEqual(selected.map((s) => s.entry.id), ["FORM_PR_DOS_CORPREG01", "FORM_IRS_SS4"]);
+  const dosVariants = selected.filter((s) => s.entry.id.startsWith("FORM_PR_DOS_"));
+  assert.equal(dosVariants.length, 1);
 });
 
 test("CORPREG06 is mapped to DOC_LLP_REGISTRATION, never DOC_ARTICLES_ORGANIZATION", () => {

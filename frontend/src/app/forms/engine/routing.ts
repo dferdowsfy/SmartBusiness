@@ -14,9 +14,8 @@ import type { CanonicalApplicationData, EntityType, FormData } from "./types.ts"
 
 /**
  * Declarative routing table mirroring Part 4. Each row states the requirement
- * + entity type (and optional formation status) that select a form id. LLC is
- * intentionally absent — it has no form yet (DOC_ARTICLES_ORGANIZATION stays
- * needs_source).
+ * + entity type (and optional formation status) that select a form id. A row
+ * with no entityType applies to every entity type.
  */
 export interface RouteRule {
   requirementId: string;
@@ -32,12 +31,15 @@ export const ROUTES: RouteRule[] = [
   { requirementId: "DOC_CERT_INCORPORATION", entityType: "professional_corporation", formId: "FORM_PR_DOS_CORPREG05" },
   { requirementId: "DOC_FOREIGN_CORPORATION_AUTHORIZATION", formationStatus: "formed_outside_puerto_rico", formId: "FORM_PR_DOS_CORPREG03" },
   { requirementId: "DOC_LLP_REGISTRATION", entityType: "limited_liability_partnership", formId: "FORM_PR_DOS_CORPREG06" },
-  // DOC_ARTICLES_ORGANIZATION + limited_liability_company → no form yet.
+  { requirementId: "DOC_ARTICLES_ORGANIZATION", entityType: "limited_liability_company", formId: "FORM_PR_DOS_CORPLLC02" },
+  // The EIN application is federal and applies to every entity type, so this
+  // row intentionally carries no entityType gate.
+  { requirementId: "DOC_EIN", formId: "FORM_IRS_SS4" },
 ];
 
 /**
  * Resolve the form id for a requirement given the canonical entity type.
- * Returns null when no verified form applies (e.g. LLC).
+ * Returns null when no verified form applies to that requirement.
  */
 export function resolveFormId(requirementId: string, canonical: CanonicalApplicationData): string | null {
   const entityType = canonical.business.entityType;

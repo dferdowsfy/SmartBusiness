@@ -336,7 +336,141 @@ export const SC2309_OVERLAY: FieldMapping[] = [
   }),
 ];
 
+/**
+ * CORPLLC02 — Certificate of Formation of a Limited Liability Company,
+ * 2 pages, 612 × 792 pt.
+ *
+ * Unlike CORPREG01 (whose blanks are underscore glyphs in the text layer),
+ * this form rules its blanks as vector lines. Coordinates below were read from
+ * those line segments; a text baseline sits ~4 pt above its rule so the value
+ * rests on the line rather than through it. The two EN TESTIMONIO name blanks
+ * are underscore runs inside a sentence, so those two are offset from the text
+ * item instead.
+ *
+ * Deliberately NOT populated:
+ *   * the four "Persona(s) Autorizada(s)" signature rules on page 2 — a
+ *     signature is an act, never something inferred from a name on file;
+ *   * the day/month/year blanks in the attestation sentence, which date that
+ *     same signing act.
+ */
+export const CORPLLC02_OVERLAY: FieldMapping[] = [
+  // --- Page 1 -------------------------------------------------------------
+  overlay({
+    pdfField: "first_llc_name",
+    canonicalField: "business.legal_name",
+    confidence: 0.95,
+    placement: { page: 1, x: 48, y: 526, width: 515, height: 12, fontSize: 10 },
+  }),
+  overlay({
+    pdfField: "second_main_office_physical",
+    canonicalField: "location.physical_address",
+    confidence: 0.88,
+    placement: { page: 1, x: 48, y: 399, width: 215, height: 39, fontSize: 8, maxLines: 3, lineHeight: 13 },
+  }),
+  overlay({
+    pdfField: "second_main_office_mailing",
+    canonicalField: "location.mailing_address",
+    confidence: 0.88,
+    placement: { page: 1, x: 345, y: 399, width: 225, height: 39, fontSize: 8, maxLines: 3, lineHeight: 13 },
+  }),
+  overlay({
+    pdfField: "second_resident_agent_name",
+    canonicalField: "parties.resident_agent_name",
+    confidence: 0.9,
+    reviewNote:
+      "This form gives the resident agent a name line only — unlike CORPREG01 it carries no separate agent address block.",
+    placement: { page: 1, x: 292, y: 347, width: 278, height: 12, fontSize: 9 },
+  }),
+  overlay({
+    pdfField: "third_purpose",
+    canonicalField: "business.activity_description",
+    confidence: 0.85,
+    placement: { page: 1, x: 48, y: 270, width: 520, height: 52, fontSize: 8, maxLines: 4, lineHeight: 13 },
+  }),
+  overlay({
+    pdfField: "fourth_authorized_persons",
+    canonicalField: "parties.incorporator_list",
+    confidence: 0.82,
+    reviewNote:
+      "CUARTO asks for the LLC's authorized person(s); SmartPR carries them in the same canonical list as a corporation's incorporators.",
+    placement: { page: 1, x: 48, y: 153, width: 520, height: 78, fontSize: 8, maxLines: 6, lineHeight: 13 },
+  }),
+
+  // --- Page 2 -------------------------------------------------------------
+  overlay({
+    pdfField: "fifth_administrators",
+    canonicalField: "parties.director_list",
+    confidence: 0.82,
+    placement: { page: 2, x: 48, y: 660, width: 520, height: 53, fontSize: 8, maxLines: 4, lineHeight: 13.4 },
+  }),
+  overlay({
+    pdfField: "sixth_term_indefinite_mark",
+    canonicalField: "filing.term_of_existence",
+    constantValue: "X",
+    writeWhen: { canonicalField: "filing.term_of_existence", equalsAny: ["indefinite"] },
+    confidence: 0.82,
+    placement: { page: 2, x: 55, y: 557, width: 12, height: 11, fontSize: 10 },
+  }),
+  overlay({
+    pdfField: "sixth_term_perpetual_mark",
+    canonicalField: "filing.term_of_existence",
+    constantValue: "X",
+    writeWhen: { canonicalField: "filing.term_of_existence", equalsAny: ["perpetual"] },
+    confidence: 0.82,
+    placement: { page: 2, x: 239, y: 557, width: 12, height: 11, fontSize: 10 },
+  }),
+  overlay({
+    pdfField: "sixth_term_specific_date",
+    canonicalField: "filing.existence_end_date",
+    confidence: 0.78,
+    reviewNote:
+      "The form rules a date line after 'Fecha Especifica:' but no separate tick box before it, so a specific term is indicated by the date alone — no mark is invented.",
+    placement: { page: 2, x: 486, y: 557, width: 85, height: 11, fontSize: 8 },
+  }),
+  overlay({
+    pdfField: "effective_on_filing_date_mark",
+    canonicalField: "filing.effective_date_choice",
+    constantValue: "X",
+    writeWhen: { canonicalField: "filing.effective_date_choice", equalsAny: ["filing_date"] },
+    confidence: 0.82,
+    placement: { page: 2, x: 55, y: 481, width: 12, height: 11, fontSize: 10 },
+  }),
+  overlay({
+    pdfField: "effective_on_future_date_mark",
+    canonicalField: "filing.effective_date_choice",
+    constantValue: "X",
+    writeWhen: { canonicalField: "filing.effective_date_choice", equalsAny: ["future_date"] },
+    confidence: 0.82,
+    placement: { page: 2, x: 55, y: 443, width: 12, height: 11, fontSize: 10 },
+  }),
+  overlay({
+    pdfField: "effective_future_date",
+    canonicalField: "filing.future_effective_date",
+    confidence: 0.78,
+    placement: { page: 2, x: 180, y: 443, width: 88, height: 11, fontSize: 8 },
+  }),
+  overlay({
+    pdfField: "testimony_authorized_persons_es",
+    canonicalField: "parties.incorporator_names",
+    confidence: 0.84,
+    placement: { page: 2, x: 289, y: 367, width: 262, height: 11, fontSize: 8 },
+  }),
+  overlay({
+    pdfField: "testimony_authorized_persons_en",
+    canonicalField: "parties.incorporator_names",
+    confidence: 0.84,
+    placement: { page: 2, x: 213, y: 304, width: 337, height: 11, fontSize: 8 },
+  }),
+  overlay({
+    pdfField: "entity_email",
+    canonicalField: "business.email",
+    confidence: 0.9,
+    placement: { page: 2, x: 202, y: 149, width: 365, height: 12, fontSize: 9 },
+  }),
+];
+
 export const OVERLAY_MAPS: Record<string, FieldMapping[]> = {
   CORPREG01: CORPREG01_OVERLAY,
+  CORPLLC02: CORPLLC02_OVERLAY,
   SC2309: SC2309_OVERLAY,
 };

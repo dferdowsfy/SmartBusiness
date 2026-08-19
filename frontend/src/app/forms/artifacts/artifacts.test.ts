@@ -73,7 +73,10 @@ function corporationProfile(): CanonicalApplicationData {
 
 const PRESENT_FILES = [
   { formCode: "CORPREG01", file: "RealForms/1-CORPREG01.pdf", pages: 2, nativeFields: 0 },
+  { formCode: "CORPLLC02", file: "RealForms/34-CORPLLC02.pdf", pages: 2, nativeFields: 0 },
+  { formCode: "SS4", file: "RealForms/fss4.pdf", pages: 2, nativeFields: 89 },
   { formCode: "SC2309", file: "RealForms/sc_2309_0.pdf", pages: 4, nativeFields: 0 },
+  { formCode: "PA02", file: "RealForms/PA02-Solicitud-de-Patente-Provisional.pdf", pages: 2, nativeFields: 45 },
   { formCode: "PA03", file: "RealForms/PA03-Solicitud-de-Prorroga-de-Declaracion.pdf", pages: 2, nativeFields: 61 },
   { formCode: "PA04", file: "RealForms/PA04-Mant-Contribuyente-Deudor.pdf", pages: 1, nativeFields: 40 },
 ];
@@ -90,8 +93,9 @@ for (const entry of PRESENT_FILES) {
 }
 
 test("templates recorded as pending have no source file and are not generatable", () => {
-  const pending = pendingTemplates().map((t) => t.formCode).sort();
-  assert.deepEqual(pending, ["CORPLLC02", "PA02", "SS4"]);
+  // Every form in the catalog now has its official source file. The invariant
+  // still under test is the rule, not the current count: anything left pending
+  // must carry no sourceFile and must refuse to load.
   for (const template of pendingTemplates()) {
     assert.equal(template.sourceFile, undefined);
     assert.throws(() => loadTemplateBytes(template.formCode), /no source file/);
@@ -324,8 +328,9 @@ test("official artifacts are the only ones flagged as official", () => {
   assert.equal(isOfficialArtifact(getTemplate("CORPREG01")!), true);
   assert.equal(isOfficialArtifact(getTemplate("SC2309")!), true);
   assert.equal(isOfficialArtifact(getTemplate("PA03")!), false);
-  assert.equal(isOfficialArtifact(getTemplate("PA02")!), false);
-  assert.equal(isOfficialArtifact(getTemplate("SS4")!), false, "pending source is not yet an official artifact");
+  assert.equal(isOfficialArtifact(getTemplate("PA02")!), false, "a genericized municipal layout is never an official artifact");
+  assert.equal(isOfficialArtifact(getTemplate("CORPLLC02")!), true);
+  assert.equal(isOfficialArtifact(getTemplate("SS4")!), true, "the IRS SS-4 came from the issuing agency");
   assert.doesNotThrow(() => assertGenerationAllowed(getTemplate("CORPREG01")!, "filing"));
 });
 
@@ -369,7 +374,7 @@ test("entity type routes to the right Department of State artifact", () => {
   const llcProfile = corporationProfile();
   llcProfile.business.entityType = "limited_liability_company";
   const llc = resolveApplicableArtifacts(llcProfile);
-  assert.ok(llc.some((a) => a.formCode === "CORPLLC02" && a.availability === "form_pending_source"));
+  assert.ok(llc.some((a) => a.formCode === "CORPLLC02" && a.availability === "official_form_available"));
   assert.ok(!llc.some((a) => a.formCode === "CORPREG01"));
 });
 

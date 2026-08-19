@@ -68,6 +68,14 @@ export function applyTransform(value: unknown, transform: MappingTransform | und
       return parseDateParts(raw)?.month ?? "";
     case "date_day":
       return parseDateParts(raw)?.day ?? "";
+    // A closing/anniversary month held as "MM-DD" or a full ISO date. Government
+    // boxes that ask for a MONTH must not receive a month-day pair.
+    case "month_number": {
+      const iso = parseDateParts(raw);
+      if (iso) return iso.month;
+      const mmdd = /^(\d{1,2})-\d{1,2}$/.exec(raw.trim());
+      return mmdd ? mmdd[1].padStart(2, "0") : "";
+    }
     case "first_name":
       return raw.trim().split(/\s+/)[0] ?? "";
     case "last_name": {

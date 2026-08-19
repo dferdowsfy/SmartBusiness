@@ -47,6 +47,14 @@ const AUGMENTS: AugmentDef[] = [
     reason: "Entity type is a Limited Liability Partnership (SRL), which must register with the Department of State.",
     applies: (c) => c.business.entityType === "limited_liability_partnership",
   },
+  {
+    document_id: "DOC_ARTICLES_ORGANIZATION",
+    code: "articles_of_organization",
+    name: "Certificate of Organization (Limited Liability Company)",
+    reason:
+      "Entity type is a Limited Liability Company, which files a Certificate of Organization (CORPLLC02) rather than a Certificate of Incorporation.",
+    applies: (c) => c.business.entityType === "limited_liability_company",
+  },
 ];
 
 /**

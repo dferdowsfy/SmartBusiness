@@ -15,6 +15,7 @@ import { join } from "node:path";
 import { TEMPLATE_LIBRARY } from "../src/app/forms/artifacts/catalog.ts";
 import { inspectPdfBytes } from "../src/app/forms/artifacts/inspection.ts";
 import { loadMapping, mergeMappings, saveMapping } from "../src/app/forms/artifacts/mappingStore.ts";
+import { applyAcroOverride } from "../src/app/forms/artifacts/acroformMaps.ts";
 import { OVERLAY_MAPS } from "../src/app/forms/artifacts/overlayMaps.ts";
 import { formMappingsDir, resolveRepoPath, sha256 } from "../src/app/forms/artifacts/paths.ts";
 import { draftMappingForField, needsHumanReview } from "../src/app/forms/artifacts/semanticMapping.ts";
@@ -76,7 +77,9 @@ async function main(): Promise<void> {
     let populationMethod: FormMappingDocument["populationMethod"];
     if (report.hasAcroForm) {
       populationMethod = "acroform";
-      proposed = report.fields.map(draftMappingForField);
+      // Hand-written entries win over the label-based proposal: some forms
+      // (SS-4) carry XFA-derived names that convey nothing to match on.
+      proposed = report.fields.map((f) => applyAcroOverride(draftMappingForField(f), template.formCode));
     } else {
       populationMethod = "pdf_overlay";
       proposed = OVERLAY_MAPS[template.formCode] ?? [];

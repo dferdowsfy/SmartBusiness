@@ -104,9 +104,12 @@ test("the restaurant's filing package holds the right artifacts and no others", 
   assert.ok(dos.populatedCount >= 10, `expected a well-populated certificate, got ${dos.populatedCount}`);
 
   assert.equal(irs.agency, "Internal Revenue Service");
-  assert.equal(irs.availability, "form_pending_source");
-  assert.equal(itemStatusLabel(irs), "Requirements prepared");
-  assert.ok(irs.populatedCount > 0, "EIN information is collected even without the official file");
+  // The official SS-4 is now in the template library, so the EIN application is
+  // a real generatable artifact rather than a requirements-only placeholder.
+  assert.equal(irs.availability, "official_form_available");
+  assert.ok(irs.populatedCount > 0, "the profile answers several SS-4 lines");
+  // Whatever the status, the label never claims the filing was accepted.
+  assert.doesNotMatch(itemStatusLabel(irs), /approved|granted|officially accepted/i);
 
   assert.equal(patente.availability, "municipal_requirements_only");
   assert.equal(patente.canGenerateWorkingCopy, false);
@@ -144,7 +147,7 @@ test("switching the same restaurant to an LLC changes only the state artifact", 
   const profile = completedProfile();
   profile.business.entityType = "limited_liability_company";
   const artifacts = resolveApplicableArtifacts(profile);
-  assert.ok(artifacts.some((a) => a.formCode === "CORPLLC02" && a.availability === "form_pending_source"));
+  assert.ok(artifacts.some((a) => a.formCode === "CORPLLC02" && a.availability === "official_form_available"));
   assert.ok(!artifacts.some((a) => a.formCode === "CORPREG01"));
   assert.ok(artifacts.some((a) => a.requirementCode === "DOC_PATENTE_MUNICIPAL"));
   assert.ok(artifacts.some((a) => a.formCode === "SS4"));

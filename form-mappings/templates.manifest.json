@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-18T20:23:04.490Z",
+  "generatedAt": "2026-08-19T16:27:40.775Z",
   "templates": [
     {
       "formCode": "CORPREG01",
@@ -14,6 +14,30 @@
       "sourceStatus": "official_source"
     },
     {
+      "formCode": "CORPLLC02",
+      "sourceFile": "RealForms/34-CORPLLC02.pdf",
+      "checksum": "sha256:75ab999d17e14f83cab52f2d73817fa096085b5000d9c25ce3260e4e76f1bcfa",
+      "byteLength": 168499,
+      "pageCount": 2,
+      "hasAcroForm": false,
+      "nativeFieldCount": 0,
+      "populationMethod": "pdf_overlay",
+      "artifactType": "official_pdf_form",
+      "sourceStatus": "official_source"
+    },
+    {
+      "formCode": "SS4",
+      "sourceFile": "RealForms/fss4.pdf",
+      "checksum": "sha256:23d295529950b05979596cf58d559db6c433a4ec852407b1820265c117cb3ca2",
+      "byteLength": 122921,
+      "pageCount": 2,
+      "hasAcroForm": true,
+      "nativeFieldCount": 89,
+      "populationMethod": "acroform",
+      "artifactType": "official_pdf_form",
+      "sourceStatus": "official_source"
+    },
+    {
       "formCode": "SC2309",
       "sourceFile": "RealForms/sc_2309_0.pdf",
       "checksum": "sha256:fcd687fce99a2fcebea904bef3e08808da6ae66a2e01a6c61c2082351fff606a",
@@ -24,6 +48,18 @@
       "populationMethod": "pdf_overlay",
       "artifactType": "official_pdf_form",
       "sourceStatus": "official_source"
+    },
+    {
+      "formCode": "PA02",
+      "sourceFile": "RealForms/PA02-Solicitud-de-Patente-Provisional.pdf",
+      "checksum": "sha256:494e67a6a3be72304e966bbc4d0efa10d1e2142a66b7d99e8528aa12eb2ffdfa",
+      "byteLength": 133357,
+      "pageCount": 2,
+      "hasAcroForm": true,
+      "nativeFieldCount": 45,
+      "populationMethod": "acroform",
+      "artifactType": "genericized_municipal_template",
+      "sourceStatus": "genericized_working_copy"
     },
     {
       "formCode": "PA03",

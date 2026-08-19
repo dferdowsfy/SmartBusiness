@@ -1,17 +1,312 @@
 {
   "formCode": "CORPLLC02",
-  "sourceFile": null,
+  "sourceFile": "RealForms/34-CORPLLC02.pdf",
   "artifactType": "official_pdf_form",
-  "populationMethod": "none",
-  "templateChecksum": null,
-  "pageCount": 0,
+  "populationMethod": "pdf_overlay",
+  "templateChecksum": "sha256:75ab999d17e14f83cab52f2d73817fa096085b5000d9c25ce3260e4e76f1bcfa",
+  "pageCount": 2,
   "hasAcroForm": false,
-  "inspectedAt": null,
-  "status": "pending_source",
+  "inspectedAt": "2026-08-19T16:27:40.623Z",
+  "status": "mapped",
   "notes": [
-    "No source file in RealForms yet — SmartPR reports requirements only for this artifact.",
-    "Source file 34-CORPLLC02.pdf is not present in RealForms; SmartPR reports requirements only until it is added.",
+    "No native AcroForm fields — populated by coordinate overlay over the untouched background.",
+    "Overlay coordinates are version-bound; a new agency revision requires re-measuring before reuse.",
     "Applies when business.entity_type is a limited liability company."
   ],
-  "fields": []
+  "fields": [
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "first_llc_name",
+      "canonicalField": "business.legal_name",
+      "confidence": 0.95,
+      "placement": {
+        "page": 1,
+        "x": 48,
+        "y": 526,
+        "width": 515,
+        "height": 12,
+        "fontSize": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "second_main_office_physical",
+      "canonicalField": "location.physical_address",
+      "confidence": 0.88,
+      "placement": {
+        "page": 1,
+        "x": 48,
+        "y": 399,
+        "width": 215,
+        "height": 39,
+        "fontSize": 8,
+        "maxLines": 3,
+        "lineHeight": 13
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "second_main_office_mailing",
+      "canonicalField": "location.mailing_address",
+      "confidence": 0.88,
+      "placement": {
+        "page": 1,
+        "x": 345,
+        "y": 399,
+        "width": 225,
+        "height": 39,
+        "fontSize": 8,
+        "maxLines": 3,
+        "lineHeight": 13
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "second_resident_agent_name",
+      "canonicalField": "parties.resident_agent_name",
+      "confidence": 0.9,
+      "reviewNote": "This form gives the resident agent a name line only — unlike CORPREG01 it carries no separate agent address block.",
+      "placement": {
+        "page": 1,
+        "x": 292,
+        "y": 347,
+        "width": 278,
+        "height": 12,
+        "fontSize": 9
+      }
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "third_purpose",
+      "canonicalField": "business.activity_description",
+      "confidence": 0.85,
+      "placement": {
+        "page": 1,
+        "x": 48,
+        "y": 270,
+        "width": 520,
+        "height": 52,
+        "fontSize": 8,
+        "maxLines": 4,
+        "lineHeight": 13
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "fourth_authorized_persons",
+      "canonicalField": "parties.incorporator_list",
+      "confidence": 0.82,
+      "reviewNote": "CUARTO asks for the LLC's authorized person(s); SmartPR carries them in the same canonical list as a corporation's incorporators.",
+      "placement": {
+        "page": 1,
+        "x": 48,
+        "y": 153,
+        "width": 520,
+        "height": 78,
+        "fontSize": 8,
+        "maxLines": 6,
+        "lineHeight": 13
+      }
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "fifth_administrators",
+      "canonicalField": "parties.director_list",
+      "confidence": 0.82,
+      "placement": {
+        "page": 2,
+        "x": 48,
+        "y": 660,
+        "width": 520,
+        "height": 53,
+        "fontSize": 8,
+        "maxLines": 4,
+        "lineHeight": 13.4
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "sixth_term_indefinite_mark",
+      "canonicalField": "filing.term_of_existence",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "filing.term_of_existence",
+        "equalsAny": [
+          "indefinite"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 2,
+        "x": 55,
+        "y": 557,
+        "width": 12,
+        "height": 11,
+        "fontSize": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "sixth_term_perpetual_mark",
+      "canonicalField": "filing.term_of_existence",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "filing.term_of_existence",
+        "equalsAny": [
+          "perpetual"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 2,
+        "x": 239,
+        "y": 557,
+        "width": 12,
+        "height": 11,
+        "fontSize": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "sixth_term_specific_date",
+      "canonicalField": "filing.existence_end_date",
+      "confidence": 0.78,
+      "reviewNote": "The form rules a date line after 'Fecha Especifica:' but no separate tick box before it, so a specific term is indicated by the date alone — no mark is invented.",
+      "placement": {
+        "page": 2,
+        "x": 486,
+        "y": 557,
+        "width": 85,
+        "height": 11,
+        "fontSize": 8
+      }
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "effective_on_filing_date_mark",
+      "canonicalField": "filing.effective_date_choice",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "filing.effective_date_choice",
+        "equalsAny": [
+          "filing_date"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 2,
+        "x": 55,
+        "y": 481,
+        "width": 12,
+        "height": 11,
+        "fontSize": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "effective_on_future_date_mark",
+      "canonicalField": "filing.effective_date_choice",
+      "constantValue": "X",
+      "writeWhen": {
+        "canonicalField": "filing.effective_date_choice",
+        "equalsAny": [
+          "future_date"
+        ]
+      },
+      "confidence": 0.82,
+      "placement": {
+        "page": 2,
+        "x": 55,
+        "y": 443,
+        "width": 12,
+        "height": 11,
+        "fontSize": 10
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "effective_future_date",
+      "canonicalField": "filing.future_effective_date",
+      "confidence": 0.78,
+      "placement": {
+        "page": 2,
+        "x": 180,
+        "y": 443,
+        "width": 88,
+        "height": 11,
+        "fontSize": 8
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "testimony_authorized_persons_es",
+      "canonicalField": "parties.incorporator_names",
+      "confidence": 0.84,
+      "placement": {
+        "page": 2,
+        "x": 289,
+        "y": 367,
+        "width": 262,
+        "height": 11,
+        "fontSize": 8
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "testimony_authorized_persons_en",
+      "canonicalField": "parties.incorporator_names",
+      "confidence": 0.84,
+      "placement": {
+        "page": 2,
+        "x": 213,
+        "y": 304,
+        "width": 337,
+        "height": 11,
+        "fontSize": 8
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    },
+    {
+      "reviewed": false,
+      "transform": "none",
+      "pdfField": "entity_email",
+      "canonicalField": "business.email",
+      "confidence": 0.9,
+      "placement": {
+        "page": 2,
+        "x": 202,
+        "y": 149,
+        "width": 365,
+        "height": 12,
+        "fontSize": 9
+      },
+      "reviewNote": "Coordinates derived from the ruled blanks in the form's text layer. Validate visually with the mapping preview before production use."
+    }
+  ]
 }

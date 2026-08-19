@@ -19,6 +19,8 @@ import { CORPREG03 } from "../definitions/pr/department-of-state/CORPREG03.ts";
 import { CORPREG04 } from "../definitions/pr/department-of-state/CORPREG04.ts";
 import { CORPREG05 } from "../definitions/pr/department-of-state/CORPREG05.ts";
 import { CORPREG06 } from "../definitions/pr/department-of-state/CORPREG06.ts";
+import { CORPLLC02 } from "../definitions/pr/department-of-state/CORPLLC02.ts";
+import { SS4 } from "../definitions/federal/irs/SS4.ts";
 import type { DigitalFormDefinition, FormVerificationStatus } from "./types.ts";
 
 export interface RegistryEntry {
@@ -42,6 +44,8 @@ const DEFINITIONS: DigitalFormDefinition[] = [
   CORPREG04,
   CORPREG05,
   CORPREG06,
+  CORPLLC02,
+  SS4,
 ];
 
 function entryFromDefinition(def: DigitalFormDefinition): RegistryEntry {
@@ -66,12 +70,14 @@ function entryFromDefinition(def: DigitalFormDefinition): RegistryEntry {
 
 /**
  * Disabled placeholders (Part 11). These have no verified schema yet and MUST
- * NOT render a form. DOC_ARTICLES_ORGANIZATION (the real PR LLC Certificate of
- * Organization) sits here with needs_source until its correct official source
- * is added — deliberately NOT mapped to CORPREG06.
+ * NOT render a form.
+ *
+ * DOC_ARTICLES_ORGANIZATION used to sit here as needs_source. Its official
+ * source (34-CORPLLC02.pdf) has since been added, so it is now served by the
+ * real CORPLLC02 schema above — still deliberately NOT by CORPREG06, which is
+ * an LLP registration.
  */
 const PLACEHOLDER_ENTRIES: RegistryEntry[] = [
-  ph("FORM_PR_DOS_ARTICLES_ORGANIZATION", "DOC_ARTICLES_ORGANIZATION", "limited_liability_company", "Puerto Rico LLC Certificate of Organization"),
   ph("FORM_PR_DOS_DBA", "DOC_DBA_REGISTRATION", "dba", "DBA / Trade Name Registration"),
   ph("FORM_PR_MERCHANT_REGISTRATION", "DOC_MERCHANT_REGISTRATION", "merchant", "Merchant Registration"),
   ph("FORM_PR_PERMISO_UNICO", "DOC_PERMISO_UNICO", "permiso_unico", "Permiso Único"),

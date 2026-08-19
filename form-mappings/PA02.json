@@ -1,19 +1,727 @@
 {
   "formCode": "PA02",
-  "sourceFile": null,
+  "sourceFile": "RealForms/PA02-Solicitud-de-Patente-Provisional.pdf",
   "artifactType": "genericized_municipal_template",
-  "populationMethod": "none",
-  "templateChecksum": null,
-  "pageCount": 0,
-  "hasAcroForm": false,
-  "inspectedAt": null,
-  "status": "pending_source",
+  "populationMethod": "acroform",
+  "templateChecksum": "sha256:494e67a6a3be72304e966bbc4d0efa10d1e2142a66b7d99e8528aa12eb2ffdfa",
+  "templateRevision": "OCAM PA02 - Rev. Mayo 2009",
+  "pageCount": 2,
+  "hasAcroForm": true,
+  "inspectedAt": "2026-08-19T16:27:40.712Z",
+  "status": "mapped",
   "notes": [
-    "No source file in RealForms yet — SmartPR reports requirements only for this artifact.",
     "Layout originated from a Municipio de Bayamón form; municipality-specific wording was removed locally.",
     "Classified genericized_municipal_template: usable for field mapping, UI demonstration and data-population testing only.",
     "Must not be presented to a user as the official filing form for any municipality until that municipality's acceptance is separately verified.",
-    "Source file PA02-Solicitud-de-Patente-Provisional.pdf is not present in RealForms; the canonical municipal field model is currently carried by PA03/PA04 plus the canonical catalog."
+    "Carries a blank `Municipio` field rather than a pre-printed municipality — the same OCAM layout family as PA03/PA04, which is exactly why it cannot stand in as any one municipality's official form.",
+    "Reference layout for the canonical municipal field model (45 native AcroForm fields)."
   ],
-  "fields": []
+  "fields": [
+    {
+      "pdfField": "Municipio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 502.32,
+        "y": 718.68,
+        "width": 83.28,
+        "height": 21.67
+      },
+      "defaultValue": "",
+      "canonicalField": "location.municipality",
+      "transform": "none",
+      "confidence": 0.9,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Año Natural",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 102.24,
+        "y": 720.79,
+        "width": 23.83,
+        "height": 14.19
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Mes desde Rango",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 244.31,
+        "y": 721.97,
+        "width": 51.95,
+        "height": 14.65
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Mes hasta Rango",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 367.32,
+        "y": 722.24,
+        "width": 60.77,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Año hasta Rango",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 450,
+        "y": 723.12,
+        "width": 33.36,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Porciento Patente Exenta",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 125.43,
+        "y": 657.79,
+        "width": 49.87,
+        "height": 25.09
+      },
+      "defaultValue": "0",
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Tipo de Patente",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 52.29,
+        "y": 659.61,
+        "width": 15.55,
+        "height": 16.37
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Normal | Exenta. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Número de Teléfono del Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 307.22,
+        "y": 656.42,
+        "width": 118.95,
+        "height": 15.46
+      },
+      "canonicalField": "business.phone",
+      "transform": "none",
+      "confidence": 0.86,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Número de Seguro Social Patronal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 430.44,
+        "y": 656.16,
+        "width": 155.16,
+        "height": 25.92
+      },
+      "canonicalField": "business.ein",
+      "transform": "none",
+      "confidence": 0.72,
+      "reviewed": false,
+      "reviewNote": "Employer identifier: confirm the municipality expects the federal EIN here."
+    },
+    {
+      "pdfField": "Año desde Rango",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 315,
+        "y": 722.06,
+        "width": 25.47,
+        "height": 15.31
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Año",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 190.32,
+        "y": 656.16,
+        "width": 114.6,
+        "height": 25.92
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Número de Identificación Municipal",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 277.32,
+        "y": 613.2,
+        "width": 150.6,
+        "height": 28.8
+      },
+      "canonicalField": "operations.municipal_taxpayer_id",
+      "transform": "none",
+      "confidence": 0.86,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Seguro Social del Dueño y/o Reg Inc",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 430.56,
+        "y": 613.2,
+        "width": 154.92,
+        "height": 28.8
+      },
+      "canonicalField": "owner.tax_id",
+      "transform": "none",
+      "confidence": 0.6,
+      "reviewed": false,
+      "reviewNote": "Government identifier of a person — SmartPR never auto-fills it; the filer enters it on the artifact.",
+      "sensitive": true
+    },
+    {
+      "pdfField": "Nombre del Individuo, Industria, Negocio u Oficina de Servicio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 613.2,
+        "width": 255.36,
+        "height": 28.8
+      },
+      "canonicalField": "business.legal_name",
+      "transform": "none",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Física del Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 570.12,
+        "width": 474.48,
+        "height": 27.98
+      },
+      "canonicalField": "location.physical_address",
+      "transform": "none",
+      "confidence": 0.88,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Zona Postal Dirección Física",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 570.12,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "canonicalField": "location.postal_code",
+      "transform": "none",
+      "confidence": 0.82,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Clase de Industria, Negocio o Servicio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.32,
+        "y": 523.68,
+        "width": 120.6,
+        "height": 22.92
+      },
+      "canonicalField": "business.activity_description",
+      "transform": "none",
+      "confidence": 0.76,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Número de Empleados",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 284.76,
+        "y": 523.68,
+        "width": 74.28,
+        "height": 20.47
+      },
+      "canonicalField": "operations.employee_count",
+      "transform": "integer",
+      "confidence": 0.94,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Nómina Anual",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 361.32,
+        "y": 523.68,
+        "width": 84.12,
+        "height": 22.92
+      },
+      "canonicalField": "operations.estimated_payroll",
+      "transform": "currency",
+      "confidence": 0.9,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Tipo de Negocio",
+      "pdfFieldType": "radio_group",
+      "page": 1,
+      "rect": {
+        "x": 164.69,
+        "y": 541.95,
+        "width": 11.46,
+        "height": 14.73
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Choice field (radio_group); options: Individuo | Sociedad | Corporación. Needs an explicit option mapping."
+    },
+    {
+      "pdfField": "Fecha de Establecimiento (Mes)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 470.99,
+        "y": 524.06,
+        "width": 17.63,
+        "height": 19.55
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Fecha de Establecimiento (Dia)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 502.85,
+        "y": 524.06,
+        "width": 22.53,
+        "height": 20.37
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Fecha de Establecimiento (Año)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 542.89,
+        "y": 524.06,
+        "width": 41.33,
+        "height": 21.18
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Nombre del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.32,
+        "y": 486.36,
+        "width": 425.28,
+        "height": 23.04
+      },
+      "canonicalField": "owner.full_name",
+      "transform": "none",
+      "confidence": 0.9,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Posición del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 511.65,
+        "y": 486.36,
+        "width": 73.59,
+        "height": 21.39
+      },
+      "canonicalField": "owner.title",
+      "transform": "none",
+      "confidence": 0.84,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Postal del Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 443.4,
+        "width": 474.48,
+        "height": 28.8
+      },
+      "canonicalField": "location.mailing_address",
+      "transform": "none",
+      "confidence": 0.84,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Zona Postal Dirección Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 443.4,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "canonicalField": "location.postal_code",
+      "transform": "none",
+      "confidence": 0.82,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección Residencial del Dueño o Representante",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 400.32,
+        "width": 474.48,
+        "height": 28.8
+      },
+      "canonicalField": "owner.address",
+      "transform": "none",
+      "confidence": 0.72,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Zona Postal Dirección Postal Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 400.32,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "canonicalField": "location.mailing_postal_code",
+      "transform": "none",
+      "confidence": 0.78,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Dirección de la Oficina Principal del Negocio, Industria u Oficina de Servicio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 19.44,
+        "y": 357.12,
+        "width": 474.48,
+        "height": 28.8
+      },
+      "canonicalField": "location.mailing_address",
+      "transform": "none",
+      "confidence": 0.7,
+      "reviewed": false,
+      "reviewNote": "Principal-office address may differ from the business mailing address."
+    },
+    {
+      "pdfField": "Zona Postal Dirección Oficina Pricinpal del Negocio",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 496.44,
+        "y": 357.12,
+        "width": 89.04,
+        "height": 28.8
+      },
+      "canonicalField": "location.postal_code",
+      "transform": "none",
+      "confidence": 0.82,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Número AFF",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 443.76,
+        "y": 323.88,
+        "width": 102.24,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Ciudad Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 382.32,
+        "y": 268.68,
+        "width": 93.36,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Año Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 291.12,
+        "y": 268.68,
+        "width": 31.08,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Mes Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 223.2,
+        "y": 268.68,
+        "width": 53.52,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Día Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 183.84,
+        "y": 268.68,
+        "width": 26.76,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Ciudad donde Habita Juramentación",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 122.16,
+        "y": 287.04,
+        "width": 182.28,
+        "height": 17.4
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Comentario",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 348.24,
+        "y": 99.6,
+        "width": 235.44,
+        "height": 50.16
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Nombre Corto",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 210.76,
+        "y": 40.68,
+        "width": 134.48,
+        "height": 22.56
+      },
+      "canonicalField": "business.trade_name",
+      "transform": "none",
+      "confidence": 0.62,
+      "reviewed": false,
+      "reviewNote": "Could be the trade name or an abbreviation the municipality assigns."
+    },
+    {
+      "pdfField": "Nombre del Contribuyente",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 147.89,
+        "y": 64.04,
+        "width": 197.39,
+        "height": 19.55
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Zona Geográfica",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 145.32,
+        "y": 99.6,
+        "width": 200.16,
+        "height": 28.8
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Tipo de Negocio (Sección Uso Oficial)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 214.08,
+        "y": 136.76,
+        "width": 130.39,
+        "height": 25.27
+      },
+      "canonicalField": "business.activity_description",
+      "transform": "none",
+      "confidence": 0.76,
+      "reviewed": false
+    },
+    {
+      "pdfField": "Titulo del Oficial que Juramento",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 348.12,
+        "y": 196.2,
+        "width": 159.96,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "No semantic match — needs human mapping or is answered on the artifact itself."
+    },
+    {
+      "pdfField": "Jurado Por (Nombre)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 138.72,
+        "y": 305.85,
+        "width": 155.76,
+        "height": 17.76
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    },
+    {
+      "pdfField": "Jurado por (Apellido)",
+      "pdfFieldType": "text",
+      "page": 1,
+      "rect": {
+        "x": 297.74,
+        "y": 305.4,
+        "width": 279.49,
+        "height": 17.52
+      },
+      "canonicalField": null,
+      "transform": "none",
+      "confidence": 0,
+      "reviewed": false,
+      "reviewNote": "Sworn-statement block completed at signing, not from the business profile."
+    }
+  ]
 }

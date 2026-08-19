@@ -22,6 +22,7 @@ import { validateForm, type FieldError } from "./formValidation.ts";
 import { prefillFromCanonical, writeBackToCanonical } from "./canonicalMapping.ts";
 import { buildGeneratedApplication } from "./application.ts";
 import { generatePreparationPdf } from "./pdfGenerator.ts";
+import { getTemplate, isOfficialArtifact } from "../artifacts/catalog.ts";
 import type {
   ApplicationStatus,
   CanonicalApplicationData,
@@ -64,8 +65,9 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
   const fee = useMemo(() => governmentFeeText(definition.id, canonical, lang), [definition.id, canonical, lang]);
 
-  // Regenerate the literal PDF — the same generator used for download and the
-  // submission ZIP — so the preview is never an approximation of what gets saved.
+  // SmartPR's own drafted preparation PDF (jsPDF, drawn from scratch) — used
+  // only as a fallback when the real government file isn't in the template
+  // library yet, or the population request below fails.
   const readyPreviewUrl = useMemo(() => {
     if (mode !== "ready" || !pendingApp) return null;
     const blob = generatePreparationPdf(definition, pendingApp.data, canonical, lang);
@@ -77,6 +79,73 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
       if (readyPreviewUrl) URL.revokeObjectURL(readyPreviewUrl);
     };
   }, [readyPreviewUrl]);
+
+  // Whether SmartPR actually holds this agency's official PDF and can
+  // populate it directly — currently true only for CORPREG01. Pure catalog
+  // lookup (no filesystem access), safe to run in the browser.
+  const hasRealArtifact = useMemo(() => {
+    const template = getTemplate(definition.officialFormNumber);
+    return Boolean(template && isOfficialArtifact(template));
+  }, [definition.officialFormNumber]);
+
+  // The literal government PDF, populated server-side (population reads the
+  // source file from disk, so this has to be a request, not a client render).
+  // Not reset when a new request starts: while a refetch (e.g. after "Back to
+  // edit" → complete again) is in flight, the previous result stays on screen
+  // rather than flashing a loading state, and is replaced once the new one lands.
+  const [realArtifact, setRealArtifact] = useState<{ blob: Blob; populated: number; unanswered: number } | null>(null);
+  const [realArtifactError, setRealArtifactError] = useState<string | null>(null);
+  // Shown fresh after completing (mode "ready") and again when reopening an
+  // already-prepared application to review it (mode "view") — not while still
+  // mid-edit, where there is nothing finished yet worth populating.
+  const wantsRealArtifact = (mode === "ready" || mode === "view") && hasRealArtifact;
+  // Derived, not stored: loading is exactly "expecting a real artifact but
+  // don't have one or a failure yet".
+  const realArtifactLoading = wantsRealArtifact && !realArtifact && !realArtifactError;
+
+  useEffect(() => {
+    if (!wantsRealArtifact) return;
+    // A superseded request (deps changed again before this one resolved) must
+    // never overwrite a fresher result — `cancelled` guards every setState.
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profile: canonical }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}) as { error?: string });
+          throw new Error(errBody.error ?? `HTTP ${res.status}`);
+        }
+        const blob = await res.blob();
+        if (cancelled) return;
+        setRealArtifact({
+          blob,
+          populated: Number(res.headers.get("x-smartpr-populated-fields") ?? 0),
+          unanswered: Number(res.headers.get("x-smartpr-unanswered-fields") ?? 0),
+        });
+      } catch (err) {
+        if (!cancelled) setRealArtifactError(err instanceof Error ? err.message : String(err));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wantsRealArtifact, definition.officialFormNumber, canonical]);
+
+  const realArtifactUrl = useMemo(() => (realArtifact ? URL.createObjectURL(realArtifact.blob) : null), [realArtifact]);
+  useEffect(() => {
+    return () => {
+      if (realArtifactUrl) URL.revokeObjectURL(realArtifactUrl);
+    };
+  }, [realArtifactUrl]);
+
+  // What the "ready" step actually shows: the real government PDF when it
+  // loaded, the SmartPR-drafted fallback otherwise.
+  const showingRealArtifact = hasRealArtifact && !!realArtifactUrl;
+  const displayedPreviewUrl = realArtifactUrl ?? readyPreviewUrl;
 
   // The submission step belongs to a prepared application only: right after the
   // applicant completes it, or when they reopen one they already prepared.
@@ -122,13 +191,16 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
   };
 
   const downloadPdf = () => {
-    const blob = generatePreparationPdf(definition, data, canonical, lang);
-    const url = URL.createObjectURL(blob);
+    // When the real government PDF is on screen, download exactly that —
+    // never a different document than the one just reviewed.
+    const url = showingRealArtifact && realArtifactUrl ? realArtifactUrl : URL.createObjectURL(generatePreparationPdf(definition, data, canonical, lang));
     const a = document.createElement("a");
     a.href = url;
     a.download = `${definition.officialFormNumber}_${localize(definition.title, lang).replace(/\s+/g, "_")}.pdf`;
+    document.body.appendChild(a);
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    a.remove();
+    if (!(showingRealArtifact && realArtifactUrl)) setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const readOnly = mode === "view";
@@ -141,9 +213,15 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
           <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 1, color: "#64748b" }}>{definition.agency} · {definition.officialFormNumber}</div>
           <h2 style={{ fontSize: 18, margin: "3px 0" }}>{localize(definition.title, lang)}</h2>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>
-            <span style={{ fontSize: 11, background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", borderRadius: 999, padding: "2px 8px" }}>
-              ✓ {L("Fields extracted from official PDF", "Campos extraídos del PDF oficial")}
-            </span>
+            {hasRealArtifact ? (
+              <span style={{ fontSize: 11, background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", borderRadius: 999, padding: "2px 8px" }}>
+                ✓ {L("Populated directly into the official government PDF", "Completado directamente en el PDF oficial del gobierno")}
+              </span>
+            ) : (
+              <span style={{ fontSize: 11, background: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: 999, padding: "2px 8px" }}>
+                {L("Preparation worksheet — official PDF not yet in SmartPR's library", "Hoja de preparación — el PDF oficial aún no está en la biblioteca de SmartPR")}
+              </span>
+            )}
             {fee !== null && (
               <span style={{ fontSize: 11, color: "#475569" }}>
                 {L("Government filing fee", "Tarifa gubernamental de radicación")}: {fee} · {L("paid to the agency at submission", "se paga a la agencia al presentar")}
@@ -160,23 +238,54 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
         {/* Body */}
         <div style={{ padding: 20, maxHeight: "62vh", overflowY: "auto" }}>
-          {mode === "ready" && (
+          {(mode === "ready" || (mode === "view" && wantsRealArtifact)) && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 12, color: "#475569", marginBottom: 6 }}>
-                {L(
-                  "This is the exact document that will be added to your deliverables — nothing is saved until you confirm below.",
-                  "Este es el documento exacto que se añadirá a sus entregables — no se guarda nada hasta que confirme abajo."
-                )}
+                {showingRealArtifact
+                  ? mode === "ready"
+                    ? L(
+                        "This is the official government PDF — your data populated into the original form, nothing else changed. Nothing is saved until you confirm below.",
+                        "Este es el PDF oficial del gobierno — sus datos completados en el formulario original, nada más cambió. No se guarda nada hasta que confirme abajo."
+                      )
+                    : L(
+                        "This is the official government PDF for the application you prepared.",
+                        "Este es el PDF oficial del gobierno de la solicitud que preparó."
+                      )
+                  : hasRealArtifact && realArtifactError
+                    ? mode === "ready"
+                      ? L(
+                          "Couldn't load the official PDF right now, showing a SmartPR preparation summary instead. Nothing is saved until you confirm below.",
+                          "No se pudo cargar el PDF oficial en este momento; se muestra un resumen de preparación de SmartPR. No se guarda nada hasta que confirme abajo."
+                        )
+                      : L("Couldn't load the official PDF right now.", "No se pudo cargar el PDF oficial en este momento.")
+                    : L(
+                        "This is the exact document that will be added to your deliverables — nothing is saved until you confirm below.",
+                        "Este es el documento exacto que se añadirá a sus entregables — no se guarda nada hasta que confirme abajo."
+                      )}
               </div>
-              {readyPreviewUrl ? (
+              {hasRealArtifact && realArtifactLoading && !realArtifactUrl ? (
+                <div style={{ padding: 24, textAlign: "center", color: "#64748b", fontSize: 13 }}>
+                  {L("Populating the official government PDF…", "Completando el PDF oficial del gobierno…")}
+                </div>
+              ) : displayedPreviewUrl ? (
                 <iframe
-                  src={readyPreviewUrl}
+                  src={displayedPreviewUrl}
                   title={L("Document preview", "Vista previa del documento")}
                   style={{ width: "100%", height: "50vh", border: "1px solid #e2e8f0", borderRadius: 8, background: "white" }}
                 />
               ) : (
                 <div style={{ padding: 24, textAlign: "center", color: "#64748b", fontSize: 13 }}>
-                  {L("Generating preview…", "Generando vista previa…")}
+                  {realArtifactError
+                    ? L("The official PDF isn't available right now — try again shortly.", "El PDF oficial no está disponible en este momento — inténtelo de nuevo en breve.")
+                    : L("Generating preview…", "Generando vista previa…")}
+                </div>
+              )}
+              {showingRealArtifact && realArtifact && (
+                <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 6 }}>
+                  {L(
+                    `${realArtifact.populated} field(s) populated · ${realArtifact.unanswered} still required · original government PDF preserved`,
+                    `${realArtifact.populated} campo(s) completados · ${realArtifact.unanswered} pendientes · PDF oficial del gobierno preservado`
+                  )}
                 </div>
               )}
             </div>
@@ -212,7 +321,9 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
           {(mode === "review" || mode === "view" || mode === "ready") && (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-start" }}>
               <button type="button" onClick={downloadPdf} style={{ fontSize: 12, padding: "6px 12px", borderRadius: 6, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>
-                {L("Download preparation PDF", "Descargar PDF de preparación")}
+                {showingRealArtifact
+                  ? L("Download populated official form", "Descargar formulario oficial completado")
+                  : L("Download preparation PDF", "Descargar PDF de preparación")}
               </button>
             </div>
           )}

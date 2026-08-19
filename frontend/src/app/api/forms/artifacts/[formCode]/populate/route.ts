@@ -15,8 +15,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request, ctx: { params: Promise<{ formCode: string }> }) {
   const { formCode } = await ctx.params;
+  // Generation itself is pure Node fs/pdf-lib and needs nothing from an
+  // account — the main intake flow works anonymously (see archiveDeliverable's
+  // same no-op-when-anonymous pattern). Only persisting the result to Supabase
+  // Storage below actually requires a signed-in user.
   const user = await getCurrentUser();
-  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   let body: { profile?: Partial<CanonicalApplicationData>; businessId?: string; instanceId?: string; archive?: boolean };
   try {
@@ -35,7 +38,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ formCode: 
   }
 
   const warnings: string[] = [];
-  if (body.archive && body.businessId) {
+  if (body.archive && body.businessId && user) {
     const outcome = await recordGeneratedFiling({
       tenantId: user.id,
       businessId: body.businessId,
@@ -47,6 +50,8 @@ export async function POST(request: Request, ctx: { params: Promise<{ formCode: 
       storageClient: await createSupabaseServer(),
     });
     warnings.push(...outcome.warnings);
+  } else if (body.archive && !user) {
+    warnings.push("Not archived: sign in to save this filing to your account.");
   }
 
   return new Response(Buffer.from(result.bytes), {
