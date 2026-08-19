@@ -1070,6 +1070,15 @@ export default function SmartPRIntake() {
   const [sampleFormMode, setSampleFormMode] = useState<'edit' | 'preview'>('edit');
   const [sampleFormErrors, setSampleFormErrors] = useState<string[]>([]);
   const [sampleFormNotice, setSampleFormNotice] = useState<string | null>(null);
+  // On-page preview for generated PDFs on the Deliverables page (readiness
+  // report, prepared application worksheets) — shown before any download.
+  const [docPreview, setDocPreview] = useState<{ title: string; filename: string; blob: Blob; kind?: 'report' | 'submission' } | null>(null);
+  const docPreviewUrl = useMemo(() => (docPreview ? URL.createObjectURL(docPreview.blob) : null), [docPreview]);
+  useEffect(() => {
+    return () => {
+      if (docPreviewUrl) URL.revokeObjectURL(docPreviewUrl);
+    };
+  }, [docPreviewUrl]);
   // Schema-driven government-form engine state (CORPREG01–CORPREG06).
   const [govFormDrafts, setGovFormDrafts] = useState<Record<string, GovFormData>>({});
   const [preparedGovApplications, setPreparedGovApplications] = useState<Record<string, GeneratedApplication>>({});
@@ -2792,30 +2801,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setSampleFormErrors([]);
   };
 
-  const downloadPreparedSampleApplication = (prepared: PreparedSampleApplication) => {
+  // Renders the exact PDF in an on-page preview before it can be downloaded —
+  // clicking "PDF" no longer fires a silent, easy-to-miss browser download.
+  const previewPreparedSampleApplication = (prepared: PreparedSampleApplication) => {
     const definition = getSampleApplication(prepared.requirementCode);
     if (!definition) return;
     const blob = generateSampleApplicationPdf(definition, prepared.data);
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = prepared.filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    setDocPreview({ title: prepared.title, filename: prepared.filename, blob });
   };
 
-  const downloadReadinessReport = async () => {
+  const previewReadinessReport = async () => {
     try {
       setIsLoading(true);
       const pdfBlob = await generateReadinessReportPDF();
       const filename = `SmartPR-Readiness-Report-${(profile.name || 'Business').replace(/\s+/g, '-')}.pdf`;
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
-      void archiveDeliverable('report', filename, pdfBlob);
+      setDocPreview({ title: L('Readiness Report', language), filename, blob: pdfBlob, kind: 'report' });
     } finally {
       setIsLoading(false);
     }
@@ -2872,8 +2872,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       void archiveDeliverable('submission', filename, zipBlob);
     } finally {
       setIsLoading(false);
@@ -4034,8 +4036,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </div>
               <div className="pkg-foot">
                 <span className="pkg-sub">{language === 'es' ? 'Español' : 'English'} · PDF</span>
-                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={downloadReadinessReport} disabled={isLoading}>
-                  <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download PDF Report', language)}
+                <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={previewReadinessReport} disabled={isLoading}>
+                  <Eye className="i" style={{ width: 14, height: 14 }} /> {L('Preview PDF Report', language)}
                 </button>
               </div>
             </div>
@@ -4062,8 +4064,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div key={application.requirementCode} className="pkg-item ok prepared-application-item">
                     <span className="ic"><CheckCircle className="i" style={{ width: 13, height: 13 }} /></span>
                     <span>{application.title}<small>{L('Draft — official output still required', language)}</small></span>
-                    <button className="btn btn-secondary" onClick={() => downloadPreparedSampleApplication(application)}>
-                      <Download className="i" style={{ width: 13, height: 13 }} /> {L('PDF', language)}
+                    <button className="btn btn-secondary" onClick={() => previewPreparedSampleApplication(application)}>
+                      <Eye className="i" style={{ width: 13, height: 13 }} /> {L('PDF', language)}
                     </button>
                   </div>
                 ))}
@@ -4348,6 +4350,52 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       <Archive className="i" style={{ width: 14, height: 14 }} /> {L('Add PDF to deliverables', language)}
                     </button>
                   </>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* On-page PDF preview for the Deliverables page (readiness report,
+          prepared application worksheets) — shown before any download. */}
+      {docPreview && (
+        <div className="sample-form-overlay" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target) setDocPreview(null);
+        }}>
+          <section className="sample-form-modal" role="dialog" aria-modal="true" aria-labelledby="doc-preview-title">
+            <div className="sample-form-head">
+              <div>
+                <div className="spr-kicker">{L('Document preview', language)}</div>
+                <h2 id="doc-preview-title">{docPreview.title}</h2>
+              </div>
+              <button className="sample-form-close" onClick={() => setDocPreview(null)} aria-label={L('Close preview', language)}>×</button>
+            </div>
+            <div className="sample-form-body">
+              {docPreviewUrl ? (
+                <iframe
+                  src={docPreviewUrl}
+                  title={docPreview.title}
+                  style={{ width: '100%', height: '65vh', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, background: 'white' }}
+                />
+              ) : (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>{L('Generating preview…', language)}</div>
+              )}
+            </div>
+            <div className="sample-form-foot">
+              <div className="sample-form-actions">
+                <button className="btn btn-secondary" onClick={() => setDocPreview(null)}>{L('Close', language)}</button>
+                {docPreviewUrl && (
+                  <a
+                    className="btn btn-primary"
+                    href={docPreviewUrl}
+                    download={docPreview.filename}
+                    onClick={() => {
+                      if (docPreview.kind === 'report') void archiveDeliverable('report', docPreview.filename, docPreview.blob);
+                    }}
+                  >
+                    <Download className="i" style={{ width: 14, height: 14 }} /> {L('Download PDF', language)}
+                  </a>
                 )}
               </div>
             </div>
