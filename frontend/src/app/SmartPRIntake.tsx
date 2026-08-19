@@ -54,7 +54,7 @@ import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle, Eye
 } from 'lucide-react';
 
 // SmartPR
@@ -1065,6 +1065,9 @@ export default function SmartPRIntake() {
   const [sampleFormDrafts, setSampleFormDrafts] = useState<Record<string, SampleFormData>>({});
   const [preparedSampleApplications, setPreparedSampleApplications] = useState<Record<string, PreparedSampleApplication>>({});
   const [activeSampleFormCode, setActiveSampleFormCode] = useState<string | null>(null);
+  // 'edit' shows the raw editable fields; 'preview' renders the actual PDF that
+  // "Add PDF to deliverables" will save — nothing commits until seen from there.
+  const [sampleFormMode, setSampleFormMode] = useState<'edit' | 'preview'>('edit');
   const [sampleFormErrors, setSampleFormErrors] = useState<string[]>([]);
   const [sampleFormNotice, setSampleFormNotice] = useState<string | null>(null);
   // Schema-driven government-form engine state (CORPREG01–CORPREG06).
@@ -2704,6 +2707,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setSampleFormDrafts((current) => ({ ...current, [requirementCode]: nextData }));
     setSampleFormErrors([]);
     setSampleFormNotice(null);
+    setSampleFormMode('edit');
     setActiveSampleFormCode(requirementCode);
   };
 
@@ -2725,6 +2729,42 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     persistSampleForms(nextDrafts, preparedSampleApplications);
     setSampleFormNotice('Draft saved on this device. It does not complete the requirement.');
   };
+
+  // Validates, persists the draft, then switches to a preview of the actual
+  // generated PDF. "Add PDF to deliverables" only becomes available from there.
+  const reviewSampleForm = () => {
+    if (!activeSampleFormCode) return;
+    const definition = getSampleApplication(activeSampleFormCode);
+    if (!definition) return;
+    const data = sampleFormDrafts[activeSampleFormCode] || {};
+    const missing = missingRequiredSampleFields(definition, data);
+    if (missing.length > 0) {
+      setSampleFormErrors(missing);
+      setSampleFormNotice(null);
+      return;
+    }
+    setSampleFormErrors([]);
+    setSampleFormNotice(null);
+    persistSampleForms(sampleFormDrafts, preparedSampleApplications);
+    setSampleFormMode('preview');
+  };
+
+  // Regenerates the literal PDF (the same generator used for download and the
+  // submission ZIP) whenever the preview is open, so it is never stale or an
+  // approximation of what "Add PDF to deliverables" is about to save.
+  const sampleFormPreviewUrl = useMemo(() => {
+    if (sampleFormMode !== 'preview' || !activeSampleFormCode) return null;
+    const definition = getSampleApplication(activeSampleFormCode);
+    if (!definition) return null;
+    const blob = generateSampleApplicationPdf(definition, sampleFormDrafts[activeSampleFormCode] || {});
+    return URL.createObjectURL(blob);
+  }, [sampleFormMode, activeSampleFormCode, sampleFormDrafts]);
+
+  useEffect(() => {
+    return () => {
+      if (sampleFormPreviewUrl) URL.revokeObjectURL(sampleFormPreviewUrl);
+    };
+  }, [sampleFormPreviewUrl]);
 
   const addSampleFormToDeliverables = () => {
     if (!activeSampleFormCode) return;
@@ -4225,51 +4265,68 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </span>
             </div>
 
-            <div className="sample-form-body">
-              {activeSampleDefinition.sections.map((section) => (
-                <fieldset key={section.title} className="sample-form-section">
-                  <legend>{section.title}</legend>
-                  <div className="sample-form-grid">
-                    {section.fields.map((field) => {
-                      const value = activeSampleData[field.key] ?? (field.type === 'checkbox' ? false : '');
-                      const hasError = sampleFormErrors.includes(field.label);
-                      return (
-                        <label key={field.key} className={`sample-form-field ${field.type === 'textarea' ? 'wide' : ''} ${hasError ? 'error' : ''}`}>
-                          <span>{field.label}{field.required && <b aria-hidden="true"> *</b>}</span>
-                          {field.type === 'textarea' ? (
-                            <textarea
-                              value={String(value)}
-                              placeholder={field.placeholder}
-                              onChange={(event) => updateSampleFormField(field.key, event.target.value)}
-                            />
-                          ) : field.type === 'select' ? (
-                            <select value={String(value)} onChange={(event) => updateSampleFormField(field.key, event.target.value)}>
-                              <option value="">{L('Select an option', language)}</option>
-                              {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                            </select>
-                          ) : field.type === 'checkbox' ? (
-                            <input
-                              type="checkbox"
-                              checked={Boolean(value)}
-                              onChange={(event) => updateSampleFormField(field.key, event.target.checked)}
-                            />
-                          ) : (
-                            <input
-                              type={field.type}
-                              value={String(value)}
-                              placeholder={field.placeholder}
-                              onChange={(event) => updateSampleFormField(field.key, event.target.value)}
-                            />
-                          )}
-                          {field.help && <small>{field.help}</small>}
-                          {hasError && <small className="field-error">{L('Required field', language)}</small>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
+            {sampleFormMode === 'edit' ? (
+              <div className="sample-form-body">
+                {activeSampleDefinition.sections.map((section) => (
+                  <fieldset key={section.title} className="sample-form-section">
+                    <legend>{section.title}</legend>
+                    <div className="sample-form-grid">
+                      {section.fields.map((field) => {
+                        const value = activeSampleData[field.key] ?? (field.type === 'checkbox' ? false : '');
+                        const hasError = sampleFormErrors.includes(field.label);
+                        return (
+                          <label key={field.key} className={`sample-form-field ${field.type === 'textarea' ? 'wide' : ''} ${hasError ? 'error' : ''}`}>
+                            <span>{field.label}{field.required && <b aria-hidden="true"> *</b>}</span>
+                            {field.type === 'textarea' ? (
+                              <textarea
+                                value={String(value)}
+                                placeholder={field.placeholder}
+                                onChange={(event) => updateSampleFormField(field.key, event.target.value)}
+                              />
+                            ) : field.type === 'select' ? (
+                              <select value={String(value)} onChange={(event) => updateSampleFormField(field.key, event.target.value)}>
+                                <option value="">{L('Select an option', language)}</option>
+                                {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                              </select>
+                            ) : field.type === 'checkbox' ? (
+                              <input
+                                type="checkbox"
+                                checked={Boolean(value)}
+                                onChange={(event) => updateSampleFormField(field.key, event.target.checked)}
+                              />
+                            ) : (
+                              <input
+                                type={field.type}
+                                value={String(value)}
+                                placeholder={field.placeholder}
+                                onChange={(event) => updateSampleFormField(field.key, event.target.value)}
+                              />
+                            )}
+                            {field.help && <small>{field.help}</small>}
+                            {hasError && <small className="field-error">{L('Required field', language)}</small>}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+            ) : (
+              <div className="sample-form-body">
+                <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '0 0 10px' }}>
+                  {L('This is the exact PDF that will be added to your deliverables — nothing is saved until you confirm below.', language)}
+                </p>
+                {sampleFormPreviewUrl ? (
+                  <iframe
+                    src={sampleFormPreviewUrl}
+                    title={L('Document preview', language)}
+                    style={{ width: '100%', height: '55vh', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, background: 'white' }}
+                  />
+                ) : (
+                  <div style={{ padding: 24, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>{L('Generating preview…', language)}</div>
+                )}
+              </div>
+            )}
 
             <div className="sample-form-foot">
               <div className="sample-form-feedback" role="status">
@@ -4277,10 +4334,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 {sampleFormNotice}
               </div>
               <div className="sample-form-actions">
-                <button className="btn btn-secondary" onClick={saveSampleFormDraft}>{L('Save draft', language)}</button>
-                <button className="btn btn-primary" onClick={addSampleFormToDeliverables}>
-                  <Archive className="i" style={{ width: 14, height: 14 }} /> {L('Add PDF to deliverables', language)}
-                </button>
+                {sampleFormMode === 'edit' ? (
+                  <>
+                    <button className="btn btn-secondary" onClick={saveSampleFormDraft}>{L('Save draft', language)}</button>
+                    <button className="btn btn-primary" onClick={reviewSampleForm}>
+                      <Eye className="i" style={{ width: 14, height: 14 }} /> {L('Review document', language)}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn btn-secondary" onClick={() => setSampleFormMode('edit')}>{L('Back to edit', language)}</button>
+                    <button className="btn btn-primary" onClick={addSampleFormToDeliverables}>
+                      <Archive className="i" style={{ width: 14, height: 14 }} /> {L('Add PDF to deliverables', language)}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </section>
