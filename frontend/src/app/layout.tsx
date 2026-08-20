@@ -1,17 +1,24 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Sans, Newsreader } from "next/font/google";
 import "./globals.css";
 import "./validador.css";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
+const sans = IBM_Plex_Sans({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
+});
+
+const display = Newsreader({
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600"],
+  variable: "--font-display",
 });
 
 export const metadata: Metadata = {
-  title: "SmartPR — Regulatory compliance workspace",
+  title: "SmartPR — Puerto Rico Business Licensing & Permitting",
   description:
-    "Manage business formations, regulatory filings, evidence, readiness, renewals, and due dates in one compliance portfolio.",
+    "Understand and prepare the permits, licenses, forms and regulatory requirements needed to start and manage a business in Puerto Rico.",
 };
 
 export default function RootLayout({
@@ -20,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full antialiased`}>
+    <html lang="en" className={`${sans.variable} ${display.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
