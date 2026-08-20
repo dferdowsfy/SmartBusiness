@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServer } from "../../../lib/supabase/server";
 import { bootstrapPlatformUser } from "../../../lib/auth/bootstrap";
 import { claimSubmissionsByEmail } from "../../graph/auth-actions";
+import { authCallbackPath } from "../../../lib/safeNext";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const nextPath = url.searchParams.get("next") || "/dashboard";
+  const nextPath = authCallbackPath(url.searchParams.get("next"));
   const supabase = await createSupabaseServer();
 
   if (code && supabase) {

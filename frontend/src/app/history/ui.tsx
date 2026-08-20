@@ -52,7 +52,7 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
         <div className="appbar-actions">
           {user === undefined ? null : user ? (
             <>
-              <button className="avatar" onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }} title="Account">{initials}</button>
+              <button className="avatar" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }} title="Account">{initials}</button>
               <div className={`user-menu ${menuOpen ? "open" : ""}`} onClick={(e) => e.stopPropagation()}>
                 <div className="uhead">
                   <div className="uname">{user.name || user.email}</div>

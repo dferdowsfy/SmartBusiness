@@ -16,6 +16,7 @@ const copy = {
     professionals: "For professionals",
     login: "Sign in",
     started: "Get started",
+    privacy: "Privacy Policy",
     eyebrow: "Puerto Rico · Guided filing",
     hero: "Know what it takes to open a business in Puerto Rico.",
     heroSub:
@@ -46,6 +47,7 @@ const copy = {
     professionals: "Para profesionales",
     login: "Iniciar sesión",
     started: "Comenzar",
+    privacy: "Política de privacidad",
     eyebrow: "Puerto Rico · Trámite guiado",
     hero: "Sepa lo que toma abrir un negocio en Puerto Rico.",
     heroSub:
@@ -75,7 +77,7 @@ const copy = {
 
 function LanguageToggle({ language, onChange }: { language: Language; onChange: (lang: Language) => void }) {
   return (
-    <div className={styles.language} aria-label="Language">
+    <div className={styles.language} aria-label={language === "ES" ? "Idioma" : "Language"}>
       {(["EN", "ES"] as const).map((lang) => (
         <button key={lang} type="button" aria-pressed={language === lang} onClick={() => onChange(lang)}>
           {lang}
@@ -92,7 +94,7 @@ export default function MarketingLanding() {
   const c = copy[language];
 
   function start() {
-    router.push("/signup?intent=start");
+    router.push("/?entry=new-business");
   }
 
   return (
@@ -108,8 +110,8 @@ export default function MarketingLanding() {
           </nav>
           <div className={styles.desktopActions}>
             <LanguageToggle language={language} onChange={setLanguage} />
-            <Link href="/auth/login">{c.login}</Link>
-            <Link className={styles.primary} href="/signup?intent=start">
+            <Link href="/auth/login?next=%2F%3Fentry%3Dnew-business">{c.login}</Link>
+            <Link className={styles.primary} href="/?entry=new-business">
               {c.started}
             </Link>
           </div>
@@ -119,6 +121,7 @@ export default function MarketingLanding() {
             onClick={() => setNavOpen((open) => !open)}
             aria-expanded={navOpen}
             aria-controls="mobile-nav"
+            aria-label={navOpen ? (language === "ES" ? "Cerrar menú" : "Close menu") : (language === "ES" ? "Abrir menú" : "Open menu")}
           >
             {navOpen ? <X size={16} /> : <Menu size={16} />}
           </button>
@@ -132,8 +135,8 @@ export default function MarketingLanding() {
               {c.professionals}
             </a>
             <LanguageToggle language={language} onChange={setLanguage} />
-            <Link href="/auth/login">{c.login}</Link>
-            <Link className={styles.primary} href="/signup?intent=start">
+            <Link href="/auth/login?next=%2F%3Fentry%3Dnew-business">{c.login}</Link>
+            <Link className={styles.primary} href="/?entry=new-business">
               {c.started}
             </Link>
           </div>
@@ -146,7 +149,7 @@ export default function MarketingLanding() {
           <h1>{c.hero}</h1>
           <p className={styles.heroLead}>{c.heroSub}</p>
           <div className={styles.heroActions}>
-            <Link className={styles.primary} href="/signup?intent=start">
+            <Link className={styles.primary} href="/?entry=new-business">
               {c.started}
             </Link>
             <a className={styles.ghost} href="#how-it-works">
@@ -201,7 +204,7 @@ export default function MarketingLanding() {
           <div className={styles.close}>
             <h2>{c.closeTitle}</h2>
             <p className={styles.lead}>{c.closeBody}</p>
-            <Link className={styles.primary} href="/signup?intent=start">
+            <Link className={styles.primary} href="/?entry=new-business">
               {c.started}
             </Link>
           </div>
@@ -211,7 +214,7 @@ export default function MarketingLanding() {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <span>© 2026 SmartPR</span>
-          <Link href="/privacy">Privacy Policy</Link>
+          <Link href="/privacy">{c.privacy}</Link>
           <a href="#how-it-works">{c.how}</a>
           <LanguageToggle language={language} onChange={setLanguage} />
         </div>

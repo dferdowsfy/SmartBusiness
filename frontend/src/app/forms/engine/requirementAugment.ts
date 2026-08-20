@@ -1,13 +1,11 @@
 // ============================================================================
-// Narrow, additive requirement augmentation for entity-type-driven documents.
+// Narrow requirement augmentation for entity-type-driven documents.
 //
 // The pure rules engine keys off municipality / business type / question
-// answers and has no concept of entity TYPE. Foreign-corporation authorization
-// and LLP registration, however, are driven by the canonical entity type the
-// user picks during core intake. Rather than teach the engine a new rule kind
-// (a breaking change), we additively inject these two requirements when the
-// canonical model calls for them. Existing requirements are never removed or
-// reordered — this only appends.
+// answers and has no concept of entity TYPE. Formation certificates are
+// mutually exclusive: an LLC receives Certificate of Organization and must
+// not keep Certificate of Incorporation. Foreign-corporation authorization
+// and LLP registration remain additive.
 // ============================================================================
 
 import type { CanonicalApplicationData } from "./types.ts";
@@ -57,9 +55,19 @@ const AUGMENTS: AugmentDef[] = [
   },
 ];
 
+const CORP_FORMATION = "DOC_CERT_INCORPORATION";
+const CORPORATION_TYPES = new Set([
+  "stock_corporation",
+  "close_corporation",
+  "professional_corporation",
+  "nonprofit_nonstock_corporation",
+]);
+
 /**
- * Return additive requirements implied by the canonical entity type that are
- * not already present. Callers append these to the rules-engine output.
+ * Return additive requirements implied by the canonical entity type.
+ * LLC formation is mutually exclusive with Certificate of Incorporation:
+ * callers must also drop DOC_CERT_INCORPORATION for an LLC (see
+ * applyEntityFormationExclusivity). Foreign-corp and LLP remain additive.
  */
 export function entityTypeRequirements<T extends MinimalRequirement>(
   canonical: CanonicalApplicationData,
@@ -74,4 +82,19 @@ export function entityTypeRequirements<T extends MinimalRequirement>(
     out.push(make(aug));
   }
   return out;
+}
+
+/** Drop the formation certificate that does not belong to this entity type. */
+export function exclusiveFormationRequirements<T extends MinimalRequirement>(
+  canonical: CanonicalApplicationData,
+  existing: T[]
+): T[] {
+  const entityType = canonical.business.entityType;
+  if (entityType === "limited_liability_company") {
+    return existing.filter((item) => item.document_id !== CORP_FORMATION);
+  }
+  if (CORPORATION_TYPES.has(entityType)) {
+    return existing.filter((item) => item.document_id !== "DOC_ARTICLES_ORGANIZATION");
+  }
+  return existing;
 }

@@ -17,6 +17,9 @@ import {
   type EngineInput,
   type EngineResult,
 } from "./rulesEngine";
+import type { PotentialDecision } from "./potentialRequirements";
+import { classifyEngineRequirements, type Applicability, type RequirementKind, type RequirementStage } from "./requirementApplicability";
+import type { EntityType } from "./forms/engine/types";
 
 export const KB: KnowledgeBase = ACTIVE_JURISDICTION.kb;
 
@@ -32,6 +35,11 @@ export interface UIRequirement {
   document_id?: string;
   category?: string;
   source_rule?: string;
+  applicability?: Applicability;
+  kind?: RequirementKind;
+  stage?: RequirementStage;
+  triggerFacts?: string[];
+  acceptsOfficialUpload?: boolean;
 }
 
 // Minimal view of the app profile this adapter reads.
@@ -295,20 +303,35 @@ export function runRulesEngineForProfile(
 export function computeRequirementsFromKB(
   profile: ProfileLike,
   answers: Record<string, unknown> = {},
-  resolved: Record<string, boolean | string> = {}
+  resolved: Record<string, boolean | string> = {},
+  options: {
+    entityType?: EntityType | string | null;
+    potentialDecisions?: Record<string, PotentialDecision>;
+  } = {}
 ): UIRequirement[] {
   const { requirements } = runRulesEngineForProfile(profile, answers, resolved);
-  return requirements
+  return classifyEngineRequirements(requirements, {
+    kb: KB,
+    entityType: options.entityType,
+    potentialDecisions: options.potentialDecisions,
+    legacyCode: kbMeta.legacyCode,
+    recommendedIds: kbMeta.recommended,
+  })
     .map((r) => ({
-      code: kbMeta.legacyCode[r.document_id] || r.document_id.toLowerCase(),
+      code: r.code,
       name: r.document_name,
-      mandatory: !kbMeta.recommended.has(r.document_id),
+      mandatory: r.mandatory,
       status: "pending" as const,
       agency: r.agency,
       reason: r.reason,
       document_id: r.document_id,
       category: r.category,
       source_rule: r.source_rule_id,
+      applicability: r.applicability,
+      kind: r.kind,
+      stage: r.stage,
+      triggerFacts: r.triggerFacts,
+      acceptsOfficialUpload: r.acceptsOfficialUpload,
     }))
     .sort((a, b) => orderIndex(a.document_id!) - orderIndex(b.document_id!));
 }

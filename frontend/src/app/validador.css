@@ -1645,7 +1645,11 @@ button { font-family: inherit; }
   gap: 16px;
   max-width: 1440px;
   margin: 0 auto;
-  padding: 0 32px 0;
+  padding: 0 32px 12px;
+}
+.spr-stepper-bar .spr-matter-actions {
+  flex: 0 0 auto;
+  padding-bottom: 4px;
 }
 .spr-stepper-bar .spr-workflow-stepper {
   flex: 1;
@@ -1748,7 +1752,7 @@ button { font-family: inherit; }
 }
 .spr-context-language button.active { background: #fff; color: var(--spr-shell-navy); box-shadow: 0 1px 4px rgba(15, 35, 50, .1); }
 .spr-save-exit {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 15px;
   border: 1px solid #245c5c;
   border-radius: 10px;
@@ -1825,6 +1829,13 @@ button { font-family: inherit; }
   gap: 24px;
 }
 .spr-main-workarea { min-width: 0; }
+.spr-guest-note {
+  margin: 8px 0 0;
+  max-width: 42rem;
+  color: #3d3d3d;
+  font-size: 14px;
+  line-height: 1.45;
+}
 .spr-main-workarea > .shell { max-width: none; padding: 0; }
 .spr-main-workarea .spr-intake-panel {
   min-height: 0;

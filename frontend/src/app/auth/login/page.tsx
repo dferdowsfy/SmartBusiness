@@ -6,13 +6,14 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { createSupabaseBrowser, isAuthConfigured } from "../../../lib/supabase/client";
 import { authRedirectUrl } from "../../../lib/siteUrl";
 import { SmartPRLogo } from "../../components/brand/SmartPRLogo";
+import { GUEST_INTAKE, guestContinuePath, sanitizeNext } from "../../../lib/safeNext";
 
 type Mode = "signin" | "signup" | "forgot";
 
 function LoginInner() {
   const sp = useSearchParams();
   const router = useRouter();
-  const nextPath = sp.get("next") || "/businesses";
+  const nextPath = sanitizeNext(sp.get("next"), "/businesses");
   const initialMode: Mode = sp.get("mode") === "signup" ? "signup" : "signin";
 
   const [mode, setMode] = useState<Mode>(initialMode);
@@ -149,11 +150,13 @@ function LoginInner() {
       {mode !== "forgot" && (
         <div className="mb-6 flex rounded-lg border border-[#161616]/22 p-1 text-sm">
           <button type="button" onClick={() => swapMode("signin")}
-            className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signin" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}>
-            Sign in
+            className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signin" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}
+            aria-pressed={mode === "signin"}>
+            I have an account
           </button>
           <button type="button" onClick={() => swapMode("signup")}
-            className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signup" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}>
+            className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signup" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}
+            aria-pressed={mode === "signup"}>
             Create account
           </button>
         </div>
@@ -212,9 +215,12 @@ function LoginInner() {
         ) : null}
       </div>
 
-      <button onClick={() => router.push("/")} className="mt-6 block text-sm text-[#5a5a5a] hover:text-[#161616]">
+      <button type="button" onClick={() => router.push(guestContinuePath(sp.get("next")))} className="mt-6 block text-sm text-[#5a5a5a] hover:text-[#161616]">
         Continue without an account
       </button>
+      <p className="mt-2 text-xs text-[#5a5a5a]">
+        You can finish this assessment first. An account is required later to save to the cloud, manage multiple businesses, and resume on another device.
+      </p>
     </div>
   );
 }
@@ -232,6 +238,8 @@ export default function LoginPage() {
       </main>
       <footer className="px-6 py-6 text-sm text-[#5a5a5a]">
         <Link href="/privacy" className="underline-offset-4 hover:underline">Privacy Policy</Link>
+        {" · "}
+        <Link href={GUEST_INTAKE} className="underline-offset-4 hover:underline">Start without an account</Link>
       </footer>
     </div>
   );

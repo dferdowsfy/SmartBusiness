@@ -130,7 +130,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const phaseClass = [styles.phase0, styles.phase1, styles.phase2, styles.phase3][phase];
 
   function startExample() {
-    router.push("/signup?intent=start");
+    router.push("/?entry=new-business");
   }
 
   useEffect(() => {

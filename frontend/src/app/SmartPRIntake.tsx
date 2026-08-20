@@ -43,14 +43,16 @@ import { buildCanonicalFromIntake, entityTypeFromLegacyStructure } from './forms
 import { requirementFormState, actionsForFormState } from './forms/engine/application';
 import { generatePreparationPdf } from './forms/engine/pdfGenerator';
 import { getTemplate, isOfficialArtifact } from './forms/artifacts/catalog';
-import { entityTypeRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
+import { entityTypeRequirements, exclusiveFormationRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
 import type { CanonicalApplicationData, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
 import {
   FilingWorkflowShell,
   type FilingStage,
   type SmartPRLiveData,
 } from './components/filing/FilingWorkflowShell';
-import JSZip from 'jszip';
+import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
+import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
+import { GUEST_INTAKE } from '../lib/safeNext';
 import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
@@ -111,6 +113,11 @@ interface Requirement {
   document_id?: string;
   category?: string;
   source_rule?: string;
+  applicability?: Applicability;
+  kind?: RequirementKind;
+  stage?: RequirementStage;
+  triggerFacts?: string[];
+  acceptsOfficialUpload?: boolean;
 }
 
 function potentialItemsForProfile(
@@ -857,25 +864,24 @@ function resolveFactsFor(
 
 // Core compute logic - matches the approved rules engine design + seed data
 // Updated to use the new Step 1 fields (location_type, food_prepared_or_sold, alcohol_sold, professional_licenses_required, etc.)
-function computeRequirements(profile: BusinessProfile, answers: Record<string, any>): Requirement[] {
-  // Database-driven: requirements come entirely from the SmartPR Knowledge
-  // Base tables via the rules engine (no hardcoded business rules here). The
-  // resolver only supplies additional ANSWERS — it never decides requirements.
+function computeRequirements(
+  profile: BusinessProfile,
+  answers: Record<string, any>,
+  potentialDecisions: Record<string, PotentialDecision> = {}
+): Requirement[] {
+  const entityType = entityTypeFromLegacyStructure(profile.business_structure);
   const fromKb = computeRequirementsFromKB(
     profile as any,
     answers,
-    resolveFactsFor(profile, answers).questionValues
+    resolveFactsFor(profile, answers).questionValues,
+    { entityType, potentialDecisions }
   ) as Requirement[];
 
-  // The KB keys off municipality / business type / answers and has no concept
-  // of entity TYPE, so the documents that follow purely from the entity the
-  // user picked (LLC certificate of organization, foreign-corp authorization,
-  // LLP registration) are appended here. Additive only — nothing from the KB
-  // is removed or reordered.
-  const entityType = entityTypeFromLegacyStructure(profile.business_structure);
+  const canonical = { business: { entityType } } as CanonicalApplicationData;
+  const withoutWrongFormation = exclusiveFormationRequirements<Requirement>(canonical, fromKb);
   const augments = entityTypeRequirements<Requirement>(
-    { business: { entityType } } as CanonicalApplicationData,
-    fromKb,
+    canonical,
+    withoutWrongFormation,
     (d) =>
       ({
         document_id: d.document_id,
@@ -886,9 +892,14 @@ function computeRequirements(profile: BusinessProfile, answers: Record<string, a
         category: 'formation',
         mandatory: true,
         status: 'pending',
-      }) as unknown as Requirement
+        applicability: 'required',
+        kind: 'government_application',
+        stage: 'entity_formation',
+        triggerFacts: [`entityType:${entityType}`],
+        acceptsOfficialUpload: true,
+      }) as Requirement
   );
-  return augments.length > 0 ? [...fromKb, ...augments] : fromKb;
+  return exclusiveFormationRequirements(canonical, [...withoutWrongFormation, ...augments]);
 }
 
 // Advisory historical insights shape (from /api/graph/similar).
@@ -1062,7 +1073,7 @@ export default function SmartPRIntake() {
     industry: '',
     business_type: '',
     location_type: '',
-    business_structure: 'llc',
+    business_structure: '',
     number_of_employees: null,
     number_of_vehicles: null,
     number_of_rental_units: null,
@@ -1130,6 +1141,7 @@ export default function SmartPRIntake() {
     business_name?: string | null;
     isAdmin?: boolean;
   } | null | undefined>(undefined);
+  const guestRestoredRef = useRef(false);
   // Save Progress state for user feedback.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // Advisory historical recommendations (never mandatory; rules stay authoritative).
@@ -1328,7 +1340,7 @@ export default function SmartPRIntake() {
         location_type: su.location_type || '',
       };
       setProfile(prev => ({ ...prev, ...restored }));
-      const computed = computeRequirements({ ...(profile as any), ...restored }, {});
+      const computed = computeRequirements({ ...(profile as any), ...restored }, {}, potentialDecisions);
       setRequirements(computed);
       if (su.business_id) {
         businessIdRef.current = su.business_id;
@@ -1399,6 +1411,38 @@ export default function SmartPRIntake() {
     const id = setTimeout(() => setUploadNotice(null), 6000);
     return () => clearTimeout(id);
   }, [uploadNotice]);
+
+  useEffect(() => {
+    if (me === undefined || guestRestoredRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('resume')) return;
+    const draft = loadGuestDraft();
+    if (!draft) return;
+    guestRestoredRef.current = true;
+    if (draft.profile) setProfile((prev) => ({ ...prev, ...(draft.profile as Partial<BusinessProfile>) }));
+    if (draft.discoveryAnswers) setDiscoveryAnswers(draft.discoveryAnswers);
+    if (draft.potentialDecisions) setPotentialDecisions(draft.potentialDecisions as Record<string, PotentialDecision>);
+    if (draft.currentStep) setCurrentStep(draft.currentStep as Step);
+    if (draft.language === 'es' || draft.language === 'en') setLanguage(draft.language);
+  }, [me]);
+
+  useEffect(() => {
+    if (me) {
+      clearGuestDraft();
+      return;
+    }
+    if (me === undefined) return;
+    const timer = window.setTimeout(() => {
+      saveGuestDraft({
+        profile: profile as unknown as Record<string, unknown>,
+        discoveryAnswers,
+        potentialDecisions,
+        currentStep,
+        language,
+      });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [me, profile, discoveryAnswers, potentialDecisions, currentStep, language]);
 
   // Hidden debug mode for the rules engine (enable with ?debug=1 in the URL).
   const [debugMode, setDebugMode] = useState(false);
@@ -1650,7 +1694,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   setProfile(newProfile);
   const newAnswers = { ...getFollowUpQuestions(newProfile.industry) };
   setDiscoveryAnswers(newAnswers);
-  const computed = computeRequirements(newProfile, newAnswers);
+  const computed = computeRequirements(newProfile, newAnswers, potentialDecisions);
   setRequirements(computed);
   setReadinessScore(null);
   setFindings([]);
@@ -1688,12 +1732,30 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // Discovery + requirements are computed entirely client-side.
     setBusinessId('local-' + Date.now());
     setDiscoveryAnswers(answers);
-    const baseRequirements = computeRequirements(profile, answers);
-    const computed = mergeConfirmedPotentialRequirements(
+    const baseRequirements = computeRequirements(profile, answers, potentialDecisions);
+    const merged = mergeConfirmedPotentialRequirements(
       baseRequirements,
       potentialItemsForProfile(profile, baseRequirements),
       potentialDecisions
     ) as Requirement[];
+    const computed = merged.map((item) => {
+      if (!item.code.startsWith('potential_')) return item;
+      const flag = item.code.replace('potential_', '');
+      const meta = classifyPotentialItem(item.name, flag, potentialDecisions[flag]);
+      return {
+        ...item,
+        applicability: meta.applicability,
+        kind: meta.kind,
+        stage: meta.stage,
+        triggerFacts: [`municipality_flag:${flag}`],
+        acceptsOfficialUpload: meta.acceptsOfficialUpload,
+        mandatory: meta.applicability === 'required',
+      };
+    }).filter((item) => {
+      if (!item.code.startsWith('potential_')) return true;
+      const flag = item.code.replace('potential_', '');
+      return !baseRequirements.some((req) => req.triggerFacts?.includes(`municipality_flag:${flag}`));
+    });
     setRequirements(computed);
 
     // --- Knowledge-graph capture (observational, fire-and-forget) ---
@@ -1816,7 +1878,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       window.location.assign(`/businesses/${businessIdRef.current}`);
       return;
     }
-    window.location.assign(me ? '/dashboard' : '/');
+    window.location.assign(me ? '/dashboard' : GUEST_INTAKE);
   };
 
   // A filing is a persistent Matter, not a temporary wizard. Debounce writes
@@ -1838,7 +1900,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // Load / recompute requirements (powered by the design-accurate compute function)
   const loadRequirements = async () => {
     setIsLoading(true);
-    const computed = computeRequirements(profile, discoveryAnswers);
+    const computed = computeRequirements(profile, discoveryAnswers, potentialDecisions);
     setRequirements(computed);
     setCurrentStep(3);
     setIsLoading(false);
@@ -3035,7 +3097,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // document that is already required for the selected business profile.
   const potentialItems = potentialItemsForProfile(
     profile,
-    computeRequirements(profile, discoveryAnswers)
+    computeRequirements(profile, discoveryAnswers, potentialDecisions)
   );
 
   // Render one requirement row (shared by Mandatory + Recommended sections).
@@ -3067,23 +3129,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // intelligence panel and progress stats update as they answer.
   const liveReqs = React.useMemo(() => {
     try {
-      return runRulesEngineForProfile(profile as any, discoveryAnswers, intakeFacts.questionValues).requirements;
+      return computeRequirements(profile, discoveryAnswers, potentialDecisions);
     } catch {
-      return [] as ReturnType<typeof runRulesEngineForProfile>['requirements'];
+      return [] as Requirement[];
     }
-  }, [profile, discoveryAnswers, intakeFacts]);
+  }, [profile, discoveryAnswers, potentialDecisions]);
 
   const liveConfirmedPotentialItems = potentialItems.filter(
     (item) => potentialDecisions[item.flag] === 'applies'
   );
 
   const liveAgencies = Array.from(new Set([
-    ...liveReqs.map((requirement) => requirement.agency),
+    ...liveReqs.filter((requirement) => requirement.applicability !== 'not_applicable' && requirement.applicability !== 'conditional').map((requirement) => requirement.agency),
     ...liveConfirmedPotentialItems.map((item) => item.agency),
   ].filter(Boolean)));
-  const obligationCount = (re: RegExp) =>
-    liveReqs.filter(r => re.test(r.category || '') || re.test(r.document_name)).length;
-  const livePermits = obligationCount(/permi/i);
 
   // Intake completion: 5 core profile fields + business and municipality
   // questions. All answers are collected before the checklist is generated.
@@ -3189,7 +3248,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   // One Validador-styled requirement row. Upload flow, reasons, and the
   // extraction panel are the same components/handlers as before.
-  const renderReqRow = (req: Requirement) => {
+  const renderReqRow = (req: Requirement, mode: 'requirements' | 'documents' = view === 'documents' ? 'documents' : 'requirements') => {
     const doc = uploadedDocs.find(d => d.requirement_code === req.code);
     const analysis = doc?.ai_analysis;
     const ext: ExtractionResult | undefined = analysis?.extraction;
@@ -3238,9 +3297,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         </div>
         <div className="req-tags">
           {req.agency && <span className="tag agency">{L(req.agency, language)}</span>}
-          <span className={`tag ${req.mandatory ? 'due' : ''}`}>
-            {promoted ? L('Confirmed', language) : req.mandatory ? L('Required', language) : L('Optional', language)}
+          <span className={`tag ${req.applicability === 'conditional' ? '' : req.mandatory ? 'due' : ''}`}>
+            {req.applicability === 'conditional' ? L('Needs verification', language)
+              : req.applicability === 'not_applicable' ? L('Not applicable', language)
+              : req.kind === 'review_condition' ? L('Review condition', language)
+              : promoted ? L('Confirmed', language)
+              : req.mandatory ? L('Required', language)
+              : L('Optional', language)}
           </span>
+          {req.source_rule && <span className="tag">{req.source_rule}</span>}
         </div>
         <div className="req-actions-stack">
           {(() => {
@@ -3249,6 +3314,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             // displayable form.
             const govEntry = govFormEntryForReq(req);
             if (govEntry) {
+              if (mode !== 'documents') return null;
               const prepared = preparedGovApplications[govEntry.id];
               const hasDraft = !!govFormDrafts[govEntry.id];
               const fState = requirementFormState(prepared);
@@ -3288,16 +3354,18 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 </>
               );
             }
-            return sampleDefinition ? (
+            return sampleDefinition && mode === 'documents' ? (
               <button className="req-action" onClick={() => openSampleApplication(req.code)}>
                 <FileText className="i" style={{ width: 13, height: 13 }} />
                 {preparedSampleApplications[req.code] ? L('Edit application', language) : L('Prepare application', language)}
               </button>
             ) : null;
           })()}
+          {mode === 'documents' && req.acceptsOfficialUpload !== false && req.kind !== 'review_condition' && req.applicability !== 'conditional' && req.applicability !== 'not_applicable' ? (
           <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
             <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload official' : 'Upload official', language)}
           </button>
+          ) : null}
         </div>
 
         {/* Multi-stage processing (visible inside card) */}
@@ -3331,14 +3399,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   const reqGroups: { key: string; label: string; pip: string; items: Requirement[] }[] = [
-    { key: 'review', label: L('Needs Review — action required', language), pip: 'warn', items: requirements.filter(r => r.mandatory && r.status === 'warning') },
-    { key: 'missing', label: L('Missing — handle these next', language), pip: 'amber', items: requirements.filter(r => r.mandatory && r.status === 'pending') },
+    { key: 'review', label: L('Needs Review — action required', language), pip: 'warn', items: requirements.filter(r => r.mandatory && r.status === 'warning' && r.applicability !== 'not_applicable') },
+    { key: 'verify', label: L('Needs verification', language), pip: 'amber', items: requirements.filter(r => r.applicability === 'conditional') },
+    { key: 'missing', label: L('Critical path — handle these next', language), pip: 'amber', items: requirements.filter(r => r.mandatory && r.status === 'pending' && r.applicability !== 'conditional' && r.kind !== 'review_condition') },
+    { key: 'conditions', label: L('Review conditions', language), pip: 'blue', items: requirements.filter(r => r.kind === 'review_condition' && r.applicability === 'required' && r.status === 'pending') },
     { key: 'done', label: L('Completed — looking good', language), pip: 'green', items: requirements.filter(r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')) },
-    { key: 'recommended', label: L('Recommended Items', language), pip: 'blue', items: requirements.filter(r => !r.mandatory) },
+    { key: 'recommended', label: L('Recommended Items', language), pip: 'blue', items: requirements.filter(r => r.applicability === 'recommended' || (!r.mandatory && r.applicability !== 'conditional' && r.applicability !== 'not_applicable' && r.kind !== 'review_condition')) },
   ];
   const groupVisible = (key: string) =>
-    reqFilter === 'all' ? true
-    : reqFilter === 'todo' ? key === 'missing' || key === 'review'
+    reqFilter === 'all' ? key !== 'recommended' || requirements.some(r => r.applicability === 'recommended' || !r.mandatory)
+    : reqFilter === 'todo' ? key === 'missing' || key === 'review' || key === 'verify'
     : reqFilter === 'done' ? key === 'done'
     : key === 'recommended';
 
@@ -3421,9 +3491,28 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       ? { label: language === 'es' ? `Municipio: ${profile.municipality}` : `Municipality: ${profile.municipality}`, state: 'confirmed' }
       : { label: language === 'es' ? 'Se necesita el municipio' : 'Municipality needed', state: 'needs-info' },
     profile.location_type
-      ? { label: language === 'es' ? `Ubicación: ${profile.location_type}` : `Location: ${profile.location_type}`, state: 'confirmed' }
-      : { label: language === 'es' ? 'Se necesita el tipo de ubicación' : 'Physical location needed', state: 'needs-info' },
+      ? { label: language === 'es' ? `Ubicación: ${profile.location_type}` : `Location: ${profile.location_type}`, state: 'confirmed' as const }
+      : { label: language === 'es' ? 'Se necesita el tipo de ubicación' : 'Physical location needed', state: 'needs-info' as const },
   ];
+  if (profile.business_structure) {
+    intelligenceSignals.push({
+      label: language === 'es' ? `Entidad: ${profile.business_structure}` : `Entity: ${profile.business_structure}`,
+      state: 'confirmed',
+    });
+  }
+  if (profile.outdoor_seating === true || discoveryAnswers.outdoor_seating === true || discoveryAnswers.Q_OUTDOOR_SEATING === true) {
+    intelligenceSignals.push({ label: language === 'es' ? 'Asientos al aire libre' : 'Outdoor seating', state: 'confirmed' });
+  } else if (profile.outdoor_seating === false || discoveryAnswers.outdoor_seating === false) {
+    intelligenceSignals.push({ label: language === 'es' ? 'Asientos al aire libre: no' : 'Outdoor seating: no', state: 'not-applicable' });
+  }
+  if (profile.alcohol_sold === true || discoveryAnswers.alcohol_sold === true || discoveryAnswers.Q_ALCOHOL_SOLD === true) {
+    intelligenceSignals.push({ label: language === 'es' ? 'Venta de alcohol' : 'Alcohol sales', state: 'confirmed' });
+  } else if (profile.alcohol_sold === false || discoveryAnswers.alcohol_sold === false) {
+    intelligenceSignals.push({ label: language === 'es' ? 'Alcohol: no' : 'Alcohol: no', state: 'not-applicable' });
+  }
+  const liveRequired = liveReqs.filter((r) => r.applicability === 'required').length;
+  const liveConditional = liveReqs.filter((r) => r.applicability === 'conditional').length;
+  const liveFacts = intelligenceSignals.filter((s) => s.state === 'confirmed').length;
   const notApplicableDecision = potentialItems.find((item) => potentialDecisions[item.flag] === 'not_applies');
   if (notApplicableDecision) {
     intelligenceSignals.push({
@@ -3472,10 +3561,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     progressLabel: language === 'es' ? 'Contexto del negocio' : 'Business context',
     readiness: null,
     metrics: [
-      { value: liveAgencies.length, label: language === 'es' ? 'Agencias' : 'Agencies', emphasis: true },
-      { value: liveReqs.length, label: language === 'es' ? 'Requisitos identificados' : 'Requirements identified', emphasis: true },
-      { value: livePermits, label: language === 'es' ? 'Permisos' : 'Permits' },
-      { value: Math.max(0, intakeQuestionTotal - openQuestionsAnswered - answeredPotentialCount), label: language === 'es' ? 'Necesitan información' : 'Need information' },
+      { value: liveFacts, label: language === 'es' ? 'Hechos confirmados' : 'Facts understood', emphasis: true },
+      { value: liveRequired, label: language === 'es' ? 'Requisitos por reglas' : 'Determined by rules', emphasis: liveRequired > 0 },
+      { value: liveConditional, label: language === 'es' ? 'Por verificar' : 'Need verification' },
+      { value: Math.max(0, intakeQuestionTotal - openQuestionsAnswered - answeredPotentialCount), label: language === 'es' ? 'Hechos pendientes' : 'Facts still needed' },
     ],
     agencies: liveAgencies,
     signals: intelligenceSignals,
@@ -3493,7 +3582,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     progressLabel: language === 'es' ? 'Cobertura de requisitos' : 'Requirement coverage',
     metrics: [
       { value: totalMandatory, label: language === 'es' ? 'Requeridos' : 'Required', emphasis: true },
-      { value: recommendedCount, label: language === 'es' ? 'Potenciales' : 'Potential' },
+      { value: requirements.filter((r) => r.applicability === 'conditional').length, label: language === 'es' ? 'Por verificar' : 'Need verification' },
       { value: missingCount, label: language === 'es' ? 'Faltantes' : 'Missing' },
       { value: reviewCount, label: language === 'es' ? 'Necesitan revisión' : 'Need review' },
     ],
@@ -3596,6 +3685,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <span>{L('Discovery', language)}</span>
               </div>
               <h1>{language === 'en' ? 'Tell us about your business' : t('title')}</h1>
+              {!me && (
+                <p className="spr-guest-note">
+                  {language === 'es'
+                    ? 'Puede completar esta evaluación ahora. Crear una cuenta guarda el trabajo en la nube, permite varios negocios y reanudar en otro dispositivo.'
+                    : 'You can complete this assessment now. Creating an account is required for cloud storage, multiple businesses, and resuming on another device.'}
+                </p>
+              )}
               <p className="spr-subtitle">
                 {language === 'en'
                   ? 'Answer a few questions and we determine every Puerto Rico license, permit, certification and document you need.'
@@ -3683,16 +3779,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="spr-field spr-field-static">
                   <label htmlFor="spr-structure">{t('businessStructure')}</label>
                   <select id="spr-structure" value={profile.business_structure} onChange={e => setProfile({ ...profile, business_structure: e.target.value })}>
-                    <option value="corporation">Stock corporation</option>
-                    <option value="nonprofit_nonstock_corporation">Nonprofit non-stock corporation</option>
-                    <option value="close_corporation">Close / intimate corporation</option>
-                    <option value="professional_corporation">Professional corporation</option>
-                    <option value="foreign_corporation">Foreign corporation seeking authorization in Puerto Rico</option>
-                    <option value="limited_liability_partnership">Limited liability partnership</option>
-                    <option value="llc">Limited liability company (LLC)</option>
-                    <option value="sole_proprietorship">Sole proprietorship</option>
-                    <option value="partnership">Partnership</option>
-                    <option value="other">Other / not sure</option>
+                    <option value="">{L('Select entity type', language)}</option>
+                    <option value="corporation">{L('Stock corporation', language)}</option>
+                    <option value="nonprofit_nonstock_corporation">{L('Nonprofit non-stock corporation', language)}</option>
+                    <option value="close_corporation">{L('Close / intimate corporation', language)}</option>
+                    <option value="professional_corporation">{L('Professional corporation', language)}</option>
+                    <option value="foreign_corporation">{L('Foreign corporation seeking authorization in Puerto Rico', language)}</option>
+                    <option value="limited_liability_partnership">{L('Limited liability partnership', language)}</option>
+                    <option value="llc">{L('Limited liability company (LLC)', language)}</option>
+                    <option value="sole_proprietorship">{L('Sole proprietorship', language)}</option>
+                    <option value="partnership">{L('Partnership', language)}</option>
+                    <option value="other">{L('Other / not sure', language)}</option>
                   </select>
                 </div>
                 <div className="spr-field">
@@ -4066,7 +4163,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <div className="headline">
               <div className="eyebrow">{L('Readiness Score', language)}</div>
               <h1>{profile.name || '—'}</h1>
-              <p>{completedMandatory} {L('of', language)} {totalMandatory} {L('Required Documents Validated', language)}{findings.filter(f => f.severity === 'critical').length === 0 ? ` · ${L('No Critical Issues Found', language)}` : ''}</p>
+              <p>{completedMandatory} {L('of', language)} {totalMandatory} {L('Required Documents Validated', language)}{findings.filter(f => f.severity === 'critical').length === 0 && missingCount === 0 ? ` · ${L('No Critical Issues Found', language)}` : missingCount > 0 ? ` · ${missingCount} ${L('still missing', language)}` : ''}</p>
             </div>
             <div className="banner-stat">
               <div className="lab">{t('municipality')}</div>

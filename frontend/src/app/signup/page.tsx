@@ -8,6 +8,7 @@ import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/clie
 import { authRedirectUrl } from "../../lib/siteUrl";
 import styles from "./signup.module.css";
 import { SmartPRLogo } from "../components/brand/SmartPRLogo";
+import { GUEST_INTAKE, sanitizeNext } from "../../lib/safeNext";
 
 type Intent = "start" | "manage";
 type Language = "EN" | "ES";
@@ -54,7 +55,8 @@ function SignupForm() {
   const [complete, setComplete] = useState<"session" | "confirmation" | null>(null);
   const [workspaceReady, setWorkspaceReady] = useState(false);
 
-  const nextPath = intent === "manage" ? "/businesses/import" : "/?entry=new-business";
+  const requestedNext = params.get("next");
+  const nextPath = sanitizeNext(requestedNext, intent === "manage" ? "/businesses/import" : GUEST_INTAKE);
   const valid = useMemo(() => firstName.trim().length > 0 && lastName.trim().length > 0 && /\S+@\S+\.\S+/.test(email) && password.length >= 8 && agreed, [agreed, email, firstName, lastName, password]);
   const isSpanish = language === "ES";
   const t = (value: string) => isSpanish ? (esLabels[value] || value) : value;
@@ -129,7 +131,7 @@ function SignupForm() {
       <section className={styles.formPanel}>
         <div className={styles.topBar}>
           <Link className={styles.mobileLogo} href="/"><SmartPRLogo className={styles.logo} size="auth" /></Link>
-          <div><Link href="/auth/login">{t("Log in")}</Link><LanguageToggle language={language} onChange={setLanguage} /></div>
+          <div><Link href={`/auth/login?next=${encodeURIComponent(nextPath)}`}>{t("Log in")}</Link><LanguageToggle language={language} onChange={setLanguage} /></div>
         </div>
         <div className={styles.formWrap}>
           {complete ? <div className={styles.success}>
@@ -175,6 +177,7 @@ function SignupForm() {
             <p className={styles.existing}>{t("Already have an account?")} <Link href={`/auth/login?next=${encodeURIComponent(nextPath)}`}>{t("Log in")}</Link></p>
           </form>}
         </div>
+        <Link className={styles.back} href={GUEST_INTAKE}>{isSpanish ? "Continuar sin cuenta" : "Continue without an account"}</Link>
         <Link className={styles.back} href="/">{t("← Back to smartpr.com")}</Link>
         <Link className={styles.back} href="/privacy">{t("Privacy Policy")}</Link>
       </section>

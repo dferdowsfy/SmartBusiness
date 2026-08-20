@@ -252,9 +252,9 @@ export function FilingWorkflowShell({
   const actions = (
     <div className="spr-matter-actions">
       {businessId && <Link href={`/businesses/${businessId}`} className="spr-business-profile-link">{labels.profile}</Link>}
-      <div className="spr-context-language" aria-label="Language">
-        <button type="button" className={language === "en" ? "active" : ""} onClick={() => onLanguageChange("en")}>EN</button>
-        <button type="button" className={language === "es" ? "active" : ""} onClick={() => onLanguageChange("es")}>ES</button>
+      <div className="spr-context-language" aria-label={language === "es" ? "Idioma" : "Language"}>
+        <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => onLanguageChange("en")}>EN</button>
+        <button type="button" className={language === "es" ? "active" : ""} aria-pressed={language === "es"} onClick={() => onLanguageChange("es")}>ES</button>
       </div>
       <button type="button" className="spr-save-exit" onClick={onSaveExit} disabled={saveState === "saving"}>
         {saveState === "saving" ? <LoaderCircle className="spr-spin" size={16} /> : <Save size={16} />}
@@ -266,11 +266,11 @@ export function FilingWorkflowShell({
   return (
     <div className="spr-product-shell">
       <div className={`spr-filing-sticky${compact ? " compact" : ""}`}>
-        <div className="spr-filing-top">
+        <div className="spr-filing-top" inert={compact ? true : undefined} aria-hidden={compact}>
           <TopNav active="businesses" />
         </div>
         <div className="spr-filing-chrome">
-          <header className="spr-matter-header">
+          <header className="spr-matter-header" inert={compact ? true : undefined} aria-hidden={compact}>
             <div className="spr-matter-identity">
               <span className="spr-matter-icon"><Building2 size={18} /></span>
               <div>
@@ -281,11 +281,11 @@ export function FilingWorkflowShell({
                 <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
               </div>
             </div>
-            {actions}
+            </div>
           </header>
           <div className="spr-stepper-bar">
             <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
-            {compact ? actions : null}
+            {actions}
           </div>
         </div>
       </div>

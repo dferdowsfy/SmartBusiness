@@ -12,7 +12,7 @@ import { prefillFromCanonical, writeBackToCanonical, applicationsNeedingRefresh 
 import { validateForm, validateFutureWithinDays, validatePuertoRicoAddress, isValidPrPostalCode } from "./formValidation.ts";
 import { evaluateConditions } from "./formConditions.ts";
 import { buildGeneratedApplication, requirementFormState, actionsForFormState } from "./application.ts";
-import { entityTypeRequirements } from "./requirementAugment.ts";
+import { entityTypeRequirements, exclusiveFormationRequirements } from "./requirementAugment.ts";
 import { feeEstimateFor } from "./fees.ts";
 import { buildCanonicalFromIntake } from "./intake.ts";
 import { setCanonicalValue } from "./canonicalMapping.ts";
@@ -283,6 +283,15 @@ test("entity-type augmentation adds foreign/LLP requirements additively", () => 
   // Not double-added when already present.
   const noDup = entityTypeRequirements(llp, [{ document_id: "DOC_LLP_REGISTRATION" }], (d) => ({ document_id: d.document_id }));
   assert.equal(noDup.length, 0);
+});
+
+test("LLC formation replaces Certificate of Incorporation", () => {
+  const llc = canonical({ entityType: "limited_liability_company" });
+  const existing = [{ document_id: "DOC_CERT_INCORPORATION" as const, code: "certificate_of_incorporation" }];
+  const exclusive = exclusiveFormationRequirements(llc, existing);
+  assert.equal(exclusive.some((r) => r.document_id === "DOC_CERT_INCORPORATION"), false);
+  const added = entityTypeRequirements(llc, exclusive, (d) => d);
+  assert.ok(added.some((r) => r.document_id === "DOC_ARTICLES_ORGANIZATION"));
 });
 
 test("CORPREG03 fee estimate switches on for-profit/nonprofit", () => {
