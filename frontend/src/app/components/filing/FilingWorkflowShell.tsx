@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Building2,
@@ -226,6 +226,14 @@ export function FilingWorkflowShell({
   intelligence,
   children,
 }: FilingWorkflowShellProps) {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setCompact(window.scrollY > 28);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const displayName = businessName && businessName.trim() && businessName !== "Untitled business"
     ? businessName
     : language === "es" ? "Negocio nuevo" : "New Business";
@@ -241,35 +249,45 @@ export function FilingWorkflowShell({
     saveExit: "Save & Exit",
   };
 
+  const actions = (
+    <div className="spr-matter-actions">
+      {businessId && <Link href={`/businesses/${businessId}`} className="spr-business-profile-link">{labels.profile}</Link>}
+      <div className="spr-context-language" aria-label="Language">
+        <button type="button" className={language === "en" ? "active" : ""} onClick={() => onLanguageChange("en")}>EN</button>
+        <button type="button" className={language === "es" ? "active" : ""} onClick={() => onLanguageChange("es")}>ES</button>
+      </div>
+      <button type="button" className="spr-save-exit" onClick={onSaveExit} disabled={saveState === "saving"}>
+        {saveState === "saving" ? <LoaderCircle className="spr-spin" size={16} /> : <Save size={16} />}
+        {saveState === "saving" ? labels.saving : saveState === "error" ? labels.retry : labels.saveExit}
+      </button>
+    </div>
+  );
+
   return (
     <div className="spr-product-shell">
-      <TopNav active="businesses" />
-      <div className="spr-filing-chrome">
-        <header className="spr-matter-header">
-          <div className="spr-matter-identity">
-            <span className="spr-matter-icon"><Building2 size={18} /></span>
-            <div>
-              <div className="spr-matter-name-row">
-                <h1>{displayName}</h1>
-                <span className="spr-matter-status">{matterStatus}</span>
+      <div className={`spr-filing-sticky${compact ? " compact" : ""}`}>
+        <div className="spr-filing-top">
+          <TopNav active="businesses" />
+        </div>
+        <div className="spr-filing-chrome">
+          <header className="spr-matter-header">
+            <div className="spr-matter-identity">
+              <span className="spr-matter-icon"><Building2 size={18} /></span>
+              <div>
+                <div className="spr-matter-name-row">
+                  <h1>{displayName}</h1>
+                  <span className="spr-matter-status">{matterStatus}</span>
+                </div>
+                <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
               </div>
-              <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
             </div>
+            {actions}
+          </header>
+          <div className="spr-stepper-bar">
+            <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
+            {compact ? actions : null}
           </div>
-
-          <div className="spr-matter-actions">
-            {businessId && <Link href={`/businesses/${businessId}`} className="spr-business-profile-link">{labels.profile}</Link>}
-            <div className="spr-context-language" aria-label="Language">
-              <button type="button" className={language === "en" ? "active" : ""} onClick={() => onLanguageChange("en")}>EN</button>
-              <button type="button" className={language === "es" ? "active" : ""} onClick={() => onLanguageChange("es")}>ES</button>
-            </div>
-            <button type="button" className="spr-save-exit" onClick={onSaveExit} disabled={saveState === "saving"}>
-              {saveState === "saving" ? <LoaderCircle className="spr-spin" size={16} /> : <Save size={16} />}
-              {saveState === "saving" ? labels.saving : saveState === "error" ? labels.retry : labels.saveExit}
-            </button>
-          </div>
-        </header>
-        <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
+        </div>
       </div>
 
       <div className="spr-workflow-grid">
