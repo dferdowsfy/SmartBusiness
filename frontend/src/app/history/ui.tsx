@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Building2, CalendarDays, Landmark, RefreshCw, LogOut, Settings, ShieldCheck } from "lucide-react";
+import { LogOut, Settings, ShieldCheck, CalendarDays, RefreshCw } from "lucide-react";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 import { SmartPRLogo } from "../components/brand/SmartPRLogo";
 
 interface MeUser { id: string; email: string | null; name: string | null; avatar: string | null; isAdmin?: boolean }
 
-// Sign out: navigate to the server route immediately (clears httpOnly cookies
-// and 302s to /auth/login). The browser-side signOut is best-effort and is NOT
-// awaited, so a hanging network call can never block the redirect.
 function signOutNow() {
   try {
     if (isAuthConfigured()) void createSupabaseBrowser().auth.signOut().catch(() => {});
@@ -20,16 +17,8 @@ function signOutNow() {
   window.location.assign("/auth/signout");
 }
 
-// Primary navigation shared across the compliance workspace. Uses the same
-// Validador app bar as the main experience so the UI is consistent everywhere.
 export function TopNav({ active }: { active: "dashboard" | "businesses" | "calendar" | "history" | "graph" | "admin" | "settings" }) {
-  const tabs = [
-    { key: "dashboard", label: "Dashboard", href: "/dashboard", Icon: Building2 },
-    { key: "businesses", label: "My Businesses", href: "/businesses", Icon: Landmark },
-    { key: "calendar", label: "Calendar", href: "/calendar", Icon: CalendarDays },
-    { key: "history", label: "History", href: "/history", Icon: RefreshCw },
-  ];
-  const [user, setUser] = useState<MeUser | null | undefined>(undefined); // undefined = loading
+  const [user, setUser] = useState<MeUser | null | undefined>(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -48,17 +37,16 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
     <header className="appbar">
       <div className="appbar-inner">
         <div className="appbar-left">
-          <Link href="/" className="brand">
-            <SmartPRLogo inverted iconSize={18} size="app" />
+          <Link href={user ? "/businesses" : "/"} className="brand" aria-label="SmartPR home">
+            <SmartPRLogo size="app" />
           </Link>
         </div>
 
         <nav className="nav-tabs" aria-label="Sections">
-          {tabs.map(({ key, label, href, Icon }) => (
-            <Link key={key} href={href} className={`nav-tab ${active === key ? "active" : ""}`}>
-              <Icon className="tab-icon" /> {label}
-            </Link>
-          ))}
+          <Link href="/?entry=new-business" className="nav-tab">Start</Link>
+          <Link href="/businesses" className={`nav-tab ${active === "businesses" || active === "calendar" || active === "history" || active === "settings" ? "active" : ""}`}>
+            My Businesses
+          </Link>
         </nav>
 
         <div className="appbar-actions">
@@ -70,6 +58,8 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
                   <div className="uname">{user.name || user.email}</div>
                   <div className="uemail">{user.email}</div>
                 </div>
+                <Link className="uitem" href="/calendar"><CalendarDays className="i" /> Calendar</Link>
+                <Link className="uitem" href="/history"><RefreshCw className="i" /> History</Link>
                 <Link className="uitem" href="/settings"><Settings className="i" /> Settings</Link>
                 {user.isAdmin && <Link className="uitem" href="/admin/knowledge-base"><ShieldCheck className="i" /> Knowledge Graph</Link>}
                 {user.isAdmin && <Link className="uitem" href="/admin/requirements"><ShieldCheck className="i" /> Admin Review</Link>}
@@ -103,7 +93,6 @@ export function fmtDateTime(s: string | null | undefined): string {
   }
 }
 
-// Display status: prefer the stored readiness status, else derive from score.
 export function statusLabel(score: number | null | undefined, stored?: string | null): string {
   if (stored) return stored;
   if (score == null) return "In Progress";
@@ -114,30 +103,29 @@ export function statusLabel(score: number | null | undefined, stored?: string | 
 }
 
 export function scoreColor(score: number | null | undefined): string {
-  if (score == null) return "#64748b";
-  if (score >= 90) return "#10b981";
-  if (score >= 70) return "#0d9488";
-  if (score >= 40) return "#f59e0b";
-  return "#ef4444";
+  if (score == null) return "#5a5a5a";
+  if (score >= 90) return "#1f5a3a";
+  if (score >= 70) return "#245c5c";
+  if (score >= 40) return "#8a5a12";
+  return "#8a2f2f";
 }
 
 export function ScorePill({ score }: { score: number | null | undefined }) {
   const c = scoreColor(score);
   return (
-    <span style={{ background: c + "1a", color: c, border: `1px solid ${c}55` }} className="rounded-full px-2.5 py-0.5 text-sm font-bold">
+    <span style={{ background: c + "1a", color: c, border: `1px solid ${c}55` }} className="rounded-full px-2.5 py-0.5 text-sm font-medium">
       {score == null ? "—" : `${score}%`}
     </span>
   );
 }
 
-// "Connect a database" notice when capture isn't enabled.
 export function NotConnected() {
   return (
-    <div className="max-w-3xl mx-auto mt-10 p-6 rounded-2xl border border-amber-200 bg-amber-50">
-      <div className="font-semibold text-amber-800">No submission history yet</div>
-      <p className="text-sm text-amber-700/90 mt-1">
-        Submission history appears here once the capture database is connected and you complete an assessment.
-        Each readiness assessment you run is saved automatically — revisit, compare, and resume them from this workspace.
+    <div className="max-w-3xl mx-auto mt-10 p-6 rounded-2xl border border-[#161616]/15 bg-[#fbf8f2]">
+      <div className="font-medium text-[#161616]">No submission history yet</div>
+      <p className="text-sm text-[#5a5a5a] mt-1">
+        Submission history appears here once you complete an assessment.
+        Each readiness assessment is saved automatically — revisit, compare, and resume from this workspace.
       </p>
     </div>
   );

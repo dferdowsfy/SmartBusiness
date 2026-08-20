@@ -81,7 +81,7 @@ export default function WorkspacePage() {
 
   if (!loaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-[#0A2540]/60">
+      <div className="min-h-screen flex items-center justify-center bg-[#f4f1ea] text-[#161616]/60">
         {t("Loading workspace…")}
       </div>
     );
@@ -89,12 +89,12 @@ export default function WorkspacePage() {
 
   if (!data) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 px-6 text-center">
-        <div className="text-2xl font-semibold text-[#0A2540] mb-2">{t("Workspace not found")}</div>
-        <p className="text-[#0A2540]/60 max-w-md">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#f4f1ea] px-6 text-center">
+        <div className="text-2xl font-semibold text-[#161616] mb-2">{t("Workspace not found")}</div>
+        <p className="text-[#161616]/60 max-w-md">
           {t("This workspace link is missing its data. Re-open the workspace from the SmartPR deliverables screen to generate a fresh shareable link.")}
         </p>
-        <a href="/" className="mt-6 px-5 py-2.5 rounded-full bg-[#0A2540] text-white text-sm">
+        <a href="/" className="mt-6 px-5 py-2.5 rounded-full bg-[#161616] text-white text-sm">
           {t("Go to SmartPR")}
         </a>
       </div>
@@ -106,9 +106,9 @@ export default function WorkspacePage() {
   const otherDocs = data.approved.filter((d) => !isApproved(d.status));
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-[#0A2540]">
+    <div className="min-h-screen bg-[#f4f1ea] font-sans text-[#161616]">
       {/* Header band */}
-      <header className="bg-[#0A2540] text-white">
+      <header className="bg-[#161616] text-white">
         <div className="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="font-bold tracking-wide text-lg">SMARTPR</div>
@@ -127,14 +127,14 @@ export default function WorkspacePage() {
             >
               <button
                 onClick={() => setLang("en")}
-                className={`text-[11px] font-semibold px-2 py-1 rounded-md transition-colors ${lang === "en" ? "bg-white text-[#0A2540]" : "text-white/70 hover:text-white"}`}
+                className={`text-[11px] font-semibold px-2 py-1 rounded-md transition-colors ${lang === "en" ? "bg-white text-[#161616]" : "text-white/70 hover:text-white"}`}
                 aria-pressed={lang === "en"}
               >
                 EN
               </button>
               <button
                 onClick={() => setLang("es")}
-                className={`text-[11px] font-semibold px-2 py-1 rounded-md transition-colors ${lang === "es" ? "bg-white text-[#0A2540]" : "text-white/70 hover:text-white"}`}
+                className={`text-[11px] font-semibold px-2 py-1 rounded-md transition-colors ${lang === "es" ? "bg-white text-[#161616]" : "text-white/70 hover:text-white"}`}
                 aria-pressed={lang === "es"}
               >
                 ES
@@ -147,14 +147,14 @@ export default function WorkspacePage() {
       <main className="max-w-4xl mx-auto px-6 py-8">
         {/* Title + business meta */}
         <h1 className="text-3xl font-semibold tracking-tight mb-1">{data.name}</h1>
-        <div className="text-sm text-[#0A2540]/70 mb-6">
+        <div className="text-sm text-[#161616]/70 mb-6">
           {[data.businessType, data.industry, data.municipality].filter(Boolean).join(" · ")}
         </div>
 
         {/* Status banner */}
         <div
           className={`rounded-xl px-5 py-4 mb-8 text-white flex flex-wrap items-center gap-x-6 gap-y-1 ${
-            ready ? "bg-[#0D9488]" : "bg-amber-600"
+            ready ? "bg-[#245c5c]" : "bg-amber-600"
           }`}
         >
           <div className="font-semibold">{ready ? t("READY FOR SUBMISSION") : t("NEEDS REVIEW")}</div>
@@ -166,11 +166,11 @@ export default function WorkspacePage() {
 
         {/* Approved deliverables */}
         <section className="mb-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#161616]/60 border-b pb-2 mb-4">
             {t("Approved Deliverables")}
           </h2>
           {approvedDocs.length === 0 ? (
-            <p className="text-sm text-[#0A2540]/60">
+            <p className="text-sm text-[#161616]/60">
               {t("No deliverables have been approved by the AI yet.")}
             </p>
           ) : (
@@ -185,7 +185,7 @@ export default function WorkspacePage() {
                   </div>
                   <div className="min-w-0">
                     <div className="font-medium truncate">{d.name}</div>
-                    <div className="text-xs text-[#0A2540]/60">
+                    <div className="text-xs text-[#161616]/60">
                       {d.type} · {t(d.status)}
                     </div>
                   </div>
@@ -198,7 +198,7 @@ export default function WorkspacePage() {
         {/* Other uploaded docs needing review */}
         {otherDocs.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#161616]/60 border-b pb-2 mb-4">
               {t("Uploaded — Needs Review")}
             </h2>
             <div className="space-y-3">
@@ -212,7 +212,7 @@ export default function WorkspacePage() {
                   </div>
                   <div className="min-w-0">
                     <div className="font-medium truncate">{d.name}</div>
-                    <div className="text-xs text-[#0A2540]/60">
+                    <div className="text-xs text-[#161616]/60">
                       {d.type} · {t(d.status)}
                     </div>
                   </div>
@@ -225,7 +225,7 @@ export default function WorkspacePage() {
         {/* Municipal notices */}
         {data.notices && data.notices.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#161616]/60 border-b pb-2 mb-4">
               {t("Municipal Notices")}
             </h2>
             <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-3 text-sm text-sky-900 space-y-1">
@@ -238,7 +238,7 @@ export default function WorkspacePage() {
 
         {/* Full requirements checklist */}
         <section className="mb-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[#161616]/60 border-b pb-2 mb-4">
             {t("Requirements Checklist")}
           </h2>
           <div className="bg-white border rounded-xl divide-y">
@@ -254,7 +254,7 @@ export default function WorkspacePage() {
                     {done ? "✓" : ""}
                   </span>
                   <span className="flex-1">{t(r.name)}</span>
-                  <span className="text-xs text-[#0A2540]/50">{t(r.agency)}</span>
+                  <span className="text-xs text-[#161616]/50">{t(r.agency)}</span>
                 </div>
               );
             })}
@@ -264,21 +264,21 @@ export default function WorkspacePage() {
         {/* Findings */}
         {data.findings.length > 0 && (
           <section className="mb-8">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#0A2540]/60 border-b pb-2 mb-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[#161616]/60 border-b pb-2 mb-4">
               {t("Findings & Recommendations")}
             </h2>
             <div className="space-y-3">
               {data.findings.map((f, i) => (
                 <div key={i} className="bg-white border rounded-xl px-4 py-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-[#0A2540]/50">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[#161616]/50">
                     {f.severity}
                   </div>
                   <div className="font-medium">{t(f.title)}</div>
                   {f.description && (
-                    <div className="text-sm text-[#0A2540]/70 mt-0.5">{t(f.description)}</div>
+                    <div className="text-sm text-[#161616]/70 mt-0.5">{t(f.description)}</div>
                   )}
                   {f.recommended_action && (
-                    <div className="text-sm text-[#0D9488] mt-1">→ {t(f.recommended_action)}</div>
+                    <div className="text-sm text-[#245c5c] mt-1">→ {t(f.recommended_action)}</div>
                   )}
                 </div>
               ))}
@@ -293,7 +293,7 @@ export default function WorkspacePage() {
           )}
         </div>
 
-        <div className="text-[11px] text-[#0A2540]/40 mt-4">
+        <div className="text-[11px] text-[#161616]/40 mt-4">
           {t("Generated")} {new Date(data.generatedAt).toLocaleString()} · SmartPR · {t("Powered by AI")}
         </div>
       </main>

@@ -24,13 +24,19 @@
   padding: 0.85rem 1.5rem;
 }
 
-.logo :global(.smartpr-logo-wordmark) {
-  color: #161616;
+.logo {
+  font-family: var(--font-display), Newsreader, Georgia, "Times New Roman", serif;
+  font-size: 1.35rem;
   font-weight: 500;
+  letter-spacing: -0.03em;
+  color: #161616;
 }
 
-.logo :global(.smartpr-logo-mark) {
-  color: #245c5c;
+.logo :global(.smartpr-logo-wordmark) {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
 }
 
 .desktopNav {

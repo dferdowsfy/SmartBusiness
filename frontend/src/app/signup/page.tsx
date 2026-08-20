@@ -169,13 +169,14 @@ function SignupForm() {
             <label>{t("I am a…")}<select value={role} onChange={(event) => setRole(event.target.value)}><option value="owner">{t("Business owner")}</option><option value="gestor">{t("Gestor")}</option><option value="cpa">{t("CPA / Accountant")}</option><option value="permitting">{t("Permitting firm")}</option><option value="attorney">{t("Attorney / Law firm")}</option></select></label>
             <label>{t("Business name")} <em>({t("optional")})</em><input value={businessName} onChange={(event) => setBusinessName(event.target.value)} placeholder={intent === "manage" ? "Luna Café LLC" : t("Your new business name")} /></label>
 
-            <label className={styles.terms}><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} /><span>{t("I agree to the")} <Link href="/#terms">{t("Terms of Service")}</Link> {t("and")} <Link href="/#privacy">{t("Privacy Policy")}</Link>.</span></label>
+            <label className={styles.terms}><input type="checkbox" checked={agreed} onChange={(event) => setAgreed(event.target.checked)} /><span>{t("I agree to the")} <Link href="/privacy">{t("Privacy Policy")}</Link>.</span></label>
             {error && <div className={styles.error} role="alert">{error}</div>}
             <button className={styles.submitButton} disabled={!valid || busy} type="submit">{busy ? t("Creating account…") : t("Create Account")}</button>
             <p className={styles.existing}>{t("Already have an account?")} <Link href={`/auth/login?next=${encodeURIComponent(nextPath)}`}>{t("Log in")}</Link></p>
           </form>}
         </div>
         <Link className={styles.back} href="/">{t("← Back to smartpr.com")}</Link>
+        <Link className={styles.back} href="/privacy">{t("Privacy Policy")}</Link>
       </section>
     </main>
   );

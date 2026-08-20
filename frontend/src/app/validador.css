@@ -6,33 +6,33 @@
    ============================================================ */
 
 :root {
-  --bg: #FAFAF7;
-  --bg-tint: #F4F4F0;
-  --surface: #FFFFFF;
-  --surface-2: #FBFBF9;
-  --border: #ECECE8;
-  --border-strong: #DEDED9;
-  --ink: #18181B;
-  --ink-2: #3F3F46;
-  --muted: #71717A;
-  --muted-2: #A1A1AA;
+  --bg: #f4f1ea;
+  --bg-tint: #ebe6db;
+  --surface: #fbf8f2;
+  --surface-2: #fbf8f2;
+  --border: color-mix(in oklab, #161616 12%, transparent);
+  --border-strong: color-mix(in oklab, #161616 22%, transparent);
+  --ink: #161616;
+  --ink-2: #1b1b1b;
+  --muted: #5a5a5a;
+  --muted-2: #5a5a5a;
 
-  --navy: #0A2540;
-  --navy-2: #0F2E4D;
-  --navy-line: rgba(255,255,255,0.10);
-  --navy-soft: rgba(255,255,255,0.08);
-  --on-navy: #FFFFFF;
-  --on-navy-2: rgba(255,255,255,0.72);
-  --on-navy-3: rgba(255,255,255,0.50);
+  --navy: #f4f1ea;
+  --navy-2: #ebe6db;
+  --navy-line: color-mix(in oklab, #161616 12%, transparent);
+  --navy-soft: color-mix(in oklab, #161616 8%, transparent);
+  --on-navy: #161616;
+  --on-navy-2: #3d3d3d;
+  --on-navy-3: #5a5a5a;
 
-  --brand: #1E3A8A;
-  --brand-2: #4F46E5;
-  --accent: #0EA371;
-  --accent-soft: #E8F5EE;
-  --warn: #B45309;
-  --warn-soft: #FEF3C7;
-  --danger: #B91C1C;
-  --danger-soft: #FEECEC;
+  --brand: #245c5c;
+  --brand-2: #245c5c;
+  --accent: #245c5c;
+  --accent-soft: #dce8e6;
+  --warn: #8a5a12;
+  --warn-soft: #f4e8d0;
+  --danger: #8a2f2f;
+  --danger-soft: #f3e0e0;
 
   --shadow-sm: 0 1px 2px rgba(24,24,27,.04), 0 1px 1px rgba(24,24,27,.03);
   --shadow: 0 1px 2px rgba(24,24,27,.04), 0 8px 24px -8px rgba(24,24,27,.08);
@@ -45,8 +45,7 @@
 }
 
 body {
-  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  font-feature-settings: "cv11", "ss01", "ss03";
+  font-family: var(--font-sans), "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
@@ -67,8 +66,8 @@ button { font-family: inherit; }
   color: var(--on-navy);
   height: 64px;
   position: sticky; top: 0; z-index: 50;
-  border-bottom: 1px solid rgba(0,0,0,0.4);
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+  border-bottom: 1px solid var(--border);
+  box-shadow: none;
 }
 .appbar-inner {
   max-width: 1480px; margin: 0 auto; height: 100%;
@@ -83,34 +82,25 @@ button { font-family: inherit; }
 .smartpr-logo {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  color: #102444;
+  color: #161616;
   line-height: 1;
   white-space: nowrap;
 }
 .smartpr-logo-mark {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  color: #fff;
-  background: #18c4b5;
+  display: none;
 }
 .smartpr-logo-wordmark {
-  font-size: 29px;
-  font-weight: 700;
-  letter-spacing: -0.055em;
+  font-family: var(--font-display), Newsreader, Georgia, "Times New Roman", serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: #161616;
 }
-.smartpr-logo-wordmark span { color: #18c4b5; }
-.smartpr-logo-inverted { color: #fff; }
-.smartpr-logo-landing .smartpr-logo-mark { width: 34px; height: 34px; border-radius: 9px; }
+.smartpr-logo-wordmark span { color: inherit; }
+.smartpr-logo-inverted { color: #161616; }
 .smartpr-logo-landing .smartpr-logo-wordmark { font-size: 22px; }
-.smartpr-logo-auth .smartpr-logo-mark { width: 30px; height: 30px; border-radius: 8px; }
-.smartpr-logo-auth .smartpr-logo-wordmark { font-size: 19px; }
-.smartpr-logo-app { gap: 8px; }
-.smartpr-logo-app .smartpr-logo-mark { width: 28px; height: 28px; border-radius: 9px; }
-.smartpr-logo-app .smartpr-logo-wordmark { font-size: 19px; }
+.smartpr-logo-auth .smartpr-logo-wordmark { font-size: 22px; }
+.smartpr-logo-app .smartpr-logo-wordmark { font-size: 20px; }
 .vdiv { width: 1px; height: 22px; background: var(--navy-line); flex-shrink: 0; }
 .project-pill {
   display: flex; align-items: center; gap: 8px;
@@ -119,7 +109,7 @@ button { font-family: inherit; }
 }
 .project-pill .dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: #34D399;
+  background: #245c5c;
   box-shadow: 0 0 0 3px rgba(52,211,153,0.25);
   flex-shrink: 0;
 }
@@ -130,8 +120,8 @@ button { font-family: inherit; }
 .nav-tabs {
   display: flex; align-items: center; gap: 2px;
   justify-self: center;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: #fbf8f2;
+  border: 1px solid var(--border-strong);
   padding: 4px;
   border-radius: 999px;
 }
@@ -145,18 +135,15 @@ button { font-family: inherit; }
   color: var(--on-navy-3);
   font-size: 13px; font-weight: 500;
   cursor: pointer;
-  transition: color .15s ease, background .15s ease, border-color .15s ease, box-shadow .25s ease;
+  transition: color .15s ease, background .15s ease, border-color .15s ease;
   letter-spacing: -0.005em;
 }
-.nav-tab:hover { color: var(--on-navy); background: rgba(255,255,255,0.04); }
+.nav-tab:hover { color: var(--on-navy); background: var(--navy-soft); }
 .nav-tab.active {
-  color: var(--on-navy);
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.30);
-  box-shadow:
-    0 0 0 4px rgba(255,255,255,0.04),
-    0 0 24px rgba(255,255,255,0.10),
-    inset 0 1px 0 rgba(255,255,255,0.10);
+  color: #f6f3ea;
+  background: #245c5c;
+  border-color: #245c5c;
+  box-shadow: none;
 }
 .nav-tab .tab-icon { width: 14px; height: 14px; opacity: 0.85; }
 .nav-tab[disabled] { opacity: 0.4; cursor: not-allowed; }
@@ -169,19 +156,19 @@ button { font-family: inherit; }
   padding: 0 12px 0 4px; margin-right: 4px;
 }
 .saved-pill::before {
-  content: ''; width: 6px; height: 6px; border-radius: 50%; background: #34D399;
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: #245c5c;
   box-shadow: 0 0 0 3px rgba(52,211,153,0.22);
 }
 .lang-toggle {
   display: flex; gap: 2px; padding: 3px;
-  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  background: #fbf8f2; border: 1px solid var(--border-strong);
   border-radius: 8px; margin-right: 8px;
 }
 .lang-toggle button {
   border: 0; background: transparent; color: var(--on-navy-3);
   font-size: 11.5px; font-weight: 600; padding: 4px 8px; border-radius: 6px; cursor: pointer;
 }
-.lang-toggle button.active { background: rgba(255,255,255,0.14); color: var(--on-navy); }
+.lang-toggle button.active { background: #161616; color: #f6f3ea; }
 .icon-btn {
   width: 34px; height: 34px; border-radius: 8px;
   border: 1px solid transparent; background: transparent;
@@ -391,7 +378,7 @@ button { font-family: inherit; }
    different action color (Download Report = blue, Download ZIP = blue,
    Open Workspace = teal). */
 .btn-accent {
-  background: linear-gradient(180deg, #0EA371 0%, #047F58 100%);
+  background: linear-gradient(180deg, #245c5c 0%, #1b4747 100%);
   color: white;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.20),
@@ -739,7 +726,7 @@ button { font-family: inherit; }
   border-radius: 0 0 4px 4px;
 }
 .pkg.indigo::before { background: linear-gradient(90deg, #1E3A8A, #4F46E5); }
-.pkg.green::before { background: linear-gradient(90deg, #0EA371, #34D399); }
+.pkg.green::before { background: linear-gradient(90deg, #245c5c, #245c5c); }
 .pkg.red::before { background: linear-gradient(90deg, #DC2626, #F97316); }
 .pkg.purple::before { background: linear-gradient(90deg, #7C3AED, #C084FC); }
 
@@ -767,7 +754,7 @@ button { font-family: inherit; }
 .pkg-bar { height: 6px; background: var(--bg-tint); border-radius: 99px; overflow: hidden;}
 .pkg-bar > span { display: block; height: 100%; border-radius: inherit; }
 .pkg.indigo .pkg-bar > span { background: linear-gradient(90deg, #1E3A8A, #4F46E5); }
-.pkg.green  .pkg-bar > span { background: linear-gradient(90deg, #0EA371, #34D399); }
+.pkg.green  .pkg-bar > span { background: linear-gradient(90deg, #245c5c, #245c5c); }
 .pkg.red    .pkg-bar > span { background: linear-gradient(90deg, #DC2626, #F97316); }
 .pkg.purple .pkg-bar > span { background: linear-gradient(90deg, #7C3AED, #C084FC); }
 
@@ -859,14 +846,14 @@ button { font-family: inherit; }
    Faithful three-column desktop shell for the business discovery flow.
    ============================================================ */
 .spr-page {
-  --spr-navy: #123654;
-  --spr-navy-deep: #07172a;
-  --spr-blue: #246f9f;
-  --spr-green: #147b5b;
-  --spr-panel: #f8fafc;
-  --spr-line: #dce3e8;
-  --spr-copy: #142434;
-  --spr-muted: #7e8d99;
+  --spr-navy: #f4f1ea;
+  --spr-navy-deep: #f4f1ea;
+  --spr-blue: #245c5c;
+  --spr-green: #245c5c;
+  --spr-panel: #fbf8f2;
+  --spr-line: color-mix(in oklab, #161616 12%, transparent);
+  --spr-copy: #161616;
+  --spr-muted: #5a5a5a;
   background: var(--spr-navy-deep);
   height: 100dvh;
   min-height: 0 !important;
@@ -892,7 +879,7 @@ button { font-family: inherit; }
   min-width: 0;
   padding: 34px 26px 32px;
   background: var(--spr-navy);
-  color: #fff;
+  color: #161616;
   display: flex;
   flex-direction: column;
 }
@@ -1597,9 +1584,9 @@ button { font-family: inherit; }
    ============================================================ */
 .spr-product-shell {
   --spr-shell-navy: #0a2540;
-  --spr-shell-teal: #0d9488;
+  --spr-shell-teal: #245c5c;
   min-height: 100vh;
-  background: #f6f8fb;
+  background: #f4f1ea;
   color: #0f2438;
 }
 

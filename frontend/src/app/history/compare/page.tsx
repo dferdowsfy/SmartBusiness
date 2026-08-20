@@ -25,23 +25,23 @@ interface Comp {
 function SideCard({ side, label }: { side: Side; label: string }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 flex-1">
-      <div className="text-xs font-bold uppercase tracking-wide text-[#0A2540]/40 mb-2">{label}</div>
+      <div className="text-xs font-bold uppercase tracking-wide text-[#161616]/40 mb-2">{label}</div>
       <div className="space-y-1 text-sm">
-        <div className="font-semibold text-[#0A2540]">{side.municipality || "—"}</div>
-        <div className="text-[#0A2540]/80">{side.business_type || "—"}</div>
-        <div className="text-[#0A2540]/60 text-xs">{side.business_structure || "—"} · {side.location_type || "—"}</div>
+        <div className="font-semibold text-[#161616]">{side.municipality || "—"}</div>
+        <div className="text-[#161616]/80">{side.business_type || "—"}</div>
+        <div className="text-[#161616]/60 text-xs">{side.business_structure || "—"} · {side.location_type || "—"}</div>
       </div>
       <div className="flex items-center gap-4 mt-4">
         <div>
-          <div className="text-xs text-[#0A2540]/50">Readiness</div>
+          <div className="text-xs text-[#161616]/50">Readiness</div>
           <ScorePill score={side.readiness_score} />
         </div>
         <div>
-          <div className="text-xs text-[#0A2540]/50">Documents</div>
-          <div className="text-lg font-bold text-[#0A2540]">{side.document_count}</div>
+          <div className="text-xs text-[#161616]/50">Documents</div>
+          <div className="text-lg font-bold text-[#161616]">{side.document_count}</div>
         </div>
       </div>
-      <Link href={`/history/${side.id}`} className="text-xs text-[#0D9488] font-medium mt-3 inline-block">View details →</Link>
+      <Link href={`/history/${side.id}`} className="text-xs text-[#245c5c] font-medium mt-3 inline-block">View details →</Link>
     </div>
   );
 }
@@ -57,25 +57,25 @@ function CompareInner() {
     fetch(`/api/history/compare?a=${a}&b=${b}`).then((r) => r.json()).then(setC).catch(() => setC({ enabled: true, error: "fetch" }));
   }, [a, b]);
 
-  if (!c) return <div className="p-10 text-center text-[#0A2540]/50">Loading comparison…</div>;
+  if (!c) return <div className="p-10 text-center text-[#161616]/50">Loading comparison…</div>;
   if (!c.enabled) return <NotConnected />;
-  if (c.error || !c.a || !c.b) return <div className="p-10 text-center text-[#0A2540]/50">Could not load both submissions.</div>;
+  if (c.error || !c.a || !c.b) return <div className="p-10 text-center text-[#161616]/50">Could not load both submissions.</div>;
 
   const scoreDelta = (c.b.readiness_score ?? 0) - (c.a.readiness_score ?? 0);
 
   return (
     <div className="max-w-5xl mx-auto px-5 py-8">
-      <Link href="/history" className="text-sm text-[#0D9488] font-medium">← Back to History</Link>
-      <h1 className="text-2xl font-bold text-[#0A2540] mt-2 mb-6">Compare Scenarios</h1>
+      <Link href="/history" className="text-sm text-[#245c5c] font-medium">← Back to History</Link>
+      <h1 className="text-2xl font-bold text-[#161616] mt-2 mb-6">Compare Scenarios</h1>
 
       <div className="flex flex-col md:flex-row gap-4 items-stretch">
         <SideCard side={c.a} label="Scenario A" />
-        <div className="flex items-center justify-center text-[#0A2540]/40 font-bold">vs</div>
+        <div className="flex items-center justify-center text-[#161616]/40 font-bold">vs</div>
         <SideCard side={c.b} label="Scenario B" />
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 mt-5">
-        <div className="font-bold text-[#0A2540] mb-3">Differences</div>
+        <div className="font-bold text-[#161616] mb-3">Differences</div>
         <div className="text-sm mb-4">
           Readiness difference:{" "}
           <span className="font-bold" style={{ color: scoreDelta >= 0 ? "#10b981" : "#ef4444" }}>
@@ -87,17 +87,17 @@ function CompareInner() {
           <div>
             <div className="text-xs font-bold uppercase tracking-wide text-amber-600 mb-2">Only in Scenario A ({c.onlyInA?.length || 0})</div>
             {c.onlyInA && c.onlyInA.length ? (
-              <ul className="text-sm text-[#0A2540]/80 space-y-1">{c.onlyInA.map((x) => <li key={x}>• {x}</li>)}</ul>
-            ) : <div className="text-xs text-[#0A2540]/40">None</div>}
+              <ul className="text-sm text-[#161616]/80 space-y-1">{c.onlyInA.map((x) => <li key={x}>• {x}</li>)}</ul>
+            ) : <div className="text-xs text-[#161616]/40">None</div>}
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wide text-[#0D9488] mb-2">Only in Scenario B ({c.onlyInB?.length || 0})</div>
+            <div className="text-xs font-bold uppercase tracking-wide text-[#245c5c] mb-2">Only in Scenario B ({c.onlyInB?.length || 0})</div>
             {c.onlyInB && c.onlyInB.length ? (
-              <ul className="text-sm text-[#0A2540]/80 space-y-1">{c.onlyInB.map((x) => <li key={x}>• {x}</li>)}</ul>
-            ) : <div className="text-xs text-[#0A2540]/40">None</div>}
+              <ul className="text-sm text-[#161616]/80 space-y-1">{c.onlyInB.map((x) => <li key={x}>• {x}</li>)}</ul>
+            ) : <div className="text-xs text-[#161616]/40">None</div>}
           </div>
         </div>
-        <div className="text-xs text-[#0A2540]/50 mt-4">{c.shared?.length || 0} documents required in both scenarios.</div>
+        <div className="text-xs text-[#161616]/50 mt-4">{c.shared?.length || 0} documents required in both scenarios.</div>
       </div>
     </div>
   );
@@ -105,9 +105,9 @@ function CompareInner() {
 
 export default function ComparePage() {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="history" />
-      <Suspense fallback={<div className="p-10 text-center text-[#0A2540]/50">Loading…</div>}>
+      <Suspense fallback={<div className="p-10 text-center text-[#161616]/50">Loading…</div>}>
         <CompareInner />
       </Suspense>
     </div>

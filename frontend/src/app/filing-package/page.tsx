@@ -176,17 +176,17 @@ export default function FilingPackagePage() {
   }, [data]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="dashboard" />
       <div className="mx-auto max-w-5xl px-5 py-8">
-        <h1 className="text-2xl font-bold text-[#0A2540]">Filing package</h1>
-        <p className="mt-1 text-sm text-[#0A2540]/60">
+        <h1 className="text-2xl font-bold text-[#161616]">Filing package</h1>
+        <p className="mt-1 text-sm text-[#161616]/60">
           SmartPR collects your information once, decides which government artifacts apply, and populates a working copy
           of the real form where one is available. SmartPR does not submit filings and does not issue approvals.
         </p>
 
         <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
-          <label className="text-sm font-semibold text-[#0A2540]" htmlFor="description">
+          <label className="text-sm font-semibold text-[#161616]" htmlFor="description">
             Describe the business
           </label>
           <textarea
@@ -200,7 +200,7 @@ export default function FilingPackagePage() {
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <Field label="Legal business name" value={answers.legalName} onChange={(v) => set("legalName", v)} />
             <Field label="Trade name" value={answers.tradeName} onChange={(v) => set("tradeName", v)} />
-            <label className="text-xs font-semibold text-[#0A2540]">
+            <label className="text-xs font-semibold text-[#161616]">
               Entity type
               <select
                 className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-normal"
@@ -225,7 +225,7 @@ export default function FilingPackagePage() {
             <Field label="EIN (if issued)" value={answers.ein} onChange={(v) => { set("ein", v); set("hasEin", v.trim().length > 0); }} />
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#0A2540]">
+          <div className="mt-3 flex flex-wrap gap-4 text-xs text-[#161616]">
             <Toggle label="Alcohol sales" checked={answers.alcoholSales} onChange={(v) => set("alcoholSales", v)} />
             <Toggle label="Entertainment" checked={answers.entertainment} onChange={(v) => set("entertainment", v)} />
             <Toggle label="Commercial signage" checked={answers.signage} onChange={(v) => set("signage", v)} />
@@ -234,7 +234,7 @@ export default function FilingPackagePage() {
           <button
             onClick={build}
             disabled={busy}
-            className="mt-4 rounded-full bg-[#0A2540] px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="mt-4 rounded-full bg-[#161616] px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             {busy ? "Preparing…" : "Build filing package"}
           </button>
@@ -243,7 +243,7 @@ export default function FilingPackagePage() {
 
         {data?.extraction && (
           <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-sm font-bold text-[#0A2540]">Read from your description</div>
+            <div className="text-sm font-bold text-[#161616]">Read from your description</div>
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {Object.entries({
                 business_type: data.extraction.business_type,
@@ -253,13 +253,13 @@ export default function FilingPackagePage() {
               })
                 .filter(([, value]) => value !== undefined && value !== null)
                 .map(([key, value]) => (
-                  <span key={key} className="rounded-full bg-slate-100 px-2.5 py-1 text-[#0A2540]">
+                  <span key={key} className="rounded-full bg-slate-100 px-2.5 py-1 text-[#161616]">
                     {key}: <strong>{String(value)}</strong>
                   </span>
                 ))}
             </div>
             {data.questions.length > 0 && (
-              <div className="mt-3 text-xs text-[#0A2540]/70">
+              <div className="mt-3 text-xs text-[#161616]/70">
                 Still needed: {data.questions.map((q) => q.label).join(" · ")}
               </div>
             )}
@@ -268,28 +268,28 @@ export default function FilingPackagePage() {
 
         {grouped.map(([agency, items]) => (
           <section key={agency} className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-sm font-bold text-[#0A2540]">{agency}</div>
+            <div className="text-sm font-bold text-[#161616]">{agency}</div>
             {items.map((item) => (
               <div key={`${item.requirementCode}-${item.formCode ?? ""}`} className="mt-3 border-t border-slate-100 pt-3 first:border-0 first:pt-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-[#0A2540]">
+                  <div className="text-sm font-semibold text-[#161616]">
                     {item.title}
-                    {item.formCode && <span className="ml-2 text-xs font-normal text-[#0A2540]/50">{item.formCode}</span>}
+                    {item.formCode && <span className="ml-2 text-xs font-normal text-[#161616]/50">{item.formCode}</span>}
                   </div>
                   <StatusPill item={item} />
                 </div>
-                <div className="mt-1 text-xs text-[#0A2540]/70">{item.message.en}</div>
+                <div className="mt-1 text-xs text-[#161616]/70">{item.message.en}</div>
                 <div className="mt-2 flex flex-wrap gap-4 text-xs">
                   <span className="text-emerald-700">✓ {item.populatedCount} fields populated</span>
                   <span className="text-amber-700">△ {item.unansweredCount} answers required</span>
                   {item.presentableAsOfficial ? (
-                    <span className="text-[#0A2540]/60">Official form</span>
+                    <span className="text-[#161616]/60">Official form</span>
                   ) : (
-                    <span className="text-[#0A2540]/60">Requirements prepared</span>
+                    <span className="text-[#161616]/60">Requirements prepared</span>
                   )}
                 </div>
                 {item.unanswered.length > 0 && (
-                  <ul className="mt-2 list-disc pl-5 text-xs text-[#0A2540]/60">
+                  <ul className="mt-2 list-disc pl-5 text-xs text-[#161616]/60">
                     {item.unanswered.slice(0, 6).map((field) => (
                       <li key={field.pdfField}>{field.label ?? field.pdfField}</li>
                     ))}
@@ -299,7 +299,7 @@ export default function FilingPackagePage() {
                   {item.canGenerateWorkingCopy && (
                     <button
                       onClick={() => reviewForm(item)}
-                      className="rounded-full border border-[#0A2540] px-4 py-1.5 text-xs font-medium text-[#0A2540]"
+                      className="rounded-full border border-[#161616] px-4 py-1.5 text-xs font-medium text-[#161616]"
                     >
                       Review form
                     </button>
@@ -309,7 +309,7 @@ export default function FilingPackagePage() {
                       href={item.portalUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-full border border-slate-300 px-4 py-1.5 text-xs font-medium text-[#0A2540]"
+                      className="rounded-full border border-slate-300 px-4 py-1.5 text-xs font-medium text-[#161616]"
                     >
                       Open portal
                     </a>
@@ -320,7 +320,7 @@ export default function FilingPackagePage() {
           </section>
         ))}
 
-        {data && <p className="mt-4 text-xs text-[#0A2540]/50">{data.package.disclaimer}</p>}
+        {data && <p className="mt-4 text-xs text-[#161616]/50">{data.package.disclaimer}</p>}
       </div>
     </div>
   );
@@ -338,7 +338,7 @@ function Field({
   type?: string;
 }) {
   return (
-    <label className="text-xs font-semibold text-[#0A2540]">
+    <label className="text-xs font-semibold text-[#161616]">
       {label}
       <input
         type={type}

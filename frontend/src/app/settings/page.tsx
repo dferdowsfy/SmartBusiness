@@ -55,30 +55,30 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="settings" />
       <main className="max-w-2xl mx-auto px-5 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-[#0A2540]">Account settings</h1>
-          <p className="text-sm text-[#0A2540]/60 mt-1">Manage the profile associated with your SmartPR account.</p>
+          <h1 className="text-2xl font-bold text-[#161616]">Account settings</h1>
+          <p className="text-sm text-[#161616]/60 mt-1">Manage the profile associated with your SmartPR account.</p>
         </div>
 
         <section className="bg-white border border-slate-200 rounded-2xl p-6">
           {loading ? (
-            <div className="text-sm text-[#0A2540]/50">Loading account…</div>
+            <div className="text-sm text-[#161616]/50">Loading account…</div>
           ) : user ? (
             <form onSubmit={saveProfile} className="space-y-5">
               <div>
-                <label htmlFor="profile-name" className="block text-xs font-semibold text-[#0A2540]/70 mb-1">Display name</label>
+                <label htmlFor="profile-name" className="block text-xs font-semibold text-[#161616]/70 mb-1">Display name</label>
                 <input id="profile-name" value={name} onChange={(event) => setName(event.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-[#0A2540] bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm text-[#161616] bg-white"
                   placeholder="Your name" autoComplete="name" />
               </div>
               <div>
-                <label htmlFor="profile-email" className="block text-xs font-semibold text-[#0A2540]/70 mb-1">Email</label>
+                <label htmlFor="profile-email" className="block text-xs font-semibold text-[#161616]/70 mb-1">Email</label>
                 <input id="profile-email" value={user.email || ""} readOnly
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-[#0A2540]/70 bg-slate-50" />
-                <p className="text-xs text-[#0A2540]/50 mt-1">Your sign-in email is managed by your authentication account.</p>
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-[#161616]/70 bg-[#f4f1ea]" />
+                <p className="text-xs text-[#161616]/50 mt-1">Your sign-in email is managed by your authentication account.</p>
               </div>
 
               {message && <div role="status" className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">{message}</div>}
@@ -86,10 +86,10 @@ export default function SettingsPage() {
 
               <div className="flex items-center gap-3">
                 <button type="submit" disabled={saving}
-                  className="bg-[#0A2540] text-white rounded-lg px-5 py-2.5 text-sm font-medium disabled:opacity-50">
+                  className="bg-[#161616] text-white rounded-lg px-5 py-2.5 text-sm font-medium disabled:opacity-50">
                   {saving ? "Saving…" : "Save profile"}
                 </button>
-                <a href="/auth/signout" className="border border-slate-300 text-[#0A2540] rounded-lg px-5 py-2.5 text-sm font-medium">Sign out</a>
+                <a href="/auth/signout" className="border border-slate-300 text-[#161616] rounded-lg px-5 py-2.5 text-sm font-medium">Sign out</a>
               </div>
             </form>
           ) : (

@@ -248,7 +248,7 @@ function FieldControl({
                 type="button"
                 disabled={readOnly}
                 onClick={() => onChange(field.id, o.value)}
-                style={{ textAlign: "left", fontSize: 12.5, padding: "8px 10px", borderRadius: 6, cursor: readOnly ? "default" : "pointer", border: active ? "2px solid var(--brand-2, #0d9488)" : "1px solid #cbd5e1", background: active ? "rgba(13,148,136,0.08)" : "white" }}
+                style={{ textAlign: "left", fontSize: 12.5, padding: "8px 10px", borderRadius: 6, cursor: readOnly ? "default" : "pointer", border: active ? "2px solid var(--brand-2, #245c5c)" : "1px solid #cbd5e1", background: active ? "rgba(13,148,136,0.08)" : "white" }}
               >
                 {localize(o.label, lang)}
               </button>

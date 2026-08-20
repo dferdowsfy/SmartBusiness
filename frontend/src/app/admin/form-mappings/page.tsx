@@ -81,12 +81,12 @@ export default function FormMappingsAdminPage() {
 
   if (forbidden) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f4f1ea]">
         <TopNav active="admin" />
         <div className="mx-auto max-w-5xl px-5 py-8">
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
-            <h1 className="text-xl font-bold text-[#0A2540]">Not authorized</h1>
-            <p className="mt-2 text-sm text-[#0A2540]/60">
+            <h1 className="text-xl font-bold text-[#161616]">Not authorized</h1>
+            <p className="mt-2 text-sm text-[#161616]/60">
               This area is restricted to administrators. Ask an administrator to add your account to{" "}
               <code className="rounded bg-slate-100 px-1">ADMIN_EMAILS</code>.
             </p>
@@ -97,11 +97,11 @@ export default function FormMappingsAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="admin" />
       <div className="mx-auto max-w-6xl px-5 py-8">
-        <h1 className="text-2xl font-bold text-[#0A2540]">Government template library</h1>
-        <p className="mt-1 text-sm text-[#0A2540]/60">
+        <h1 className="text-2xl font-bold text-[#161616]">Government template library</h1>
+        <p className="mt-1 text-sm text-[#161616]/60">
           Every artifact SmartPR knows about, including the ones it has no file for. Genericized municipal templates are
           usable for field mapping and demonstrations only — they are never presented as a municipality&apos;s official form.
         </p>
@@ -119,17 +119,17 @@ export default function FormMappingsAdminPage() {
           </div>
         )}
 
-        {!rows && <div className="mt-6 text-sm text-[#0A2540]/50">Loading…</div>}
+        {!rows && <div className="mt-6 text-sm text-[#161616]/50">Loading…</div>}
 
         <div className="mt-4 grid gap-3">
           {(rows ?? []).map((row) => (
             <div key={row.formCode} className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-sm font-bold text-[#0A2540]">
+                  <div className="text-sm font-bold text-[#161616]">
                     {row.formCode} · {row.title}
                   </div>
-                  <div className="text-xs text-[#0A2540]/60">
+                  <div className="text-xs text-[#161616]/60">
                     {row.agency} · {row.scope}
                     {row.revision ? ` · ${row.revision}` : ""}
                   </div>
@@ -142,17 +142,17 @@ export default function FormMappingsAdminPage() {
                 </div>
               </div>
 
-              <div className="mt-3 grid gap-2 text-xs text-[#0A2540]/80 md:grid-cols-4">
+              <div className="mt-3 grid gap-2 text-xs text-[#161616]/80 md:grid-cols-4">
                 <div>
-                  <span className="text-[#0A2540]/50">Population</span>
+                  <span className="text-[#161616]/50">Population</span>
                   <div>{row.populationMethod}</div>
                 </div>
                 <div>
-                  <span className="text-[#0A2540]/50">Native fields</span>
+                  <span className="text-[#161616]/50">Native fields</span>
                   <div>{row.hasAcroForm ? row.nativeFieldCount : "none (overlay)"}</div>
                 </div>
                 <div>
-                  <span className="text-[#0A2540]/50">Mapped</span>
+                  <span className="text-[#161616]/50">Mapped</span>
                   <div>
                     {row.mappedFieldCount}/{row.totalFieldCount}
                     {row.needsReviewCount > 0 && (
@@ -163,19 +163,19 @@ export default function FormMappingsAdminPage() {
                   </div>
                 </div>
                 <div>
-                  <span className="text-[#0A2540]/50">Pages</span>
+                  <span className="text-[#161616]/50">Pages</span>
                   <div>{row.pageCount || "—"}</div>
                 </div>
               </div>
 
-              <div className="mt-2 grid gap-1 text-[11px] text-[#0A2540]/55">
+              <div className="mt-2 grid gap-1 text-[11px] text-[#161616]/55">
                 <div>Source file: {row.sourceFile ?? "not in the library yet"}</div>
                 <div>Storage: {row.storagePath ?? "—"}</div>
                 <div>Checksum: {row.checksum ? `${row.checksum.slice(0, 23)}…` : "—"}</div>
               </div>
 
               {row.notes.length > 0 && (
-                <ul className="mt-2 list-disc pl-5 text-[11px] text-[#0A2540]/60">
+                <ul className="mt-2 list-disc pl-5 text-[11px] text-[#161616]/60">
                   {row.notes.map((note, i) => (
                     <li key={i}>{note}</li>
                   ))}
@@ -187,7 +187,7 @@ export default function FormMappingsAdminPage() {
                   href={row.previewUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-3 inline-block rounded-full border border-[#0A2540] px-4 py-1.5 text-xs font-medium text-[#0A2540]"
+                  className="mt-3 inline-block rounded-full border border-[#161616] px-4 py-1.5 text-xs font-medium text-[#161616]"
                 >
                   Open mapping preview
                 </a>

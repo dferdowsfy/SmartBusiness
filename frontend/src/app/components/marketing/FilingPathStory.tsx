@@ -235,34 +235,32 @@ export default function FilingPathStory({ language }: { language: Language }) {
         el.style.transform = `translateY(${lerp(12, 0, local)}px)`;
       });
 
-      const cta = canvas.querySelector<HTMLElement>("[data-story=cta]");
+      const cta = section.querySelector<HTMLElement>("[data-story=cta]");
       if (cta) {
-        const o = ease(range(p, 0.84, 0.96));
-        cta.style.opacity = String(o);
-        cta.style.transform = `translate(-50%, ${lerp(10, 0, o)}px)`;
-        cta.style.pointerEvents = o > 0.6 ? "auto" : "none";
+        cta.style.opacity = "1";
+        cta.style.pointerEvents = "auto";
       }
 
       const rail = section.querySelector<HTMLElement>("[data-story=rail]");
       if (rail) rail.style.transform = `scaleY(${p})`;
     };
 
-    const onScroll = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const rect = section.getBoundingClientRect();
-        const total = section.offsetHeight - window.innerHeight;
-        apply(reduced ? 1 : clamp01(-rect.top / Math.max(1, total)));
-      });
+    const play = 10000;
+    const hold = 2800;
+    let start = performance.now() - 900;
+    const tick = (now: number) => {
+      if (reduced) {
+        apply(1);
+        return;
+      }
+      const cycle = play + hold;
+      const elapsed = (now - start) % cycle;
+      apply(elapsed <= play ? elapsed / play : 1);
+      frame = requestAnimationFrame(tick);
     };
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    frame = requestAnimationFrame(tick);
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
       mq.removeEventListener("change", updateMobile);
     };
   }, [reduced, language]);
@@ -347,12 +345,12 @@ export default function FilingPathStory({ language }: { language: Language }) {
                 ))}
               </ol>
             </div>
+          </div>
 
-            <div data-story="cta" className={styles.cta}>
-              <button type="button" onClick={startExample}>
-                {c.cta}
-              </button>
-            </div>
+          <div data-story="cta" className={styles.cta}>
+            <button type="button" onClick={startExample}>
+              {c.cta}
+            </button>
           </div>
         </div>
       </div>

@@ -197,29 +197,29 @@ export default function AdminRequirementsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="admin" />
       {isAdmin === false ? (
         <div className="mx-auto max-w-5xl px-5 py-8">
           <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
-            <h1 className="text-xl font-bold text-[#0A2540]">Not authorized</h1>
-            <p className="mt-2 text-sm text-[#0A2540]/60">
+            <h1 className="text-xl font-bold text-[#161616]">Not authorized</h1>
+            <p className="mt-2 text-sm text-[#161616]/60">
               This area is restricted to administrators. Ask an administrator to add your account to <code className="rounded bg-slate-100 px-1">ADMIN_EMAILS</code>.
             </p>
           </div>
         </div>
       ) : isAdmin === null ? (
-        <div className="p-10 text-center text-[#0A2540]/50">Checking access…</div>
+        <div className="p-10 text-center text-[#161616]/50">Checking access…</div>
       ) : (
         <div className="mx-auto max-w-6xl px-5 py-8">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-[#0A2540]">Document Discovery Review</h1>
-              <p className="text-sm text-[#0A2540]/60">
+              <h1 className="text-2xl font-bold text-[#161616]">Document Discovery Review</h1>
+              <p className="text-sm text-[#161616]/60">
                 Discovery creates reviewable rules, source documents, versions, monitoring records, and draft schemas. Approval is explicit and never overwrites active forms.
               </p>
             </div>
-            <button onClick={runMonitor} disabled={busy === "monitor"} className="rounded-full bg-[#0A2540] px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+            <button onClick={runMonitor} disabled={busy === "monitor"} className="rounded-full bg-[#161616] px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
               {busy === "monitor" ? "Checking sources…" : "Run monitoring now"}
             </button>
           </div>
@@ -228,8 +228,8 @@ export default function AdminRequirementsPage() {
 
           <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-bold text-[#0A2540]">Run discovery from official sources</div>
-              <p className="mb-3 text-xs text-[#0A2540]/60">
+              <div className="text-sm font-bold text-[#161616]">Run discovery from official sources</div>
+              <p className="mb-3 text-xs text-[#161616]/60">
                 Choose a predefined business category and optional source. The agent crawls official pages, extracts downloadable files, checksums assets, and returns counts/errors below.
               </p>
               <div className="grid gap-2 md:grid-cols-4">
@@ -246,39 +246,39 @@ export default function AdminRequirementsPage() {
                   {SOURCE_OPTIONS.map((o) => <option key={o.label} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
-              <button onClick={runDiscovery} disabled={busy === "discover"} className="mt-3 rounded-full bg-[#0D9488] px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
+              <button onClick={runDiscovery} disabled={busy === "discover"} className="mt-3 rounded-full bg-[#245c5c] px-5 py-2 text-sm font-medium text-white disabled:opacity-50">
                 {busy === "discover" ? "Crawling…" : "Run discovery"}
               </button>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-sm font-bold text-[#0A2540]">What approval does</div>
-              <ul className="mt-2 space-y-1 text-xs text-[#0A2540]/65">
+              <div className="text-sm font-bold text-[#161616]">What approval does</div>
+              <ul className="mt-2 space-y-1 text-xs text-[#161616]/65">
                 <li><b>Approve rule:</b> activates a discovered requirement.</li>
                 <li><b>Approve document:</b> marks a sourced file trusted and viewable for packages.</li>
                 <li><b>Publish template:</b> activates the fillable schema and deprecates older active versions.</li>
                 <li><b>Accept observation:</b> closes a monitoring alert; it does not overwrite content.</li>
               </ul>
               <div className="mt-3 grid grid-cols-4 gap-2 text-center text-xs">
-                <div className="rounded bg-slate-50 p-2"><b>{queueStats.rule}</b><br />Rules</div>
-                <div className="rounded bg-slate-50 p-2"><b>{queueStats.document}</b><br />Docs</div>
-                <div className="rounded bg-slate-50 p-2"><b>{queueStats.template}</b><br />Templates</div>
-                <div className="rounded bg-slate-50 p-2"><b>{queueStats.change_event}</b><br />Alerts</div>
+                <div className="rounded bg-[#f4f1ea] p-2"><b>{queueStats.rule}</b><br />Rules</div>
+                <div className="rounded bg-[#f4f1ea] p-2"><b>{queueStats.document}</b><br />Docs</div>
+                <div className="rounded bg-[#f4f1ea] p-2"><b>{queueStats.template}</b><br />Templates</div>
+                <div className="rounded bg-[#f4f1ea] p-2"><b>{queueStats.change_event}</b><br />Alerts</div>
               </div>
             </div>
           </div>
 
           {lastRun && (
             <div className="my-4 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 text-sm font-bold text-[#0A2540]">Last {lastRun.kind} run returned</div>
+              <div className="mb-2 text-sm font-bold text-[#161616]">Last {lastRun.kind} run returned</div>
               {lastRun.kind === "discovery" ? (
-                <div className="space-y-2 text-xs text-[#0A2540]/70">
+                <div className="space-y-2 text-xs text-[#161616]/70">
                   <div>Rules: {lastRun.data.rulesCreated ?? 0} · Documents: {lastRun.data.documentsCreated ?? 0} · Draft templates: {lastRun.data.draftTemplatesCreated ?? 0}</div>
                   <div className="grid gap-2 md:grid-cols-2">
                     {(lastRun.data.sourcesCrawled ?? []).map((s) => (
                       <div key={s.seedUrl} className="rounded border border-slate-100 p-2">
                         <b>{s.agency}</b><br />Visited {s.pagesVisited} page(s), found {s.documentsFound} document(s).<br />
-                        <a className="text-[#0D9488] underline" href={s.seedUrl} target="_blank" rel="noreferrer">Open seed</a>
+                        <a className="text-[#245c5c] underline" href={s.seedUrl} target="_blank" rel="noreferrer">Open seed</a>
                       </div>
                     ))}
                   </div>
@@ -287,7 +287,7 @@ export default function AdminRequirementsPage() {
               ) : (
                 <div className="grid gap-2 md:grid-cols-2">
                   {(lastRun.data.results ?? []).map((r) => (
-                    <div key={r.runId || r.ruleId} className="rounded border border-slate-100 p-2 text-xs text-[#0A2540]/70">
+                    <div key={r.runId || r.ruleId} className="rounded border border-slate-100 p-2 text-xs text-[#161616]/70">
                       <b>{r.status}</b> · {r.changeDetected ? "Change detected" : "No change"}<br />{r.summary}
                     </div>
                   ))}
@@ -297,9 +297,9 @@ export default function AdminRequirementsPage() {
           )}
 
           {loading ? (
-            <div className="p-10 text-center text-[#0A2540]/50">Loading…</div>
+            <div className="p-10 text-center text-[#161616]/50">Loading…</div>
           ) : items.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-[#0A2540]/50">Nothing needs review. 🎉</div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-[#161616]/50">Nothing needs review. 🎉</div>
           ) : (
             <div className="mt-4 space-y-3">
               {items.map((item) => {
@@ -309,8 +309,8 @@ export default function AdminRequirementsPage() {
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
                         <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">{KIND_LABEL[item.item_kind]}</span>
-                        <div className="mt-1 font-semibold text-[#0A2540]">{item.title || "(untitled)"}</div>
-                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-[#0A2540]/55">
+                        <div className="mt-1 font-semibold text-[#161616]">{item.title || "(untitled)"}</div>
+                        <div className="mt-1 flex flex-wrap gap-3 text-xs text-[#161616]/55">
                           <span>Status: {item.status}</span>
                           {item.document_type && <span>Type: {item.document_type}</span>}
                           {item.canonical_requirement_code && <span>Requirement: {item.canonical_requirement_code}</span>}
@@ -320,13 +320,13 @@ export default function AdminRequirementsPage() {
                           <span>Updated: {new Date(item.updated_at).toLocaleDateString()}</span>
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                          {item.source_url && <a className="rounded-full border border-slate-300 px-3 py-1 text-[#0A2540]" href={item.source_url} target="_blank" rel="noreferrer">View source page</a>}
-                          {downloadUrl && <a className="rounded-full border border-[#0D9488] px-3 py-1 text-[#0D9488]" href={downloadUrl} target="_blank" rel="noreferrer">View sourced file</a>}
+                          {item.source_url && <a className="rounded-full border border-slate-300 px-3 py-1 text-[#161616]" href={item.source_url} target="_blank" rel="noreferrer">View source page</a>}
+                          {downloadUrl && <a className="rounded-full border border-[#245c5c] px-3 py-1 text-[#245c5c]" href={downloadUrl} target="_blank" rel="noreferrer">View sourced file</a>}
                         </div>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                         {ACTIONS[item.item_kind].map((a) => (
-                          <button key={a.action} title={a.help} onClick={() => act(item, a.action)} disabled={busy === item.item_id + a.action} className={`rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-50 ${a.primary ? "bg-[#0D9488] text-white" : "border border-slate-300 text-[#0A2540]"}`}>
+                          <button key={a.action} title={a.help} onClick={() => act(item, a.action)} disabled={busy === item.item_id + a.action} className={`rounded-full px-4 py-1.5 text-sm font-medium disabled:opacity-50 ${a.primary ? "bg-[#245c5c] text-white" : "border border-slate-300 text-[#161616]"}`}>
                             {a.label}
                           </button>
                         ))}

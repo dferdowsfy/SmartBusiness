@@ -901,7 +901,7 @@ interface AdvisoryInsights {
 
 const FACTOR_COLOR: Record<string, string> = {
   business_type: '#2563eb', question: '#d97706', location: '#0891b2',
-  municipality: '#0891b2', universal: '#6b7280', agency: '#0d9488',
+  municipality: '#0891b2', universal: '#6b7280', agency: '#245c5c',
 };
 
 // Expandable "Why is this required?" breakdown for a single requirement.
@@ -910,7 +910,7 @@ function ReqReasons({ enr, language }: { enr: EnrichedRequirement; language: any
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-1">
-      <button onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-[#0D9488] hover:underline">
+      <button onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-[#245c5c] hover:underline">
         {open ? L('Hide reasons', language) : L('Why is this required?', language)}
       </button>
       {open && (
@@ -920,7 +920,7 @@ function ReqReasons({ enr, language }: { enr: EnrichedRequirement; language: any
               <span className="text-[10px] font-semibold text-white rounded px-1.5 py-0.5" style={{ background: FACTOR_COLOR[r.factor] || '#6b7280' }}>
                 {L(r.factorLabel, language)}{r.weight > 0 ? ` · ${r.weight}%` : ''}
               </span>
-              <span className="text-xs text-[#0A2540]/80">{r.text}</span>
+              <span className="text-xs text-[#161616]/80">{r.text}</span>
             </div>
           ))}
         </div>
@@ -958,12 +958,12 @@ function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; do
     : 'bg-amber-100 text-amber-800 border-amber-200';
   const vrLabel = vr === 'PASS' ? L('Pass', language) : vr === 'FAIL' ? L('Fail', language) : L('Needs Review', language);
   return (
-    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-xs">
+    <div className="mt-2 rounded-lg border border-slate-200 bg-[#f4f1ea]/70 p-3 text-xs">
       <div className="flex items-center gap-2 flex-wrap mb-2">
-        <span className="font-semibold text-[#0A2540]">{L('Classified as', language)}:</span>
-        <span className="text-[#0A2540]">{docType}</span>
+        <span className="font-semibold text-[#161616]">{L('Classified as', language)}:</span>
+        <span className="text-[#161616]">{docType}</span>
         <span className={`rounded-full border px-2 py-0.5 font-semibold ${vrColor}`}>{L('Validation Result', language)}: {vrLabel}</span>
-        <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[#0A2540]/80">{L('Confidence Score', language)}: {ext.classification_confidence}%</span>
+        <span className="rounded-full border border-slate-300 px-2 py-0.5 text-[#161616]/80">{L('Confidence Score', language)}: {ext.classification_confidence}%</span>
       </div>
 
       {ext.fields_found.length > 0 && (
@@ -972,8 +972,8 @@ function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; do
           <div className="flex flex-col gap-0.5">
             {ext.fields_found.map((f, i) => (
               <div key={i} className="flex gap-2">
-                <span className="text-[#0A2540]/60 min-w-[140px]">{L(f.label, language)}</span>
-                <span className="text-[#0A2540] font-medium break-all">{f.value}</span>
+                <span className="text-[#161616]/60 min-w-[140px]">{L(f.label, language)}</span>
+                <span className="text-[#161616] font-medium break-all">{f.value}</span>
               </div>
             ))}
           </div>
@@ -992,8 +992,8 @@ function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; do
       )}
 
       <div>
-        <span className="font-semibold text-[#0A2540]">{L('Reasoning', language)}:</span>{' '}
-        <span className="text-[#0A2540]/80">{localizedReasoning(ext, docType, language)}</span>
+        <span className="font-semibold text-[#161616]">{L('Reasoning', language)}:</span>{' '}
+        <span className="text-[#161616]/80">{localizedReasoning(ext, docType, language)}</span>
       </div>
     </div>
   );
@@ -1013,13 +1013,13 @@ function SaveProgressPanel({ me, saveState, setSaveState, claimEmail, setClaimEm
 
   if (me) {
     return (
-      <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+      <div className="mt-4 p-4 bg-[#f4f1ea] border border-slate-200 rounded-xl flex items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-[#0A2540]">{L('Save Progress', language)}</div>
-          <div className="text-xs text-[#0A2540]/60">{L('Saved to your account — resume from History any time.', language)}</div>
+          <div className="text-sm font-semibold text-[#161616]">{L('Save Progress', language)}</div>
+          <div className="text-xs text-[#161616]/60">{L('Saved to your account — resume from History any time.', language)}</div>
         </div>
         <button onClick={onSave} disabled={saveState === 'saving'}
-          className="bg-[#0A2540] text-white rounded-full px-5 py-2 text-sm font-medium disabled:opacity-50">
+          className="bg-[#161616] text-white rounded-full px-5 py-2 text-sm font-medium disabled:opacity-50">
           {saveState === 'saving' ? L('Saving…', language)
            : saveState === 'saved' ? `✓ ${L('Saved', language)}`
            : saveState === 'error' ? L('Retry', language)
@@ -1046,7 +1046,7 @@ function SaveProgressPanel({ me, saveState, setSaveState, claimEmail, setClaimEm
            : saveState === 'saved' ? `✓ ${L('Saved', language)}`
            : L('Save', language)}
         </button>
-        <a href={`/auth/login?next=${encodeURIComponent('/?entry=new-business')}`} className="bg-[#0A2540] text-white rounded-lg px-4 py-2 text-sm font-medium text-center">
+        <a href={`/auth/login?next=${encodeURIComponent('/?entry=new-business')}`} className="bg-[#161616] text-white rounded-lg px-4 py-2 text-sm font-medium text-center">
           {L('Sign in', language)}
         </a>
       </div>
