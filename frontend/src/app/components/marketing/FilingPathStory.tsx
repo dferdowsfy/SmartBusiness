@@ -18,6 +18,18 @@ function useReducedMotion() {
   return reduced;
 }
 
+function useMobile() {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const update = () => setMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return mobile;
+}
+
 function clamp01(n: number) {
   return n < 0 ? 0 : n > 1 ? 1 : n;
 }
@@ -123,12 +135,13 @@ const copy = {
 export default function FilingPathStory({ language }: { language: Language }) {
   const router = useRouter();
   const reduced = useReducedMotion();
+  const isMobile = useMobile();
   const [phase, setPhase] = useState(0);
+  const [visible, setVisible] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const phaseRef = useRef(0);
-  const mobileRef = useRef(false);
   const c = copy[language];
   const parts = useMemo(() => tokenize(c.sentence, [...c.marks]), [c]);
 
@@ -138,20 +151,25 @@ export default function FilingPathStory({ language }: { language: Language }) {
 
   useEffect(() => {
     const section = sectionRef.current;
+    if (!section) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setVisible(true);
+      },
+      { threshold: 0.28 },
+    );
+    io.observe(section);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (reduced || isMobile || !visible) return;
+    const section = sectionRef.current;
     const canvas = canvasRef.current;
     if (!section || !canvas) return;
 
-    const mq = window.matchMedia("(max-width: 1023px)");
-    const updateMobile = () => {
-      mobileRef.current = mq.matches;
-    };
-    updateMobile();
-    mq.addEventListener("change", updateMobile);
-
     let frame = 0;
-
     const apply = (p: number) => {
-      const mobile = mobileRef.current;
       const extract = ease(range(p, 0.06, 0.28));
       const graph = ease(range(p, 0.3, 0.52));
       const toPath = ease(range(p, 0.58, 0.82));
@@ -181,9 +199,9 @@ export default function FilingPathStory({ language }: { language: Language }) {
         const spreadX = nF === 1 ? 0.5 : lerp(0.14, 0.86, i / Math.max(1, nF - 1));
         const colY = nF === 1 ? 0.48 : lerp(0.18, 0.82, i / Math.max(1, nF - 1));
         const p1x = spreadX;
-        const p1y = mobile ? 0.16 : 0.18;
-        const p2x = mobile ? spreadX : 0.16;
-        const p2y = mobile ? 0.16 : colY;
+        const p1y = 0.18;
+        const p2x = 0.16;
+        const p2y = colY;
         const p3x = spreadX;
         const p3y = 0.08;
         const bx = lerp(p1x, p2x, graph);
@@ -197,9 +215,8 @@ export default function FilingPathStory({ language }: { language: Language }) {
 
       const agencyPts: { x: number; y: number }[] = [];
       agencies.forEach((el, i) => {
-        const spreadX = nA === 1 ? 0.5 : lerp(0.16, 0.84, i / Math.max(1, nA - 1));
-        const x = (mobile ? spreadX : 0.78) * w;
-        const y = (mobile ? 0.54 : lerp(0.24, 0.82, nA === 1 ? 0.5 : i / Math.max(1, nA - 1))) * h;
+        const x = 0.78 * w;
+        const y = lerp(0.24, 0.82, nA === 1 ? 0.5 : i / Math.max(1, nA - 1)) * h;
         el.style.opacity = String(graph * (1 - toPath));
         el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${lerp(0.96, 1, graph)})`;
         agencyPts.push({ x, y });
@@ -209,9 +226,9 @@ export default function FilingPathStory({ language }: { language: Language }) {
         const a = factPts[Number(path.dataset.fi)];
         const b = agencyPts[Number(path.dataset.ai)];
         if (!a || !b) return;
-        const x1 = a.x + (mobile ? 0 : 58);
-        const x2 = b.x - (mobile ? 0 : 72);
-        const midX = mobile ? (x1 + x2) / 2 : lerp(x1, x2, 0.5);
+        const x1 = a.x + 58;
+        const x2 = b.x - 72;
+        const midX = lerp(x1, x2, 0.5);
         path.setAttribute("d", `M ${x1} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${x2} ${b.y}`);
         let len = 160;
         try {
@@ -235,40 +252,77 @@ export default function FilingPathStory({ language }: { language: Language }) {
         el.style.transform = `translateY(${lerp(12, 0, local)}px)`;
       });
 
-      const cta = section.querySelector<HTMLElement>("[data-story=cta]");
-      if (cta) {
-        cta.style.opacity = "1";
-        cta.style.pointerEvents = "auto";
-      }
-
       const rail = section.querySelector<HTMLElement>("[data-story=rail]");
       if (rail) rail.style.transform = `scaleY(${p})`;
     };
 
     const play = 10000;
     const hold = 2800;
-    let start = performance.now() - 900;
+    let start = performance.now();
     const tick = (now: number) => {
-      if (reduced) {
-        apply(1);
-        return;
-      }
       const cycle = play + hold;
       const elapsed = (now - start) % cycle;
       apply(elapsed <= play ? elapsed / play : 1);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(frame);
-      mq.removeEventListener("change", updateMobile);
+    return () => cancelAnimationFrame(frame);
+  }, [reduced, language, isMobile, visible]);
+
+  useEffect(() => {
+    if (reduced) {
+      setPhase(3);
+      return;
+    }
+    if (!isMobile || !visible) return;
+    let frame = 0;
+    const play = 8000;
+    const hold = 2200;
+    let start = performance.now();
+    const tick = (now: number) => {
+      const cycle = play + hold;
+      const elapsed = (now - start) % cycle;
+      const p = elapsed <= play ? elapsed / play : 1;
+      const nextPhase = p < 0.22 ? 0 : p < 0.5 ? 1 : p < 0.78 ? 2 : 3;
+      if (phaseRef.current !== nextPhase) {
+        phaseRef.current = nextPhase;
+        setPhase(nextPhase);
+      }
+      frame = requestAnimationFrame(tick);
     };
-  }, [reduced, language]);
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [reduced, isMobile, visible, language]);
 
   const links = c.facts.flatMap((fact, fi) =>
     fact.links
       .map((id) => ({ fi, ai: c.agencies.findIndex((a) => a.id === id) }))
       .filter((l) => l.ai >= 0),
+  );
+
+  const heading = (
+    <div className={styles.heading}>
+      <h2 className={phase >= 3 ? styles.hidden : undefined}>{c.title}</h2>
+      <h2 className={phase >= 3 ? undefined : styles.hidden} aria-hidden={phase < 3}>
+        {c.mapped}
+      </h2>
+    </div>
+  );
+
+  const sentence = (
+    <blockquote className={styles.sentence}>
+      {parts.map((part, i) =>
+        part.mark ? <em key={i}>{part.text}</em> : <span key={i}>{part.text}</span>,
+      )}
+    </blockquote>
+  );
+
+  const cta = (
+    <div className={styles.cta}>
+      <button type="button" onClick={startExample}>
+        {c.cta}
+      </button>
+    </div>
   );
 
   if (reduced) {
@@ -297,43 +351,57 @@ export default function FilingPathStory({ language }: { language: Language }) {
     <section id="how-it-works" ref={sectionRef} className={styles.pin}>
       <div className={styles.pinInner}>
         <div className={styles.frame}>
-          <div className={styles.heading}>
-            <h2 className={phase >= 3 ? styles.hidden : undefined}>{c.title}</h2>
-            <h2 className={phase >= 3 ? undefined : styles.hidden} aria-hidden={phase < 3}>
-              {c.mapped}
-            </h2>
-          </div>
+          {heading}
+          {sentence}
 
-          <blockquote className={styles.sentence}>
-            {parts.map((part, i) =>
-              part.mark ? <em key={i}>{part.text}</em> : <span key={i}>{part.text}</span>,
-            )}
-          </blockquote>
+          <div className={styles.mobileStory} data-phase={phase}>
+            <div className={styles.mobilePills}>
+              {c.facts.map((fact, i) => (
+                <span key={fact.id} style={{ transitionDelay: `${i * 70}ms` }}>
+                  {fact.label}
+                </span>
+              ))}
+            </div>
+            <span className={styles.mobileConnect} aria-hidden />
+            <div className={styles.mobileAgencies}>
+              {c.agencies.map((agency, i) => (
+                <span key={agency.id} style={{ transitionDelay: `${i * 60}ms` }}>
+                  <i />
+                  {agency.label}
+                </span>
+              ))}
+            </div>
+            <ol className={styles.mobilePath}>
+              {c.path.map((step, i) => (
+                <li key={step.title} style={{ transitionDelay: `${i * 80}ms` }}>
+                  {i > 0 ? <span className={styles.join} aria-hidden /> : null}
+                  <p>{step.title}</p>
+                  <small>{step.detail}</small>
+                </li>
+              ))}
+            </ol>
+          </div>
 
           <div ref={canvasRef} className={styles.canvas}>
             <div className={styles.rail} aria-hidden>
               <span data-story="rail" />
             </div>
-
             {c.facts.map((fact) => (
               <span key={fact.id} data-fact={fact.id} className={styles.pill}>
                 {fact.label}
               </span>
             ))}
-
             {c.agencies.map((agency) => (
               <span key={agency.id} data-agency={agency.id} className={styles.agency}>
                 <i />
                 {agency.label}
               </span>
             ))}
-
             <svg ref={svgRef} className={styles.svg} aria-hidden>
               {links.map((link, i) => (
                 <path key={`${link.fi}-${link.ai}-${i}`} data-link data-fi={link.fi} data-ai={link.ai} />
               ))}
             </svg>
-
             <div data-story="path" className={styles.path}>
               <ol>
                 {c.path.map((step, i) => (
@@ -346,12 +414,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
               </ol>
             </div>
           </div>
-
-          <div data-story="cta" className={styles.cta}>
-            <button type="button" onClick={startExample}>
-              {c.cta}
-            </button>
-          </div>
+          {cta}
         </div>
       </div>
     </section>
