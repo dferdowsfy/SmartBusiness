@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import styles from "./marketing.module.css";
 import { SmartPRLogo } from "../brand/SmartPRLogo";
+import FilingPathStory from "./FilingPathStory";
 
 type Language = "EN" | "ES";
 
@@ -126,12 +127,6 @@ const metrics = [
   ["4", "Due Soon", "amber"],
   ["2", "Need Attention", "red"],
   ["6", "Filings In Progress", "teal"],
-] as const;
-
-const steps = [
-  ["1", "Tell SmartPR about the business.", "Answer a few questions or describe what you’re trying to do.", "blue"],
-  ["2", "SmartPR determines what applies.", "Requirements are mapped across agencies, permits, licenses, registrations, and supporting documents.", "teal"],
-  ["3", "SmartPR helps get it done.", "Prepare filings, review documents, identify missing information, and track what comes next.", "navy"],
 ] as const;
 
 const categories = ["Restaurant", "Professional Services", "Retail", "Healthcare", "Construction", "Other"];
@@ -276,11 +271,7 @@ export default function MarketingLanding() {
           </div>
         </section>
 
-        <section id="how-it-works" className={styles.section}>
-          <div className={styles.narrowInner}><h2 className={styles.centerTitle}>{c.howTitle}</h2>
-            <div className={styles.steps}>{steps.map(([number, title, body, tone]) => <article key={number}><span className={styles[tone]}>{number}</span><h3>{t(title)}</h3><p>{t(body)}</p></article>)}</div>
-          </div>
-        </section>
+        <FilingPathStory language={language} />
 
         <section className={styles.roadmap}>
           <div className={styles.roadmapInner}>
