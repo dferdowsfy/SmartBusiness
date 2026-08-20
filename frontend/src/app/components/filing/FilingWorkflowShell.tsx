@@ -281,7 +281,6 @@ export function FilingWorkflowShell({
                 <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
               </div>
             </div>
-            </div>
           </header>
           <div className="spr-stepper-bar">
             <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
