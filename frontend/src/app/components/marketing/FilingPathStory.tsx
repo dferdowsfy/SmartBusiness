@@ -18,31 +18,16 @@ function useReducedMotion() {
   return reduced;
 }
 
-function useMobile() {
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const update = () => setMobile(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-  return mobile;
-}
-
 function clamp01(n: number) {
   return n < 0 ? 0 : n > 1 ? 1 : n;
 }
-
 function range(p: number, a: number, b: number) {
   if (b === a) return p >= b ? 1 : 0;
   return clamp01((p - a) / (b - a));
 }
-
 function ease(t: number) {
   return t * t * (3 - 2 * t);
 }
-
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
@@ -135,50 +120,43 @@ const copy = {
 export default function FilingPathStory({ language }: { language: Language }) {
   const router = useRouter();
   const reduced = useReducedMotion();
-  const isMobile = useMobile();
   const [phase, setPhase] = useState(0);
-  const [visible, setVisible] = useState(false);
   const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const phaseRef = useRef(0);
   const c = copy[language];
   const parts = useMemo(() => tokenize(c.sentence, [...c.marks]), [c]);
+  const phaseClass = [styles.phase0, styles.phase1, styles.phase2, styles.phase3][phase];
 
   function startExample() {
     router.push("/signup?intent=start");
   }
 
   useEffect(() => {
-    const section = sectionRef.current;
-    if (!section) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) setVisible(true);
-      },
-      { threshold: 0.28 },
-    );
-    io.observe(section);
-    return () => io.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (reduced || isMobile || !visible) return;
+    if (reduced) {
+      setPhase(3);
+      return;
+    }
     const section = sectionRef.current;
     const canvas = canvasRef.current;
-    if (!section || !canvas) return;
-
+    if (!section) return;
+    const mq = window.matchMedia("(max-width: 1023px)");
     let frame = 0;
-    const apply = (p: number) => {
+    let playing = section.getBoundingClientRect().bottom > 80 && section.getBoundingClientRect().top < window.innerHeight;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        playing = entry.isIntersecting;
+      },
+      { threshold: 0.05, rootMargin: "80px 0px" },
+    );
+    io.observe(section);
+
+    const applyDesktop = (p: number) => {
+      if (!canvas || mq.matches) return;
       const extract = ease(range(p, 0.06, 0.28));
       const graph = ease(range(p, 0.3, 0.52));
       const toPath = ease(range(p, 0.58, 0.82));
-      const nextPhase = p < 0.22 ? 0 : p < 0.52 ? 1 : p < 0.8 ? 2 : 3;
-      if (phaseRef.current !== nextPhase) {
-        phaseRef.current = nextPhase;
-        setPhase(nextPhase);
-      }
-
       const w = canvas.clientWidth;
       const h = canvas.clientHeight;
       if (w < 40 || h < 40) return;
@@ -188,40 +166,30 @@ export default function FilingPathStory({ language }: { language: Language }) {
         svg.setAttribute("width", String(w));
         svg.setAttribute("height", String(h));
       }
-
       const facts = [...canvas.querySelectorAll<HTMLElement>("[data-fact]")];
       const agencies = [...canvas.querySelectorAll<HTMLElement>("[data-agency]")];
       const nF = facts.length;
       const nA = agencies.length;
       const factPts: { x: number; y: number }[] = [];
-
       facts.forEach((el, i) => {
         const spreadX = nF === 1 ? 0.5 : lerp(0.14, 0.86, i / Math.max(1, nF - 1));
         const colY = nF === 1 ? 0.48 : lerp(0.18, 0.82, i / Math.max(1, nF - 1));
-        const p1x = spreadX;
-        const p1y = 0.18;
-        const p2x = 0.16;
-        const p2y = colY;
-        const p3x = spreadX;
-        const p3y = 0.08;
-        const bx = lerp(p1x, p2x, graph);
-        const by = lerp(p1y, p2y, graph);
-        const x = lerp(bx, p3x, toPath) * w;
-        const y = lerp(by, p3y, toPath) * h;
+        const graphX = lerp(spreadX, 0.16, graph);
+        const graphY = lerp(0.18, colY, graph);
+        const x = lerp(graphX, spreadX, toPath) * w;
+        const y = lerp(graphY, 0.08, toPath) * h;
         el.style.opacity = String(extract * lerp(1, 0.28, toPath));
-        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${lerp(0.96, 1, extract)})`;
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
         factPts.push({ x, y });
       });
-
       const agencyPts: { x: number; y: number }[] = [];
       agencies.forEach((el, i) => {
         const x = 0.78 * w;
         const y = lerp(0.24, 0.82, nA === 1 ? 0.5 : i / Math.max(1, nA - 1)) * h;
         el.style.opacity = String(graph * (1 - toPath));
-        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) scale(${lerp(0.96, 1, graph)})`;
+        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
         agencyPts.push({ x, y });
       });
-
       canvas.querySelectorAll<SVGPathElement>("[data-link]").forEach((path) => {
         const a = factPts[Number(path.dataset.fi)];
         const b = agencyPts[Number(path.dataset.ai)];
@@ -234,65 +202,53 @@ export default function FilingPathStory({ language }: { language: Language }) {
         try {
           len = path.getTotalLength() || 160;
         } catch {
-          /* empty path */
+          /* empty */
         }
         path.style.strokeDasharray = String(len);
         path.style.strokeDashoffset = String(len * (1 - graph));
         path.style.opacity = String(graph * (1 - toPath) * 0.9);
       });
-
       const pathBox = canvas.querySelector<HTMLElement>("[data-story=path]");
       if (pathBox) {
         pathBox.style.opacity = String(toPath);
-        pathBox.style.transform = `translate(-50%, ${lerp(22, 0, toPath)}px) scale(${lerp(0.96, 1, toPath)})`;
+        pathBox.style.transform = `translate(-50%, ${lerp(22, 0, toPath)}px)`;
       }
       canvas.querySelectorAll<HTMLElement>("[data-path-step]").forEach((el, i) => {
         const local = ease(range(toPath, i * 0.12, Math.min(1, i * 0.12 + 0.4)));
         el.style.opacity = String(local);
         el.style.transform = `translateY(${lerp(12, 0, local)}px)`;
       });
-
       const rail = section.querySelector<HTMLElement>("[data-story=rail]");
       if (rail) rail.style.transform = `scaleY(${p})`;
     };
 
-    const play = 10000;
-    const hold = 2800;
-    let start = performance.now();
-    const tick = (now: number) => {
-      const cycle = play + hold;
-      const elapsed = (now - start) % cycle;
-      apply(elapsed <= play ? elapsed / play : 1);
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [reduced, language, isMobile, visible]);
-
-  useEffect(() => {
-    if (reduced) {
-      setPhase(3);
-      return;
-    }
-    if (!isMobile || !visible) return;
-    let frame = 0;
-    const play = 8000;
+    const playFor = () => (mq.matches ? 7500 : 10000);
     const hold = 2200;
-    let start = performance.now();
+    let start = 0;
     const tick = (now: number) => {
-      const cycle = play + hold;
-      const elapsed = (now - start) % cycle;
+      if (!playing) {
+        start = 0;
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      if (!start) start = now;
+      const play = playFor();
+      const elapsed = (now - start) % (play + hold);
       const p = elapsed <= play ? elapsed / play : 1;
-      const nextPhase = p < 0.22 ? 0 : p < 0.5 ? 1 : p < 0.78 ? 2 : 3;
+      const nextPhase = p < 0.2 ? 0 : p < 0.48 ? 1 : p < 0.76 ? 2 : 3;
       if (phaseRef.current !== nextPhase) {
         phaseRef.current = nextPhase;
         setPhase(nextPhase);
       }
+      applyDesktop(p);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [reduced, isMobile, visible, language]);
+    return () => {
+      cancelAnimationFrame(frame);
+      io.disconnect();
+    };
+  }, [reduced, language]);
 
   const links = c.facts.flatMap((fact, fi) =>
     fact.links
@@ -300,61 +256,24 @@ export default function FilingPathStory({ language }: { language: Language }) {
       .filter((l) => l.ai >= 0),
   );
 
-  const heading = (
-    <div className={styles.heading}>
-      <h2 className={phase >= 3 ? styles.hidden : undefined}>{c.title}</h2>
-      <h2 className={phase >= 3 ? undefined : styles.hidden} aria-hidden={phase < 3}>
-        {c.mapped}
-      </h2>
-    </div>
-  );
-
-  const sentence = (
-    <blockquote className={styles.sentence}>
-      {parts.map((part, i) =>
-        part.mark ? <em key={i}>{part.text}</em> : <span key={i}>{part.text}</span>,
-      )}
-    </blockquote>
-  );
-
-  const cta = (
-    <div className={styles.cta}>
-      <button type="button" onClick={startExample}>
-        {c.cta}
-      </button>
-    </div>
-  );
-
-  if (reduced) {
-    return (
-      <section id="how-it-works" className={styles.staticSection}>
-        <div className={styles.staticInner}>
-          <h2>{c.mapped}</h2>
-          <p>{c.sentence}</p>
-          <ul>
-            {c.path.map((step) => (
-              <li key={step.title}>
-                <strong>{step.title}</strong>
-                <span>{step.detail}</span>
-              </li>
-            ))}
-          </ul>
-          <button type="button" onClick={startExample}>
-            {c.cta}
-          </button>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section id="how-it-works" ref={sectionRef} className={styles.pin}>
       <div className={styles.pinInner}>
         <div className={styles.frame}>
-          {heading}
-          {sentence}
+          <div className={styles.heading}>
+            <h2 className={phase >= 3 ? styles.hidden : undefined}>{c.title}</h2>
+            <h2 className={phase >= 3 ? undefined : styles.hidden} aria-hidden={phase < 3}>
+              {c.mapped}
+            </h2>
+          </div>
 
-          <div className={styles.mobileStory} data-phase={phase}>
+          <blockquote className={styles.sentence}>
+            {parts.map((part, i) =>
+              part.mark ? <em key={i}>{part.text}</em> : <span key={i}>{part.text}</span>,
+            )}
+          </blockquote>
+
+          <div className={`${styles.mobileStory} ${phaseClass}`}>
             <div className={styles.mobilePills}>
               {c.facts.map((fact, i) => (
                 <span key={fact.id} style={{ transitionDelay: `${i * 70}ms` }}>
@@ -382,8 +301,8 @@ export default function FilingPathStory({ language }: { language: Language }) {
             </ol>
           </div>
 
-          <div ref={canvasRef} className={styles.canvas}>
-            <div className={styles.rail} aria-hidden>
+          <div ref={canvasRef} className={styles.canvas} aria-hidden>
+            <div className={styles.rail}>
               <span data-story="rail" />
             </div>
             {c.facts.map((fact) => (
@@ -397,7 +316,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
                 {agency.label}
               </span>
             ))}
-            <svg ref={svgRef} className={styles.svg} aria-hidden>
+            <svg ref={svgRef} className={styles.svg}>
               {links.map((link, i) => (
                 <path key={`${link.fi}-${link.ai}-${i}`} data-link data-fi={link.fi} data-ai={link.ai} />
               ))}
@@ -414,7 +333,12 @@ export default function FilingPathStory({ language }: { language: Language }) {
               </ol>
             </div>
           </div>
-          {cta}
+
+          <div className={styles.cta}>
+            <button type="button" onClick={startExample}>
+              {c.cta}
+            </button>
+          </div>
         </div>
       </div>
     </section>

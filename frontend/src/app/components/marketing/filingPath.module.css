@@ -9,7 +9,7 @@
   position: relative;
   top: 0;
   display: flex;
-  min-height: 36rem;
+  min-height: 0;
   flex-direction: column;
 }
 
@@ -268,9 +268,7 @@
   background: #fbf8f2;
   font-size: 0.78rem;
   line-height: 1.2;
-  opacity: 0;
-  transform: translateY(8px);
-  transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1), transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 1;
 }
 
 .mobileConnect {
@@ -333,51 +331,56 @@
   font-size: 0.78rem;
 }
 
-.mobileStory[data-phase="0"] .mobilePills span,
-.mobileStory[data-phase="1"] .mobilePills span,
-.mobileStory[data-phase="2"] .mobilePills span,
-.mobileStory[data-phase="3"] .mobilePills span {
-  opacity: 1;
-  transform: none;
-}
-
-.mobileStory[data-phase="1"] .mobileConnect,
-.mobileStory[data-phase="2"] .mobileConnect,
-.mobileStory[data-phase="3"] .mobileConnect {
+.phase1 .mobileConnect,
+.phase2 .mobileConnect,
+.phase3 .mobileConnect {
   opacity: 0.7;
   transform: scaleY(1);
 }
 
-.mobileStory[data-phase="1"] .mobileAgencies span,
-.mobileStory[data-phase="2"] .mobileAgencies span {
+.phase1 .mobileAgencies span,
+.phase2 .mobileAgencies span {
   opacity: 1;
   transform: none;
 }
 
-.mobileStory[data-phase="3"] .mobileAgencies span {
-  opacity: 0.35;
+.phase3 .mobileAgencies span {
+  opacity: 0.4;
   transform: none;
 }
 
-.mobileStory[data-phase="2"] .mobilePath li,
-.mobileStory[data-phase="3"] .mobilePath li {
+.phase2 .mobilePath li,
+.phase3 .mobilePath li {
   opacity: 1;
   transform: none;
 }
 
-@media (max-width: 767px) {
+@media (min-width: 1024px) {
   .pinInner {
-    min-height: 0;
+    min-height: 36rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .pinInner {
+    min-height: 0 !important;
   }
   .canvas,
-  .rail {
-    display: none;
+  .rail,
+  .path,
+  .pill,
+  .agency,
+  .svg {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
   .mobileStory {
-    display: flex;
+    display: flex !important;
   }
   .cta {
-    margin-top: 1.35rem;
+    margin-top: 1.25rem;
     padding-top: 0;
   }
   .sentence {
@@ -391,4 +394,5 @@
     padding: 1.5rem 1.25rem 2rem;
   }
 }
+
 
