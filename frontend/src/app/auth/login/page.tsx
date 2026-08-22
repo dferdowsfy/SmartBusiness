@@ -94,20 +94,6 @@ function LoginInner() {
           : "Enter the email on your account and we'll send a reset link."}
       </p>
 
-      {mode !== "forgot" && (
-        <div className="mb-6 flex rounded-lg border border-[#161616]/22 p-1 text-sm">
-          <button type="button" onClick={() => swapMode("signin")}
-            className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signin" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}
-            aria-pressed={mode === "signin"}>
-            Login
-          </button>
-          <Link href={signupHref}
-            className="flex-1 rounded-md py-1.5 text-center font-medium text-[#5a5a5a]">
-            Create account
-          </Link>
-        </div>
-      )}
-
       <form onSubmit={submit} className="space-y-4">
         <div>
           <label className="mb-1 block text-sm font-medium">Email</label>
