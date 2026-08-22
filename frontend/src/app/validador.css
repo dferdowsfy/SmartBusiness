@@ -1989,20 +1989,35 @@ button { font-family: inherit; }
 
 @media (max-width: 640px) {
   .spr-matter-header { min-height: 0; padding: 15px 14px 12px; }
-  .spr-stepper-bar { padding-left: 10px; padding-right: 10px; }
+  .spr-stepper-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 14px 12px;
+  }
+  .spr-stepper-bar .spr-workflow-stepper {
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    padding: 0 0 8px;
+  }
+  .spr-stepper-bar .spr-matter-actions {
+    grid-row: 2;
+    width: 100%;
+    justify-content: space-between;
+    padding-bottom: 0;
+  }
   .spr-filing-sticky.compact .spr-stepper-bar .spr-context-language { display: none; }
   .spr-matter-icon { width: 34px; height: 34px; }
   .spr-matter-name-row { align-items: flex-start; flex-direction: column; gap: 4px; }
   .spr-matter-name-row h1 { max-width: calc(100vw - 82px); font-size: 17px; }
-  .spr-matter-actions { display: grid; grid-template-columns: 1fr auto; }
   .spr-business-profile-link { display: none; }
   .spr-context-language { justify-self: start; }
   .spr-save-exit { min-height: 38px; padding-inline: 12px; }
-  .spr-workflow-stepper { padding: 0 10px 13px; }
-  .spr-workflow-step-wrap { align-items: flex-start; }
-  .spr-workflow-step { width: 100%; padding: 4px 2px; flex-direction: column; gap: 4px; font-size: 9px; }
+  .spr-workflow-step-wrap { position: relative; display: block; min-width: 0; }
+  .spr-workflow-step { position: relative; z-index: 1; width: 100%; padding: 4px 2px; flex-direction: column; gap: 4px; font-size: 9px; }
   .spr-workflow-step-icon { width: 22px; height: 22px; }
-  .spr-workflow-connector { margin: 15px 2px 0; }
+  .spr-workflow-connector { position: absolute; z-index: 0; top: 15px; right: calc(-50% + 15px); left: calc(50% + 15px); min-width: 0; margin: 0; }
   .spr-workflow-grid { padding: 14px 12px 36px; gap: 14px; }
   .spr-main-workarea .spr-intake-panel { border-radius: 13px; }
   .spr-main-workarea .spr-intake-scroll { padding: 24px 18px 18px; }
