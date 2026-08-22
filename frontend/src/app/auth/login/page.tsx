@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { createSupabaseBrowser, isAuthConfigured } from "../../../lib/supabase/client";
@@ -8,27 +8,30 @@ import { authRedirectUrl } from "../../../lib/siteUrl";
 import { SmartPRLogo } from "../../components/brand/SmartPRLogo";
 import { GUEST_INTAKE, guestContinuePath, sanitizeNext } from "../../../lib/safeNext";
 
-type Mode = "signin" | "signup" | "forgot";
+type Mode = "signin" | "forgot";
 
 function LoginInner() {
   const sp = useSearchParams();
   const router = useRouter();
   const nextPath = sanitizeNext(sp.get("next"), "/businesses");
-  const initialMode: Mode = sp.get("mode") === "signup" ? "signup" : "signin";
+  const signupNextPath = sanitizeNext(sp.get("next"), GUEST_INTAKE);
+  const signupHref = `/signup?intent=start&next=${encodeURIComponent(signupNextPath)}`;
 
-  const [mode, setMode] = useState<Mode>(initialMode);
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [needsConfirm, setNeedsConfirm] = useState<string | null>(null);
-  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "rate_limited">("idle");
+
+  useEffect(() => {
+    if (sp.get("mode") === "signup") router.replace(signupHref);
+  }, [router, signupHref, sp]);
 
   if (!isAuthConfigured()) {
     return (
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-medium">Sign-in is not configured</h1>
+        <h1 className="font-[family-name:var(--font-display)] text-4xl font-medium">Login is not configured</h1>
         <p className="mt-3 text-[#1b1b1b]">
           Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to enable accounts.
           You can still use SmartPR without signing in.
@@ -38,7 +41,6 @@ function LoginInner() {
   }
 
   const supabase = createSupabaseBrowser();
-  const emailRedirectTo = authRedirectUrl(nextPath);
   const resetRedirectTo = authRedirectUrl("/auth/reset");
   const swapMode = (m: Mode) => { setMode(m); setErr(null); setInfo(null); };
 
@@ -62,88 +64,33 @@ function LoginInner() {
         setInfo(`Password reset link sent to ${email}. Check your inbox.`);
         return;
       }
-      if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email, password, options: { emailRedirectTo },
-        });
-        if (error) { setErr(error.message); return; }
-        if (data.session) {
-          if (await bootstrapPlatform()) router.push(nextPath);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        const m = error.message || "";
+        if (/email\s*not\s*confirmed/i.test(m)) {
+          setErr("This email is not confirmed yet. Check your inbox, or ask an admin to confirm the user in Supabase.");
+        } else if (/invalid\s*login\s*credentials/i.test(m)) {
+          setErr("Email or password is incorrect.");
         } else {
-          setNeedsConfirm(email);
+          setErr(m);
         }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          const m = error.message || "";
-          if (/email\s*not\s*confirmed/i.test(m)) {
-            setErr("This email is not confirmed yet. Check your inbox, or ask an admin to confirm the user in Supabase.");
-          } else if (/invalid\s*login\s*credentials/i.test(m)) {
-            setErr("Email or password is incorrect.");
-          } else {
-            setErr(m);
-          }
-          return;
-        }
-        if (await bootstrapPlatform()) router.push(nextPath);
+        return;
       }
+      if (await bootstrapPlatform()) router.push(nextPath);
     } catch (e) {
-      setErr((e as Error).message || "Sign-in failed");
+      setErr((e as Error).message || "Login failed");
     } finally {
       setBusy(false);
     }
   };
 
-  const resend = async () => {
-    if (!needsConfirm) return;
-    setResendState("sending");
-    const { error } = await supabase.auth.resend({
-      type: "signup", email: needsConfirm, options: { emailRedirectTo },
-    });
-    if (error) {
-      setResendState(/rate.?limit/i.test(error.message) ? "rate_limited" : "idle");
-      setErr(error.message);
-    } else {
-      setResendState("sent");
-      setErr(null);
-    }
-  };
-
-  if (needsConfirm) {
-    return (
-      <div className="w-full">
-        <h1 className="font-[family-name:var(--font-display)] text-4xl font-medium">Confirm your email</h1>
-        <p className="mt-3 text-[#1b1b1b]">
-          We sent a confirmation link to <span className="font-medium">{needsConfirm}</span>.
-        </p>
-        <div className="mt-8 space-y-3">
-          <button onClick={resend} disabled={resendState === "sending"}
-            className="w-full border border-[#161616]/22 rounded-lg py-2.5 text-sm font-medium hover:bg-[#ebe6db] disabled:opacity-50">
-            {resendState === "sending" ? "Resending…"
-              : resendState === "sent" ? "Confirmation resent"
-              : resendState === "rate_limited" ? "Rate limit — try again later"
-              : "Resend confirmation email"}
-          </button>
-          <button onClick={() => { setNeedsConfirm(null); setMode("signin"); setResendState("idle"); setErr(null); }}
-            className="w-full bg-[#245c5c] text-[#f6f3ea] rounded-lg py-2.5 text-sm font-medium">
-            I've confirmed — sign in
-          </button>
-        </div>
-        {err && <div className="mt-3 text-sm text-[#8a2f2f]">{err}</div>}
-      </div>
-    );
-  }
-
   return (
     <div className="w-full">
       <h1 className="font-[family-name:var(--font-display)] text-4xl font-medium">
-        {mode === "signin" ? "Welcome back."
-          : mode === "signup" ? "Create your SmartPR account."
-          : "Reset your password."}
+        {mode === "signin" ? "Welcome back." : "Reset your password."}
       </h1>
       <p className="mt-3 mb-8 text-[#1b1b1b]">
         {mode === "signin" ? "Continue your Puerto Rico filing work."
-          : mode === "signup" ? "Start a filing and come back whenever you need."
           : "Enter the email on your account and we'll send a reset link."}
       </p>
 
@@ -152,13 +99,12 @@ function LoginInner() {
           <button type="button" onClick={() => swapMode("signin")}
             className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signin" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}
             aria-pressed={mode === "signin"}>
-            I have an account
+            Login
           </button>
-          <button type="button" onClick={() => swapMode("signup")}
-            className={`flex-1 rounded-md py-1.5 font-medium ${mode === "signup" ? "bg-[#161616] text-[#f6f3ea]" : "text-[#5a5a5a]"}`}
-            aria-pressed={mode === "signup"}>
+          <Link href={signupHref}
+            className="flex-1 rounded-md py-1.5 text-center font-medium text-[#5a5a5a]">
             Create account
-          </button>
+          </Link>
         </div>
       )}
 
@@ -180,17 +126,17 @@ function LoginInner() {
               )}
             </div>
             <input type="password" required minLength={6}
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              autoComplete="current-password"
               value={password} onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+              placeholder="Your password"
               className="w-full rounded-lg border border-[#161616]/22 bg-[#fbf8f2] px-3 py-2.5 text-sm placeholder:text-[#5a5a5a]" />
           </div>
         )}
         <button type="submit"
           disabled={busy || !email || (mode !== "forgot" && password.length < 6)}
           className="w-full rounded-lg bg-[#245c5c] py-3 font-medium text-[#f6f3ea] disabled:opacity-50">
-          {busy ? (mode === "signup" ? "Creating account…" : mode === "forgot" ? "Sending…" : "Signing in…")
-                : (mode === "signup" ? "Create account" : mode === "forgot" ? "Send reset link" : "Sign in")}
+          {busy ? (mode === "forgot" ? "Sending…" : "Logging in…")
+                : (mode === "forgot" ? "Send reset link" : "Login")}
         </button>
       </form>
 
@@ -199,18 +145,14 @@ function LoginInner() {
 
       {mode === "forgot" && (
         <button onClick={() => swapMode("signin")} className="mt-4 block text-sm text-[#5a5a5a] hover:text-[#161616]">
-          Back to sign in
+          Back to login
         </button>
       )}
 
       <div className="mt-6 text-sm text-[#5a5a5a]">
         {mode === "signin" ? (
           <>Need an account?{" "}
-            <button onClick={() => swapMode("signup")} className="font-medium text-[#161616] underline-offset-4 hover:underline">Create one</button>
-          </>
-        ) : mode === "signup" ? (
-          <>Already have an account?{" "}
-            <button onClick={() => swapMode("signin")} className="font-medium text-[#161616] underline-offset-4 hover:underline">Sign in</button>
+            <Link href={signupHref} className="font-medium text-[#161616] underline-offset-4 hover:underline">Create account</Link>
           </>
         ) : null}
       </div>
