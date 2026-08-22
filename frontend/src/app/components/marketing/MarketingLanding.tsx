@@ -138,7 +138,7 @@ export default function MarketingLanding() {
               <Link href="/auth/login?next=%2F%3Fentry%3Dnew-business">{c.login}</Link>
               <LanguageToggle language={language} onChange={setLanguage} />
             </div>
-            <Link className={styles.primary} href="/?entry=new-business">
+            <Link href="/?entry=new-business">
               {c.started}
             </Link>
           </div>
