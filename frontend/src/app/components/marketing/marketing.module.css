@@ -140,6 +140,34 @@
   text-decoration: none;
 }
 
+.mobileAccountRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mobileAccountRow > a {
+  font-size: 1rem;
+}
+
+.mobileAccountRow .language {
+  border-color: color-mix(in oklab, #161616 14%, transparent);
+  background: color-mix(in oklab, #161616 3%, transparent);
+}
+
+.mobileAccountRow .language button {
+  min-width: 2rem;
+  height: 1.75rem;
+  color: #6b6963;
+  font-size: 0.65rem;
+}
+
+.mobileAccountRow .language button[aria-pressed="true"] {
+  background: color-mix(in oklab, #161616 9%, transparent);
+  color: #161616;
+}
+
 .hero {
   max-width: 64rem;
   margin: 0 auto;

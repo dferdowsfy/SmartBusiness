@@ -14,8 +14,8 @@ const copy = {
   EN: {
     how: "How it works",
     professionals: "For professionals",
-    login: "Sign in",
-    started: "Get started",
+    login: "Login",
+    started: "Sign up",
     privacy: "Privacy Policy",
     eyebrow: "Puerto Rico · Guided filing",
     hero: "Know what it takes to open a business in Puerto Rico.",
@@ -46,7 +46,7 @@ const copy = {
     how: "Cómo funciona",
     professionals: "Para profesionales",
     login: "Iniciar sesión",
-    started: "Comenzar",
+    started: "Registrarse",
     privacy: "Política de privacidad",
     eyebrow: "Puerto Rico · Trámite guiado",
     hero: "Sepa lo que toma abrir un negocio en Puerto Rico.",
@@ -134,8 +134,10 @@ export default function MarketingLanding() {
             <a href="#professionals" onClick={() => setNavOpen(false)}>
               {c.professionals}
             </a>
-            <LanguageToggle language={language} onChange={setLanguage} />
-            <Link href="/auth/login?next=%2F%3Fentry%3Dnew-business">{c.login}</Link>
+            <div className={styles.mobileAccountRow}>
+              <Link href="/auth/login?next=%2F%3Fentry%3Dnew-business">{c.login}</Link>
+              <LanguageToggle language={language} onChange={setLanguage} />
+            </div>
             <Link className={styles.primary} href="/?entry=new-business">
               {c.started}
             </Link>
