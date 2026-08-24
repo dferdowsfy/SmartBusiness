@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { TopNav } from "../../history/ui";
 
-export type FilingStage = "intake" | "requirements" | "documents" | "deliverables";
+export type FilingStage = "intake" | "requirements" | "deliverables";
 
 export interface LiveMetric {
   label: string;
@@ -57,7 +57,6 @@ interface FilingWorkflowShellProps {
 const stages: Array<{ key: FilingStage; label: string; labelEs: string }> = [
   { key: "intake", label: "Intake", labelEs: "Perfil" },
   { key: "requirements", label: "Requirements", labelEs: "Requisitos" },
-  { key: "documents", label: "Documents", labelEs: "Documentos" },
   { key: "deliverables", label: "Deliverables", labelEs: "Entregables" },
 ];
 

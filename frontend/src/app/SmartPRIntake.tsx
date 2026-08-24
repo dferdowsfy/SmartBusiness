@@ -3147,19 +3147,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   const recommendedCount = requirements.filter(r => !r.mandatory).length;
 
   // Current view derives from the preserved step state machine so snapshots
-  // and ?resume= links keep working: 1 = intake, 3 = requirements,
-  // 7 = document completion/validation, 9 = deliverables.
+  // and ?resume= links keep working. Historical document-step snapshots (7)
+  // now resume in the consolidated requirements workspace.
   const view: FilingStage = currentStep === 1
     ? 'intake'
     : currentStep === 9
       ? 'deliverables'
-      : currentStep >= 7
-        ? 'documents'
-        : 'requirements';
+      : 'requirements';
   const goTo = (nextView: FilingStage) => {
     if (nextView === 'intake') setCurrentStep(1);
     else if (nextView === 'requirements') setCurrentStep(3);
-    else if (nextView === 'documents') setCurrentStep(7);
     else setCurrentStep(9);
   };
 
@@ -3247,7 +3244,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   // One Validador-styled requirement row. Upload flow, reasons, and the
   // extraction panel are the same components/handlers as before.
-  const renderReqRow = (req: Requirement, mode: 'requirements' | 'documents' = view === 'documents' ? 'documents' : 'requirements') => {
+  const renderReqRow = (req: Requirement) => {
     const doc = uploadedDocs.find(d => d.requirement_code === req.code);
     const analysis = doc?.ai_analysis;
     const ext: ExtractionResult | undefined = analysis?.extraction;
@@ -3307,8 +3304,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         <div className="req-actions-stack">
           {(() => {
             // Open only a verified, code-backed government PDF. The builder is
-            // available from Requirements as well as Documents and populates
-            // that existing artifact from the shared canonical intake data.
+            // available directly on its requirement and populates that existing
+            // artifact from the shared canonical intake data.
             const govEntry = govFormEntryForReq(req);
             if (govEntry) {
               const prepared = preparedGovApplications[govEntry.id];
@@ -3352,7 +3349,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             }
             return null;
           })()}
-          {mode === 'documents' && req.acceptsOfficialUpload !== false && req.kind !== 'review_condition' && req.applicability !== 'conditional' && req.applicability !== 'not_applicable' ? (
+          {req.acceptsOfficialUpload !== false && req.kind !== 'review_condition' && req.applicability !== 'conditional' && req.applicability !== 'not_applicable' ? (
           <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
             <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload official' : 'Upload official', language)}
           </button>
@@ -3576,43 +3573,29 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     nextAction: nextIntakeAction,
     whyAsking,
   } : view === 'requirements' ? {
-    statusText: language === 'es'
-      ? 'Las reglas regulatorias estructuradas determinaron lo que aplica.'
-      : 'Structured regulatory rules determined what applies.',
-    readiness: readinessScore,
-    progress: readinessScore == null ? checklistProgress : null,
-    progressLabel: language === 'es' ? 'Cobertura de requisitos' : 'Requirement coverage',
-    metrics: [
-      { value: totalMandatory, label: language === 'es' ? 'Requeridos' : 'Required', emphasis: true },
-      { value: requirements.filter((r) => r.applicability === 'conditional').length, label: language === 'es' ? 'Por verificar' : 'Need verification' },
-      { value: missingCount, label: language === 'es' ? 'Faltantes' : 'Missing' },
-      { value: reviewCount, label: language === 'es' ? 'Necesitan revisión' : 'Need review' },
-    ],
-    agencies: requirementsAgencies,
-    signals: intelligenceSignals,
-    nextAction: requirements.length
-      ? (language === 'es' ? 'Revisa por qué aplica cada requisito y continúa a documentos.' : 'Review why each requirement applies, then continue to documents.')
-      : (language === 'es' ? 'Genera los requisitos desde el perfil del negocio.' : 'Generate requirements from the business profile.'),
-  } : view === 'documents' ? {
     statusText: processingDocumentCount > 0
       ? (language === 'es' ? 'SmartPR está analizando evidencia…' : 'SmartPR is analyzing evidence…')
-      : (language === 'es' ? 'Revisando evidencia contra los requisitos.' : 'Reviewing evidence against the requirements.'),
+      : (language === 'es'
+          ? 'Revisando requisitos y evidencia en un solo lugar.'
+          : 'Reviewing requirements and evidence in one place.'),
     readiness: readinessScore,
     progress: readinessScore == null ? checklistProgress : null,
-    progressLabel: language === 'es' ? 'Cobertura de evidencia' : 'Evidence coverage',
+    progressLabel: language === 'es' ? 'Cobertura de requisitos y evidencia' : 'Requirements and evidence coverage',
     metrics: [
-      { value: uploadedDocs.length, label: language === 'es' ? 'Documentos cargados' : 'Documents uploaded', emphasis: true },
-      { value: completedMandatory, label: language === 'es' ? 'Con evidencia' : 'With evidence', emphasis: true },
+      { value: totalMandatory, label: language === 'es' ? 'Requeridos' : 'Required', emphasis: true },
+      { value: uploadedDocs.length, label: language === 'es' ? 'Documentos cargados' : 'Documents uploaded', emphasis: uploadedDocs.length > 0 },
       { value: missingCount, label: language === 'es' ? 'Evidencia faltante' : 'Missing evidence' },
       { value: reviewCount + processingDocumentCount, label: language === 'es' ? 'Necesitan atención' : 'Need attention' },
     ],
     agencies: requirementsAgencies,
     signals: intelligenceSignals,
-    nextAction: missingCount > 0
-      ? (language === 'es' ? 'Carga evidencia oficial para el próximo requisito faltante.' : 'Upload official evidence for the next missing requirement.')
-      : reviewCount > 0
-        ? (language === 'es' ? 'Revisa los documentos marcados para atención.' : 'Review the documents marked as needing attention.')
-        : (language === 'es' ? 'Ejecuta la validación final y revisa los entregables.' : 'Run final validation and review the deliverables.'),
+    nextAction: requirements.length === 0
+      ? (language === 'es' ? 'Genera los requisitos desde el perfil del negocio.' : 'Generate requirements from the business profile.')
+      : missingCount > 0
+        ? (language === 'es' ? 'Carga evidencia oficial para el próximo requisito faltante.' : 'Upload official evidence for the next missing requirement.')
+        : reviewCount > 0
+          ? (language === 'es' ? 'Revisa los documentos marcados para atención.' : 'Review the documents marked as needing attention.')
+          : (language === 'es' ? 'Ejecuta la validación final y revisa los entregables.' : 'Run final validation and review the deliverables.'),
   } : {
     statusText: deliverablesReady
       ? (language === 'es' ? 'El paquete está listo para revisión final.' : 'The package is ready for final review.')
@@ -3630,11 +3613,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     signals: intelligenceSignals,
     nextAction: deliverablesReady
       ? (language === 'es' ? 'Revisa los materiales antes de radicar con las agencias.' : 'Review the prepared materials before filing with the agencies.')
-      : (language === 'es' ? 'Regresa a documentos y completa la evidencia faltante.' : 'Return to documents and complete the missing evidence.'),
+      : (language === 'es' ? 'Regresa a requisitos y completa la evidencia faltante.' : 'Return to requirements and complete the missing evidence.'),
   };
 
   const availableStages: FilingStage[] = requirements.length > 0
-    ? ['intake', 'requirements', 'documents', 'deliverables']
+    ? ['intake', 'requirements', 'deliverables']
     : ['intake'];
   const matterStatus = saveState === 'saved'
     ? (language === 'es' ? 'Guardado' : 'Saved')
@@ -3933,10 +3916,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       )}
 
       {/* ====================== REQUIREMENTS ====================== */}
-      {(view === 'requirements' || view === 'documents') && (
+      {view === 'requirements' && (
         <main className="shell">
-          <button className="section-back" onClick={() => goTo(view === 'documents' ? 'requirements' : 'intake')}>
-            ← {view === 'documents' ? L('Back to requirements', language) : L('Back to intake', language)}
+          <button className="section-back" onClick={() => goTo('intake')}>
+            ← {L('Back to intake', language)}
           </button>
 
           {/* Prominent Attention banner (Problem 5) — surfaces AI findings at the top */}
@@ -4006,10 +3989,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           <div className="req-section">
             <div className="req-head">
               <div className="left">
-                <h2>{view === 'documents' ? L('Required documents', language) : L('Your requirements', language)}</h2>
-                <p>{view === 'documents'
-                  ? L('Upload official evidence, review extracted information, and resolve anything that needs attention.', language)
-                  : L('Every license, permit, inspection, and document discovered for your business — grouped by what to do next.', language)}</p>
+                <h2>{L('Your requirements', language)}</h2>
+                <p>{L('Review every applicable license, permit, inspection, and document here. Open official forms, upload evidence, and resolve anything that needs attention from the same list.', language)}</p>
               </div>
               <div className="filter">
                 <button className={reqFilter === 'all' ? 'active' : ''} onClick={() => setReqFilter('all')}>
@@ -4111,14 +4092,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <small>{L('They move your readiness score the most and unblock everything downstream.', language)}</small>
             </div>
             <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
-              {requirements.length > 0 && view === 'documents' && (
+              {requirements.length > 0 && (
                 <button className="btn btn-secondary" onClick={runValidation} disabled={isLoading}>
                   {L('Run Validation Engine', language)}
                   {isLoading && <RefreshCw className="i" style={{ width: 13, height: 13, animation: 'vspin .7s linear infinite' }} />}
                 </button>
               )}
-              <button className="btn btn-primary" onClick={() => goTo(view === 'requirements' ? 'documents' : 'deliverables')}>
-                {view === 'requirements' ? L('Continue to documents', language) : L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
+              <button className="btn btn-primary" onClick={() => goTo('deliverables')}>
+                {L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
               </button>
             </div>
           </div>
@@ -4128,8 +4109,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       {/* ====================== DELIVERABLES ====================== */}
       {view === 'deliverables' && (
         <main className="shell">
-          <button className="section-back" onClick={() => goTo('documents')}>
-            ← {L('Back to documents', language)}
+          <button className="section-back" onClick={() => goTo('requirements')}>
+            ← {L('Back to requirements', language)}
           </button>
 
           <div className="section-head">
@@ -4328,10 +4309,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <div className="help-ic"><RefreshCw className="i-lg i" /></div>
             <div className="help-text">
               <b>{L('Need to make changes?', language)}</b>
-              <small>{L('Go back to documents to upload more evidence, or edit the business profile.', language)}</small>
+              <small>{L('Go back to requirements to upload more evidence, or edit the business profile.', language)}</small>
             </div>
             <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-secondary" onClick={() => goTo('documents')}>← {L('Back to documents', language)}</button>
+              <button className="btn btn-secondary" onClick={() => goTo('requirements')}>← {L('Back to requirements', language)}</button>
               <button className="btn btn-secondary" onClick={() => goTo('intake')}>{L('Edit business profile', language)}</button>
             </div>
           </div>

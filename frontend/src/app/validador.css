@@ -1325,6 +1325,8 @@ button { font-family: inherit; }
   .saved-pill { display: none; }
   .lang-toggle { margin-right: 4px; }
   .lang-toggle button { padding: 4px 6px; font-size: 11px; }
+  .help-cta { width: 100%; margin-left: 0; flex-wrap: wrap; }
+  .help-cta .btn { flex: 1 1 180px; justify-content: center; }
   .qcard { padding: 24px 18px 22px; }
   .qtitle { font-size: 22px; }
   .answers, .packages, .progress-row { grid-template-columns: 1fr !important; }
@@ -1757,7 +1759,7 @@ button { font-family: inherit; }
   margin: 0 auto;
   padding: 0 32px 17px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .spr-workflow-step-wrap { min-width: 0; display: flex; align-items: center; }
 .spr-workflow-step {
