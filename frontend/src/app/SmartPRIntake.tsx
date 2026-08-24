@@ -3251,7 +3251,12 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // Resolve the single applicable government-form entry for a requirement.
   const govFormEntryForReq = (req: Requirement) => {
     if (!req.document_id) return null;
-    return selectFormForRequirement(req.document_id, canonicalApplication, presentRequirementIds);
+    const entry = selectFormForRequirement(req.document_id, canonicalApplication, presentRequirementIds);
+    if (!entry) return null;
+    const template = getTemplate(entry.officialFormNumber);
+    // Customer-facing builders must be backed by the agency's real PDF. Never
+    // substitute a SmartPR-drawn worksheet for a missing government artifact.
+    return template && isOfficialArtifact(template) ? entry : null;
   };
 
   const openGovForm = (formId: string, requirementCode: string, mode: 'edit' | 'view') => {
@@ -3274,7 +3279,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
     const checkCls = state === 'done' ? 'done' : state === 'review' ? 'progress' : 'missing';
     const promoted = req.code.startsWith('potential_');
-    const sampleDefinition = getSampleApplication(req.code);
     const issuedDocumentGuidance = ISSUED_DOCUMENT_GUIDANCE[req.code];
     return (
       <div id={`req-row-${req.code}`} key={req.code} className="req-row">
@@ -3320,12 +3324,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         </div>
         <div className="req-actions-stack">
           {(() => {
-            // Schema-driven government form (CORPREG01–CORPREG06) takes priority
-            // over the legacy sample worksheet when the entity type routes to a
-            // displayable form.
+            // Open only a verified, code-backed government PDF. The builder is
+            // available from Requirements as well as Documents and populates
+            // that existing artifact from the shared canonical intake data.
             const govEntry = govFormEntryForReq(req);
             if (govEntry) {
-              if (mode !== 'documents') return null;
               const prepared = preparedGovApplications[govEntry.id];
               const hasDraft = !!govFormDrafts[govEntry.id];
               const fState = requirementFormState(prepared);
@@ -3339,17 +3342,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   )}
                   {actions.includes('start_form') && (
                     <button className="req-action primary" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Start Form', language)}
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Open official form', language)}
                     </button>
                   )}
                   {actions.includes('edit_form') && (
                     <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Edit Form', language)}
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Continue official form', language)}
                     </button>
                   )}
                   {actions.includes('view_form') && (
                     <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'view')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View Form', language)}
+                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View official form', language)}
                     </button>
                   )}
                   {actions.includes('review_updates') && (
@@ -3365,12 +3368,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 </>
               );
             }
-            return sampleDefinition && mode === 'documents' ? (
-              <button className="req-action" onClick={() => openSampleApplication(req.code)}>
-                <FileText className="i" style={{ width: 13, height: 13 }} />
-                {preparedSampleApplications[req.code] ? L('Edit application', language) : L('Prepare application', language)}
-              </button>
-            ) : null;
+            return null;
           })()}
           {mode === 'documents' && req.acceptsOfficialUpload !== false && req.kind !== 'review_condition' && req.applicability !== 'conditional' && req.applicability !== 'not_applicable' ? (
           <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>

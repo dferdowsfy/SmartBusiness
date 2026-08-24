@@ -161,9 +161,9 @@ export const SAMPLE_APPLICATIONS: Record<string, SampleApplicationDefinition> = 
 };
 
 export const ISSUED_DOCUMENT_GUIDANCE: Record<string, string> = {
-  certificate_of_incorporation: "Prepare the filing worksheet here. After the Department of State accepts the filing, upload the official Certificate of Incorporation to complete this requirement.",
-  merchant_registration: "Prepare the registration worksheet here. After completing registration in SURI, upload the official Merchant Registration Certificate to complete this requirement.",
-  permiso_unico: "Prepare the application worksheet here. After OGPe or the municipality approves the application, upload the issued Permiso Único to complete this requirement.",
+  certificate_of_incorporation: "Open and complete the official Department of State form here. After the agency accepts the filing, upload the official Certificate of Incorporation to complete this requirement.",
+  merchant_registration: "Complete merchant registration in SURI. After Hacienda issues the certificate, upload the official Merchant Registration Certificate to complete this requirement.",
+  permiso_unico: "Complete the application through OGPe's Single Business Portal or the applicable municipality. After approval, upload the issued Permiso Único to complete this requirement.",
   ein_letter: "SmartPR prepares the IRS Form SS-4 application for you. The EIN itself is agency-issued: after the IRS processes the application, upload the CP 575 notice or other accepted IRS EIN confirmation to complete this requirement.",
 };
 
