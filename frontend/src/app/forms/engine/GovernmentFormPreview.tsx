@@ -60,8 +60,8 @@ export function GovernmentFormPreview(props: GovernmentFormPreviewProps) {
         <strong>{L("Prepared for submission through SmartPR.", "Preparado para presentación a través de SmartPR.")}</strong>
         <div style={{ marginTop: 3 }}>
           {L(
-            "This application has been prepared but has not been submitted, approved, or issued by the Puerto Rico Department of State.",
-            "Esta solicitud ha sido preparada pero no ha sido presentada, aprobada ni emitida por el Departamento de Estado de Puerto Rico."
+            `This is a prepared draft. It has not been submitted to or accepted by ${definition.agency}, and it is not an agency-issued document.`,
+            `Este es un borrador preparado. No se ha presentado ni ha sido aceptado por ${definition.agency}, y no es un documento emitido por la agencia.`
           )}
         </div>
       </div>

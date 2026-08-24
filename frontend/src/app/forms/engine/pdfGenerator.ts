@@ -87,7 +87,11 @@ export function generatePreparationPdf(
   doc.text("PREPARED FOR SUBMISSION THROUGH SMARTPR — NOT AN OFFICIAL FILING", margin + 3, y + 6);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.text("This application has been prepared but has not been submitted, approved, or issued by the Puerto Rico Department of State.", margin + 3, y + 11);
+  doc.text(
+    `This draft has not been submitted to or accepted by ${def.agency}; it is not an agency-issued document.`,
+    margin + 3,
+    y + 11
+  );
   y += 21;
 
   // Sections.
