@@ -99,7 +99,38 @@ export function GovernmentSubmissionPanel(props: GovernmentSubmissionPanelProps)
         </div>
       </div>
 
-      <p style={{ fontSize: 11.5, color: "#475569", margin: 0 }}>{localize(GOVERNMENT_FEE_DISCLAIMER, lang)}</p>
+      {destination.instructions && (
+        <div>
+          <p style={{ fontSize: 12.5, color: "#065f46", margin: 0, fontWeight: 600 }}>
+            {localize(destination.instructions, lang)}
+          </p>
+          {destination.instructionsUrl && (
+            <a href={destination.instructionsUrl} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 4, fontSize: 11.5, color: "#0f766e", textDecoration: "underline" }}>
+              {localize(destination.instructionsLinkLabel, lang) || L("View official instructions", "Ver instrucciones oficiales")}
+            </a>
+          )}
+        </div>
+      )}
+
+      {destination.alternatives && destination.alternatives.length > 0 && (
+        <div style={{ display: "grid", gap: 7, borderTop: "1px solid #a7f3d0", paddingTop: 10 }}>
+          <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: 0.6, color: "#475569" }}>
+            {L("If you submit the completed PDF instead", "Si presenta el PDF completado")}
+          </div>
+          {destination.alternatives.map((alternative) => (
+            <div key={alternative.label.en} style={{ fontSize: 12, color: "#334155" }}>
+              <strong>{localize(alternative.label, lang)}:</strong> {localize(alternative.detail, lang)}
+            </div>
+          ))}
+          <div style={{ fontSize: 11.5, color: "#991b1b", fontWeight: 600 }}>
+            {L("Sign and date the Form SS-4 before faxing or mailing it.", "Firme y feche el Formulario SS-4 antes de enviarlo por fax o correo.")}
+          </div>
+        </div>
+      )}
+
+      <p style={{ fontSize: 11.5, color: "#475569", margin: 0 }}>
+        {localize(destination.feeDisclaimer ?? GOVERNMENT_FEE_DISCLAIMER, lang)}
+      </p>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <button
@@ -116,7 +147,7 @@ export function GovernmentSubmissionPanel(props: GovernmentSubmissionPanelProps)
             cursor: "pointer",
           }}
         >
-          {L("Continue to Government Submission", "Continuar al Portal del Gobierno")} →
+          {localize(destination.actionLabel, lang) || L("Continue to Government Submission", "Continuar al Portal del Gobierno")} →
         </button>
         {onMarkSubmitted && !submitted && (
           <button

@@ -25,7 +25,7 @@ import { FORM_REGISTRY, getDefinition } from "../engine/registry.ts";
 import { ArtifactGenerationError, generateWorkingCopy } from "./library.ts";
 import { extractPdfText, pdfTextContains, readAcroFormValues } from "./pdfReadback.ts";
 import { resolveRepoPath, sha256 } from "./paths.ts";
-import { emptyCanonicalData, type CanonicalApplicationData } from "../engine/types.ts";
+import { emptyCanonicalData, type CanonicalApplicationData, type FormData } from "../engine/types.ts";
 
 // Deliberately distinctive values: none of these strings occur in a blank
 // government form, so finding them in the output can only mean SmartPR wrote
@@ -270,6 +270,68 @@ test("SS-4: the EIN application is populated on the real IRS form", async () => 
   // Line 12 asks for the closing MONTH, so an "MM-DD" year end must be trimmed.
   const closingMonth = result.populated.find((f) => f.pdfField.endsWith("f1_32[0]"));
   assert.equal(closingMonth?.value, "12", "line 12 should carry the month alone, not a month-day pair");
+});
+
+test("SS-4: builder-only and transient answers populate every applicable IRS line", async () => {
+  const formData: FormData = {
+    legal_name: APPLICANT.legalName,
+    trade_name: APPLICANT.tradeName,
+    mailing_address: ADDRESS,
+    street_address_different: false,
+    principal_location: "Bayamón, PR",
+    responsible_party_name: APPLICANT.agent,
+    responsible_party_tin: "123-45-6789",
+    is_llc: "no",
+    entity_classification: "corporation",
+    corporation_return_form: "1120",
+    incorporation_location_type: "foreign_country",
+    incorporation_foreign_country: "Puerto Rico",
+    reason_for_applying: "started_new_business",
+    reason_detail: "Restaurant",
+    date_business_started: "2026-10-01",
+    closing_month: "12",
+    agricultural_employee_count: 0,
+    household_employee_count: 0,
+    other_employee_count: 10,
+    form_944_election: false,
+    first_wage_date_or_na: "2026-10-15",
+    principal_activity_category: "food_service",
+    principal_activity_line: APPLICANT.activity,
+    previous_ein_received: "no",
+    use_third_party_designee: "no",
+    signer_name_and_title: `${APPLICANT.agent}, President`,
+    applicant_phone: APPLICANT.phone,
+  };
+  const result = await generateWorkingCopy({ formCode: "SS4", profile: applicantProfile(), formData, purpose: "filing" });
+  const values = await readAcroFormValues(result.bytes);
+  const readBack = Object.values(values).join(" | ");
+
+  for (const expected of [
+    "Bayamón, PR 00961",
+    "123-45-6789",
+    "1120",
+    "Puerto Rico",
+    "Restaurant",
+    "2026-10-15",
+    `${APPLICANT.agent}, President`,
+  ]) {
+    assert.ok(pdfTextContains(readBack, expected), `SS-4 builder value "${expected}" was not written to the official PDF`);
+  }
+  assert.equal(
+    result.populated.find((entry) => entry.pdfField.endsWith("f1_11[0]"))?.value,
+    "[provided]",
+    "population metadata must not copy the responsible party's raw taxpayer identifier"
+  );
+  assert.ok(
+    !values["topmostSubform[0].Page1[0].f1_7[0]"],
+    "line 5 must stay blank when the applicant says the physical and mailing addresses are the same"
+  );
+  assert.deepEqual(
+    result.populated.filter((entry) => entry.pdfField.includes("c1_6[")).map((entry) => entry.pdfField),
+    ["topmostSubform[0].Page1[0].c1_6[5]"],
+    "the builder must leave exactly one principal-activity checkbox selected"
+  );
+  assert.equal(result.unanswered.length, 0, "non-applicable SS-4 alternatives must not be counted as missing required answers");
 });
 
 test("SS-4: identifiers and determinations SmartPR cannot make are left blank", async () => {

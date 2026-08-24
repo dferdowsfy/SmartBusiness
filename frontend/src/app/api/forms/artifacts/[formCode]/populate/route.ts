@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import { createSupabaseServer, getCurrentUser } from "../../../../../../lib/supabase/server";
 import { ArtifactGenerationError, generateWorkingCopy } from "../../../../../forms/artifacts/library";
 import { recordGeneratedFiling } from "../../../../../forms/artifacts/persistence";
-import { emptyCanonicalData, type CanonicalApplicationData } from "../../../../../forms/engine/types";
+import { emptyCanonicalData, type CanonicalApplicationData, type FormData } from "../../../../../forms/engine/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ formCode: 
   // Storage below actually requires a signed-in user.
   const user = await getCurrentUser();
 
-  let body: { profile?: Partial<CanonicalApplicationData>; businessId?: string; instanceId?: string; archive?: boolean };
+  let body: { profile?: Partial<CanonicalApplicationData>; formData?: FormData; businessId?: string; instanceId?: string; archive?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -31,7 +31,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ formCode: 
   const profile = { ...emptyCanonicalData(), ...(body.profile ?? {}) } as CanonicalApplicationData;
   let result;
   try {
-    result = await generateWorkingCopy({ formCode, profile, purpose: "filing" });
+    result = await generateWorkingCopy({ formCode, profile, formData: body.formData, purpose: "filing" });
   } catch (error) {
     const status = error instanceof ArtifactGenerationError ? 409 : 500;
     return Response.json({ error: (error as Error).message }, { status });

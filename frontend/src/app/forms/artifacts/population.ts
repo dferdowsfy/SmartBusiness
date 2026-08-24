@@ -15,7 +15,8 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 import { canonicalFieldLabel, readCanonicalField } from "./canonicalFields.ts";
-import type { CanonicalApplicationData } from "../engine/types.ts";
+import { directAcroValues } from "./formDataPopulation.ts";
+import type { CanonicalApplicationData, FormData } from "../engine/types.ts";
 import type {
   FieldMapping,
   FormMappingDocument,
@@ -196,7 +197,8 @@ export async function populateArtifact(
   templateBytes: Uint8Array,
   profile: CanonicalApplicationData,
   templateChecksum: string,
-  options: PopulateOptions = {}
+  options: PopulateOptions = {},
+  formData?: FormData
 ): Promise<PopulationResult> {
   // Copy the input so nothing downstream can write through to the caller's buffer.
   const working = Uint8Array.from(templateBytes);
@@ -238,6 +240,51 @@ export async function populateArtifact(
       } catch {
         // A field that will not accept the value is reported, never forced.
         unanswered.push(unansweredRecord(mapping, "requires_user_entry"));
+      }
+    }
+
+    // Form-specific answers take precedence over canonical defaults. This is
+    // how SS-4 lines that are not part of the reusable business profile — such
+    // as line 7b and the line 9 federal classification — reach the official
+    // artifact without being stored in SmartPR's durable snapshot.
+    for (const direct of directAcroValues(doc.formCode, formData)) {
+      try {
+        if (direct.type === "checkbox") {
+          const box = form.getCheckBox(direct.pdfField);
+          if (direct.value) box.check();
+          else box.uncheck();
+        }
+        else form.getTextField(direct.pdfField).setText(direct.value);
+
+        const prior = populated.findIndex((entry) => entry.pdfField === direct.pdfField);
+        if (prior >= 0) populated.splice(prior, 1);
+        for (let index = unanswered.length - 1; index >= 0; index -= 1) {
+          if (unanswered[index].pdfField === direct.pdfField) unanswered.splice(index, 1);
+        }
+        if (direct.value) {
+          populated.push({
+            pdfField: direct.pdfField,
+            canonicalField: null,
+            value: direct.sensitive ? "[provided]" : direct.value,
+          });
+        }
+      } catch {
+        unanswered.push({
+          pdfField: direct.pdfField,
+          canonicalField: null,
+          reason: "requires_user_entry",
+          label: direct.pdfField,
+        });
+      }
+    }
+    if (doc.formCode === "SS4" && formData) {
+      // SS-4 contains many mutually exclusive checkbox/detail blanks. Once the
+      // schema builder is supplying the application, an untouched alternative
+      // is not "still required"; validation has already decided which lines
+      // apply. Keep only fields that the PDF library actually failed to write;
+      // schema validation is the authority on missing applicant answers.
+      for (let index = unanswered.length - 1; index >= 0; index -= 1) {
+        if (unanswered[index].reason !== "requires_user_entry") unanswered.splice(index, 1);
       }
     }
   } else if (doc.populationMethod === "pdf_overlay") {

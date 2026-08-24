@@ -76,7 +76,11 @@ export function GovernmentFormPreview(props: GovernmentFormPreviewProps) {
             {fields.map((f) => (
               <div key={f.id} style={row}>
                 <span style={{ color: "#475569" }}>{f.label ? localize(f.label, lang) : f.id}</span>
-                <span>{renderValue((formData as Record<string, unknown>)[f.id], lang)}</span>
+                <span>
+                  {f.sensitive && (formData as Record<string, unknown>)[f.id]
+                    ? L("Provided securely — not saved", "Proporcionado de forma segura — no guardado")
+                    : renderValue((formData as Record<string, unknown>)[f.id], lang)}
+                </span>
               </div>
             ))}
           </div>

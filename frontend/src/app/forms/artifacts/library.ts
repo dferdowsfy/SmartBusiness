@@ -14,7 +14,7 @@ import { renderMappingPreview } from "./mappingPreview.ts";
 import { loadMapping } from "./mappingStore.ts";
 import { populateArtifact, type PopulateOptions } from "./population.ts";
 import { loadTemplateBytes } from "./templateLoader.ts";
-import type { CanonicalApplicationData } from "../engine/types.ts";
+import type { CanonicalApplicationData, FormData } from "../engine/types.ts";
 import type { FormMappingDocument, PopulationResult, TemplateDescriptor } from "./types.ts";
 
 /** Why a working copy is being produced. */
@@ -97,6 +97,8 @@ export interface GenerateWorkingCopyInput {
   profile: CanonicalApplicationData;
   purpose: GenerationPurpose;
   populateOptions?: PopulateOptions;
+  /** Current schema-builder answers; transient values are never persisted. */
+  formData?: FormData;
 }
 
 /**
@@ -120,7 +122,7 @@ export async function generateWorkingCopy(input: GenerateWorkingCopyInput): Prom
       `${input.formCode}: mapping was captured against ${mapping.templateChecksum} but the template on disk is ${loaded.checksum}.`
     );
   }
-  return populateArtifact(mapping, loaded.bytes, input.profile, loaded.checksum, input.populateOptions);
+  return populateArtifact(mapping, loaded.bytes, input.profile, loaded.checksum, input.populateOptions, input.formData);
 }
 
 /** Render the admin mapping-boundary preview for a form. */

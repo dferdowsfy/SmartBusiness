@@ -109,7 +109,8 @@ export function generatePreparationPdf(
       if (field.type === "heading" || field.type === "statutory_text") continue;
       if (!evaluateConditions(field.visibleWhen, data, canonical)) continue;
       const label = field.label ? localize(field.label, lang) : field.id;
-      const value = fmtValue((data as Record<string, unknown>)[field.id]);
+      const rawValue = (data as Record<string, unknown>)[field.id];
+      const value = field.sensitive && rawValue ? "Provided securely — not retained" : fmtValue(rawValue);
       const lines = doc.splitTextToSize(`${label}: ${value}`, width - 4);
       ensure(lines.length * 4 + 3);
       doc.text(lines, margin + 2, y);

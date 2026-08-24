@@ -5,11 +5,9 @@
 //   1. what does the government charge to file it, and
 //   2. where does the applicant actually file and pay?
 //
-// Only the six digitized Department of State forms (CORPREG01–CORPREG06) have
-// entries here. Requirements backed by document upload, external registration,
-// agency-issued documents or professional deliverables are deliberately absent,
-// so `hasGovernmentSubmission` is the single gate the UI checks before ever
-// offering a "Continue to Government Submission" button.
+// The six digitized Department of State forms and federal Form SS-4 have
+// entries here. Requirements backed only by document upload, an unsourced
+// form, or agency-issued evidence are deliberately absent.
 //
 // The fee is a GOVERNMENT fee. SmartPR never collects it — the amounts here are
 // displayed so the applicant knows what the agency will charge at the portal.
@@ -41,6 +39,12 @@ export interface SubmissionDestination {
   url: string;
   /** True when the government fee is paid to the agency, not to SmartPR. */
   paymentAtAgency: boolean;
+  actionLabel?: LocalizedText;
+  feeDisclaimer?: LocalizedText;
+  instructions?: LocalizedText;
+  instructionsUrl?: string;
+  instructionsLinkLabel?: LocalizedText;
+  alternatives?: Array<{ label: LocalizedText; detail: LocalizedText }>;
 }
 
 const PR_DEPARTMENT_OF_STATE: SubmissionDestination = {
@@ -49,6 +53,43 @@ const PR_DEPARTMENT_OF_STATE: SubmissionDestination = {
   method: "online_portal",
   url: PR_DOS_PORTAL_URL,
   paymentAtAgency: true,
+};
+
+export const IRS_EIN_URL = "https://www.irs.gov/businesses/small-businesses-self-employed/get-an-employer-identification-number";
+
+const IRS_EIN_DESTINATION: SubmissionDestination = {
+  agency: t("Internal Revenue Service", "Servicio de Impuestos Internos (IRS)"),
+  portalName: t("IRS online EIN application — recommended", "Solicitud de EIN en línea del IRS — recomendada"),
+  method: "online_portal",
+  url: IRS_EIN_URL,
+  paymentAtAgency: false,
+  actionLabel: t("Open the IRS EIN application", "Abrir la solicitud de EIN del IRS"),
+  feeDisclaimer: t(
+    "The IRS issues EINs for free. SmartPR does not submit this application or charge an EIN filing fee.",
+    "El IRS emite los EIN gratuitamente. SmartPR no presenta esta solicitud ni cobra una tarifa por solicitar el EIN."
+  ),
+  instructions: t(
+    "Puerto Rico applicants may apply online and receive the EIN immediately when eligible. Use one application method only.",
+    "Los solicitantes de Puerto Rico pueden solicitar en línea y recibir el EIN inmediatamente cuando cualifiquen. Use un solo método de solicitud."
+  ),
+  instructionsUrl: "https://www.irs.gov/instructions/iss4",
+  instructionsLinkLabel: t("View current IRS Form SS-4 instructions", "Ver las instrucciones vigentes del IRS para el Formulario SS-4"),
+  alternatives: [
+    {
+      label: t("Fax the signed Form SS-4", "Enviar por fax el Formulario SS-4 firmado"),
+      detail: t(
+        "From within the United States: 855-215-1627. Include your fax number so the IRS can return the EIN by fax.",
+        "Desde Estados Unidos: 855-215-1627. Incluya su número de fax para que el IRS pueda devolver el EIN por fax."
+      ),
+    },
+    {
+      label: t("Mail the signed Form SS-4", "Enviar por correo el Formulario SS-4 firmado"),
+      detail: t(
+        "Internal Revenue Service, Attn: EIN International Operation, Cincinnati, OH 45999.",
+        "Internal Revenue Service, Attn: EIN International Operation, Cincinnati, OH 45999."
+      ),
+    },
+  ],
 };
 
 // ---------------------------------------------------------------------------
@@ -182,24 +223,32 @@ export const PR_FORM_SUBMISSION: Record<string, FormSubmissionSpec> = {
   },
 };
 
+export const FEDERAL_FORM_SUBMISSION: Record<string, FormSubmissionSpec> = {
+  SS4: {
+    formId: "SS4",
+    internalFormId: "FORM_IRS_SS4",
+    governmentFee: fixed(0),
+    submission: IRS_EIN_DESTINATION,
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Lookup
 // ---------------------------------------------------------------------------
 
 const BY_INTERNAL_ID: Record<string, FormSubmissionSpec> = Object.fromEntries(
-  Object.values(PR_FORM_SUBMISSION).map((spec) => [spec.internalFormId, spec])
+  [...Object.values(PR_FORM_SUBMISSION), ...Object.values(FEDERAL_FORM_SUBMISSION)].map((spec) => [spec.internalFormId, spec])
 );
 
 /** Accepts either the official form number or the internal registry id. */
 export function getSubmissionSpec(formId: string): FormSubmissionSpec | null {
   if (!formId) return null;
-  return PR_FORM_SUBMISSION[formId] ?? BY_INTERNAL_ID[formId] ?? null;
+  return PR_FORM_SUBMISSION[formId] ?? FEDERAL_FORM_SUBMISSION[formId] ?? BY_INTERNAL_ID[formId] ?? null;
 }
 
 /**
- * The gate for the whole feature: true only for the six digitized Department of
- * State forms. Upload-only, external-registration and agency-issued
- * requirements return false and must not get a submission button.
+ * The gate for the whole feature. Upload-only and agency-issued requirements
+ * return false and must not get a submission button.
  */
 export function hasGovernmentSubmission(formId: string): boolean {
   return getSubmissionSpec(formId) !== null;

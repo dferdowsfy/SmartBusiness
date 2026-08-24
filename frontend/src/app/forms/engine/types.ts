@@ -299,6 +299,10 @@ export interface FormField {
   validation?: ValidationRule[];
   helpText?: LocalizedText;
   placeholder?: LocalizedText;
+  /** Masks the value in the browser. Sensitive fields should also be transient. */
+  sensitive?: boolean;
+  /** Never include this value in autosaved drafts or prepared-application data. */
+  transient?: boolean;
   /** Read-only statutory/informational body text (type: statutory_text). */
   body?: LocalizedText;
   // Repeatable configuration

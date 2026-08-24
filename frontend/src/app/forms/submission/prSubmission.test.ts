@@ -12,6 +12,8 @@ import {
   governmentFeeText,
   hasGovernmentSubmission,
   openGovernmentPortal,
+  FEDERAL_FORM_SUBMISSION,
+  IRS_EIN_URL,
   PR_DOS_PORTAL_URL,
   PR_FORM_SUBMISSION,
   type PortalOpener,
@@ -87,6 +89,16 @@ test("CORPREG06 (LLP registration, not an LLC form) shows $110", () => {
   assert.equal(feeText("CORPREG06", canonical({ entityType: "limited_liability_partnership" })), "$110");
   // Guard the LLP/LLC distinction at the submission layer too.
   assert.equal(getDefinition(PR_FORM_SUBMISSION.CORPREG06.internalFormId)?.requirementId, "DOC_LLP_REGISTRATION");
+});
+
+test("SS-4 is free and sends Puerto Rico applicants to the official IRS EIN application", () => {
+  assert.equal(feeText("SS4", canonical()), "$0");
+  const destination = getSubmissionDestination("FORM_IRS_SS4");
+  assert.equal(destination?.agency.en, "Internal Revenue Service");
+  assert.equal(destination?.url, IRS_EIN_URL);
+  assert.equal(destination?.alternatives?.[0].detail.en.includes("855-215-1627"), true);
+  assert.equal(destination?.alternatives?.[1].detail.en.includes("EIN International Operation"), true);
+  assert.equal(destination?.instructionsUrl, "https://www.irs.gov/instructions/iss4");
 });
 
 test("every fee is labelled as a government fee, never a SmartPR charge", () => {
@@ -178,9 +190,12 @@ test("openGovernmentPortal refuses forms that have no submission destination", (
 
 // --- scope: digitized forms only ---------------------------------------------
 
-test("only the six digitized forms have a government submission step", () => {
+test("the Puerto Rico registry remains limited to the six Department of State forms", () => {
   assert.deepEqual(Object.keys(PR_FORM_SUBMISSION).sort(), [...DIGITIZED].sort());
   for (const formId of DIGITIZED) assert.equal(hasGovernmentSubmission(formId), true);
+  assert.deepEqual(Object.keys(FEDERAL_FORM_SUBMISSION), ["SS4"]);
+  assert.equal(hasGovernmentSubmission("SS4"), true);
+  assert.equal(hasGovernmentSubmission("FORM_IRS_SS4"), true);
 });
 
 test("non-digitized requirements get no fee, no destination and no submission button", () => {
@@ -198,9 +213,9 @@ test("non-digitized requirements get no fee, no destination and no submission bu
   }
 });
 
-test("every displayable registry entry has submission metadata", () => {
-  for (const entry of FORM_REGISTRY.filter((e) => e.displayForm)) {
-    assert.equal(hasGovernmentSubmission(entry.id), true, `${entry.id} is displayed but has no submission metadata`);
+test("every submission entry points to a real displayable form", () => {
+  for (const spec of [...Object.values(PR_FORM_SUBMISSION), ...Object.values(FEDERAL_FORM_SUBMISSION)]) {
+    assert.equal(getRegistryEntry(spec.internalFormId)?.displayForm, true, `${spec.internalFormId} is not displayable`);
   }
 });
 
@@ -213,9 +228,8 @@ test("existing form routing is unchanged", () => {
   assert.equal(resolveFormId("DOC_CERT_INCORPORATION", canonical({ entityType: "close_corporation" })), "FORM_PR_DOS_CORPREG04");
   assert.equal(resolveFormId("DOC_CERT_INCORPORATION", canonical({ entityType: "professional_corporation" })), "FORM_PR_DOS_CORPREG05");
   assert.equal(resolveFormId("DOC_LLP_REGISTRATION", canonical({ entityType: "limited_liability_partnership" })), "FORM_PR_DOS_CORPREG06");
-  // LLC still routes nowhere — CORPREG06 is an LLP form.
-  assert.equal(resolveFormId("DOC_ARTICLES_ORGANIZATION", canonical({ entityType: "limited_liability_company" })), null);
-  assert.equal(getRegistryEntry("FORM_PR_DOS_ARTICLES_ORGANIZATION")?.displayForm, false);
+  // LLC routes to its own official certificate, never to CORPREG06 (the LLP form).
+  assert.equal(resolveFormId("DOC_ARTICLES_ORGANIZATION", canonical({ entityType: "limited_liability_company" })), "FORM_PR_DOS_CORPLLC02");
 });
 
 test("completing a form still produces a prepared application, not a submitted one", () => {

@@ -20,6 +20,8 @@ import { snapshotRemotePersistence } from "./formPersistence.ts";
 import { CORPREG01 } from "../definitions/pr/department-of-state/CORPREG01.ts";
 import { CORPREG02 } from "../definitions/pr/department-of-state/CORPREG02.ts";
 import { CORPREG03 } from "../definitions/pr/department-of-state/CORPREG03.ts";
+import { SS4 } from "../definitions/federal/irs/SS4.ts";
+import { persistableFormData } from "./formDataPrivacy.ts";
 
 function canonical(overrides: Partial<CanonicalApplicationData["business"]> = {}): CanonicalApplicationData {
   const c = emptyCanonicalData();
@@ -269,6 +271,56 @@ test("registry gate: every displayable entry is extracted_from_official_pdf, nev
       assert.notEqual(e.verificationStatus, "needs_source");
     }
   }
+});
+
+test("SS-4 schema includes every applicant-entered line from the December 2025 form", () => {
+  const ids = new Set(SS4.sections.flatMap((section) => section.fields.map((field) => field.id)));
+  for (const id of [
+    "legal_name", "trade_name", "care_of_name", "mailing_address", "street_address",
+    "principal_location", "responsible_party_name", "responsible_party_tin", "is_llc",
+    "llc_member_count", "llc_organized_us", "entity_classification", "incorporation_location_type",
+    "reason_for_applying", "date_business_started", "closing_month", "agricultural_employee_count",
+    "household_employee_count", "other_employee_count", "form_944_election", "first_wage_date_or_na",
+    "principal_activity_category", "principal_activity_line", "previous_ein_received", "previous_ein",
+    "use_third_party_designee", "designee_name", "signer_name_and_title", "applicant_phone",
+    "signature_acknowledgement",
+  ]) {
+    assert.ok(ids.has(id), `SS-4 is missing ${id}`);
+  }
+});
+
+test("SS-4 validates conditional LLC, classification, prior-EIN, and signature answers", () => {
+  const data: FormData = {
+    legal_name: "Example LLC", mailing_address: { line1: "1 Calle", cityOrMunicipality: "San Juan", stateOrTerritory: "PR", postalCode: "00901", country: "Puerto Rico" },
+    principal_location: "San Juan, PR", responsible_party_name: "Ana Rivera", responsible_party_tin: "123-45-6789",
+    is_llc: "yes", entity_classification: "other", reason_for_applying: "other",
+    date_business_started: "2026-08-24", closing_month: "12", agricultural_employee_count: 0,
+    household_employee_count: 0, other_employee_count: 0, first_wage_date_or_na: "N/A",
+    principal_activity_category: "other", principal_activity_line: "Consulting",
+    previous_ein_received: "yes", use_third_party_designee: "yes",
+    signer_name_and_title: "Ana Rivera, Member", applicant_phone: "787-555-0123",
+  };
+  const errors = validateForm(SS4, data, canonical({ entityType: "limited_liability_company" }));
+  for (const fieldId of [
+    "llc_member_count", "llc_organized_us", "other_entity_type", "reason_detail",
+    "principal_activity_other", "previous_ein", "designee_name", "designee_phone",
+    "designee_address", "signature_acknowledgement",
+  ]) {
+    assert.ok(errors.some((error) => error.fieldId === fieldId), `${fieldId} should be conditionally required`);
+  }
+});
+
+test("SS-4 taxpayer identifiers are excluded from autosaved and prepared data", () => {
+  const durable = persistableFormData(SS4, {
+    legal_name: "Example LLC",
+    responsible_party_tin: "123-45-6789",
+    sole_proprietor_tin: "987-65-4321",
+    previous_ein: "66-1234567",
+  });
+  assert.equal(durable.legal_name, "Example LLC");
+  assert.equal(durable.responsible_party_tin, undefined);
+  assert.equal(durable.sole_proprietor_tin, undefined);
+  assert.equal(durable.previous_ein, undefined);
 });
 
 test("entity-type augmentation restores the applicable corporation formation requirement", () => {

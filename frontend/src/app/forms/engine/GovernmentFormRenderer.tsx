@@ -194,6 +194,45 @@ function SignaturePlaceholder({
   );
 }
 
+function SensitiveTextInput({
+  value,
+  lang,
+  readOnly,
+  style,
+  onChange,
+}: {
+  value: unknown;
+  lang: Lang;
+  readOnly?: boolean;
+  style: React.CSSProperties;
+  onChange: (value: string) => void;
+}) {
+  const [visible, setVisible] = React.useState(false);
+  const L = (en: string, es: string) => (lang === "es" ? es : en);
+  return (
+    <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+      <input
+        type={visible ? "text" : "password"}
+        autoComplete="off"
+        disabled={readOnly}
+        value={String(value ?? "")}
+        onChange={(event) => onChange(event.target.value)}
+        style={style}
+      />
+      {!readOnly && (
+        <button
+          type="button"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? L("Hide sensitive value", "Ocultar valor confidencial") : L("Show sensitive value", "Mostrar valor confidencial")}
+          style={{ minWidth: 58, padding: "0 9px", border: "1px solid #cbd5e1", borderRadius: 6, background: "white", fontSize: 11.5, cursor: "pointer" }}
+        >
+          {visible ? L("Hide", "Ocultar") : L("Show", "Mostrar")}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // --- Field dispatcher ------------------------------------------------------
 
 function FieldControl({
@@ -211,6 +250,18 @@ function FieldControl({
 }) {
   const value = (formData as Record<string, unknown>)[field.id];
   const input: React.CSSProperties = { padding: "7px 9px", border: "1px solid var(--border, #cbd5e1)", borderRadius: 6, fontSize: 13, width: "100%", background: readOnly ? "#f8fafc" : "white" };
+
+  if (field.sensitive) {
+    return (
+      <SensitiveTextInput
+        value={value}
+        lang={lang}
+        readOnly={readOnly}
+        style={input}
+        onChange={(next) => onChange(field.id, next)}
+      />
+    );
+  }
 
   switch (field.type) {
     case "heading":
@@ -279,7 +330,7 @@ function FieldControl({
       );
     case "number":
     case "currency":
-      return <input type="number" disabled={readOnly} value={value === undefined || value === null ? "" : String(value)} onChange={(e) => onChange(field.id, e.target.value === "" ? "" : Number(e.target.value))} style={input} placeholder={field.type === "currency" ? "$" : undefined} />;
+      return <input type="number" min={field.validation?.find((rule) => rule.type === "number_min")?.param} disabled={readOnly} value={value === undefined || value === null ? "" : String(value)} onChange={(e) => onChange(field.id, e.target.value === "" ? "" : Number(e.target.value))} style={input} placeholder={field.type === "currency" ? "$" : undefined} />;
     case "date":
       return <input type="date" disabled={readOnly} value={String(value ?? "")} onChange={(e) => onChange(field.id, e.target.value)} style={input} />;
     case "email":

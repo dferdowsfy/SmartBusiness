@@ -20,6 +20,7 @@ import { GovernmentSubmissionPanel } from "../submission/GovernmentSubmissionPan
 import { governmentFeeText } from "../submission/pr.ts";
 import { validateForm, type FieldError } from "./formValidation.ts";
 import { prefillFromCanonical, writeBackToCanonical } from "./canonicalMapping.ts";
+import { persistableFormData } from "./formDataPrivacy.ts";
 import { buildGeneratedApplication } from "./application.ts";
 import { generatePreparationPdf } from "./pdfGenerator.ts";
 import { getTemplate, isOfficialArtifact } from "../artifacts/catalog.ts";
@@ -113,7 +114,7 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
   // and the download button. Without this the download would either fire its
   // own duplicate request or — worse — proceed with no official PDF at all.
   const pendingPopulation = useRef<{ key: string; promise: Promise<PopulatedArtifact> } | null>(null);
-  const populationKey = `${definition.officialFormNumber}:${JSON.stringify(canonical)}`;
+  const populationKey = `${definition.officialFormNumber}:${JSON.stringify(canonical)}:${JSON.stringify(data)}`;
 
   const requestOfficialPdf = useCallback((): Promise<PopulatedArtifact> => {
     const cached = pendingPopulation.current;
@@ -122,7 +123,7 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
       const res = await fetch(`/api/forms/artifacts/${definition.officialFormNumber}/populate`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ profile: canonical }),
+        body: JSON.stringify({ profile: canonical, formData: data }),
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}) as { error?: string });
@@ -141,7 +142,7 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
     });
     pendingPopulation.current = { key: populationKey, promise };
     return promise;
-  }, [populationKey, definition.officialFormNumber, canonical]);
+  }, [populationKey, definition.officialFormNumber, canonical, data]);
 
   // Warmed for every mode that offers a download — including "review", where
   // the download button is on screen but no preview is. Fetching only in
@@ -183,18 +184,34 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
   const showSubmissionPanel = mode === "ready" || (mode === "view" && !!existingApplicationId);
 
   const setField = (fieldId: string, value: unknown) => {
+    draftDirty.current = true;
     setData((prev) => ({ ...prev, [fieldId]: value as never }));
   };
 
-  const persistCanonical = () => {
+  const persistCanonical = useCallback(() => {
     const { canonical: updated, changedKeys } = writeBackToCanonical(definition, data, canonical);
     if (changedKeys.length > 0) onCanonicalChange(updated, changedKeys);
     return updated;
-  };
+  }, [definition, data, canonical, onCanonicalChange]);
 
-  const handleSaveDraft = () => {
+  const draftDirty = useRef(false);
+  const saveDraft = useCallback(() => {
+    draftDirty.current = false;
     persistCanonical();
-    onSaveDraft(definition.id, data);
+    onSaveDraft(definition.id, persistableFormData(definition, data));
+  }, [persistCanonical, onSaveDraft, definition, data]);
+
+  // All worksheet answers autosave. Transient taxpayer identifiers are
+  // removed before this callback reaches the workflow snapshot.
+  useEffect(() => {
+    if (!draftDirty.current || mode === "view" || mode === "ready") return;
+    const timer = window.setTimeout(saveDraft, 650);
+    return () => window.clearTimeout(timer);
+  }, [data, mode, saveDraft]);
+
+  const handleClose = () => {
+    if (draftDirty.current && mode !== "view") saveDraft();
+    onClose();
   };
 
   const handleComplete = () => {
@@ -206,7 +223,8 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
     }
     setErrors([]);
     const updated = persistCanonical();
-    const app = buildGeneratedApplication(definition, data, updated, { id: existingApplicationId, status: "prepared", lang });
+    const durableData = persistableFormData(definition, data);
+    const app = buildGeneratedApplication(definition, durableData, updated, { id: existingApplicationId, status: "prepared", lang });
     // Hold the built application and hand off to the preview step — it is
     // NOT added to deliverables yet. That happens only in handleConfirmSave,
     // once the applicant has actually seen the produced document.
@@ -216,7 +234,7 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
 
   const handleConfirmSave = () => {
     if (!pendingApp) return;
-    onComplete(pendingApp.app, pendingApp.data);
+    onComplete(pendingApp.app, persistableFormData(definition, pendingApp.data));
     setPendingApp(null);
     onClose();
   };
@@ -400,18 +418,17 @@ export function GovernmentFormModal(props: GovernmentFormModalProps) {
             </div>
           ) : readOnly ? (
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button type="button" onClick={onClose} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>{L("Close", "Cerrar")}</button>
+              <button type="button" onClick={handleClose} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "1px solid #cbd5e1", background: "white", cursor: "pointer" }}>{L("Close", "Cerrar")}</button>
               <button type="button" onClick={() => setMode("edit")} style={{ fontSize: 13, padding: "8px 14px", borderRadius: 8, border: "none", background: "var(--brand-1, #0a2540)", color: "white", cursor: "pointer" }}>{L("Edit Form", "Editar formulario")}</button>
             </div>
           ) : (
             <GovernmentFormActions
               lang={lang}
               mode={mode === "review" ? "review" : "edit"}
-              onSaveDraft={handleSaveDraft}
               onReview={() => setMode("review")}
               onBackToEdit={() => setMode("edit")}
               onComplete={handleComplete}
-              onClose={onClose}
+              onClose={handleClose}
             />
           )}
         </div>
