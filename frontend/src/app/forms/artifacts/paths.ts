@@ -4,16 +4,11 @@
 // ============================================================================
 
 import { createHash } from "node:crypto";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
-
-/** Repository root. Overridable so a deployment can relocate the library. */
+/** Frontend service root. Overridable so a deployment can relocate the library. */
 export function repoRoot(): string {
-  return process.env.SMARTPR_REPO_ROOT
-    ? resolve(process.env.SMARTPR_REPO_ROOT)
-    : resolve(here, "..", "..", "..", "..", "..");
+  return process.env.SMARTPR_REPO_ROOT ? resolve(process.env.SMARTPR_REPO_ROOT) : process.cwd();
 }
 
 /** Directory holding the untouched original government files. */
