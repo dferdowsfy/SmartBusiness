@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   Building2,
@@ -227,11 +227,32 @@ export function FilingWorkflowShell({
   children,
 }: FilingWorkflowShellProps) {
   const [compact, setCompact] = useState(false);
+  const compactRef = useRef(false);
   useEffect(() => {
-    const onScroll = () => setCompact(window.scrollY > 28);
-    onScroll();
+    let frame: number | null = null;
+    const updateCompactState = () => {
+      frame = null;
+      const enterThreshold = window.innerWidth <= 640 ? 180 : 96;
+      const exitThreshold = 12;
+      const nextCompact = compactRef.current
+        ? window.scrollY > exitThreshold
+        : window.scrollY > enterThreshold;
+      if (nextCompact === compactRef.current) return;
+      compactRef.current = nextCompact;
+      setCompact(nextCompact);
+    };
+    const onScroll = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(updateCompactState);
+    };
+    updateCompactState();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+    };
   }, []);
 
   const displayName = businessName && businessName.trim() && businessName !== "Untitled business"

@@ -1096,6 +1096,8 @@ export default function SmartPRIntake() {
     import_export: null,
   });
   const [discoveryAnswers, setDiscoveryAnswers] = useState<Record<string, any>>({});
+  const discoveryAnswersRef = useRef(discoveryAnswers);
+  discoveryAnswersRef.current = discoveryAnswers;
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [uploadedDocs, setUploadedDocs] = useState<any[]>([]);
   const [sampleFormDrafts, setSampleFormDrafts] = useState<Record<string, SampleFormData>>({});
@@ -1543,12 +1545,17 @@ export default function SmartPRIntake() {
     if (profile.business_type) {
       // Pre-answered questions STAY in the list so progress totals stay honest
       // and they can be shown as completed; the flow just advances past them.
+      // Rebuilding this list when the KB finishes loading must not restart the
+      // wizard and ask the same manually answered questions a second time.
       const list = filterQuestionsByContext(
         getQuestionsForBusinessType(profile.business_type),
         profile.location_type
       );
       setQuestionList(list);
-      setCurrentQuestionIndex(0);
+      const firstUnanswered = list.findIndex(
+        (question) => discoveryAnswersRef.current[question.id] === undefined
+      );
+      setCurrentQuestionIndex(firstUnanswered >= 0 ? firstUnanswered : list.length);
     } else {
       setQuestionList([]);
       setCurrentQuestionIndex(0);
