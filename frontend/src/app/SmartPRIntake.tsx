@@ -45,7 +45,7 @@ import { requirementFormState, actionsForFormState } from './forms/engine/applic
 import { generatePreparationPdf } from './forms/engine/pdfGenerator';
 import { getTemplate, isOfficialArtifact } from './forms/artifacts/catalog';
 import { entityTypeRequirements, exclusiveFormationRequirements, type MinimalRequirement } from './forms/engine/requirementAugment';
-import type { CanonicalApplicationData, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
+import type { CanonicalApplicationData, EntityType, FormData as GovFormData, GeneratedApplication } from './forms/engine/types';
 import {
   FilingWorkflowShell,
   type FilingStage,
@@ -865,21 +865,12 @@ function resolveFactsFor(
 
 // Core compute logic - matches the approved rules engine design + seed data
 // Updated to use the new Step 1 fields (location_type, food_prepared_or_sold, alcohol_sold, professional_licenses_required, etc.)
-function computeRequirements(
-  profile: BusinessProfile,
-  answers: Record<string, any>,
-  potentialDecisions: Record<string, PotentialDecision> = {}
+function normalizeEntityFormationRequirements(
+  entityType: EntityType,
+  existing: Requirement[]
 ): Requirement[] {
-  const entityType = entityTypeFromLegacyStructure(profile.business_structure);
-  const fromKb = computeRequirementsFromKB(
-    profile as any,
-    answers,
-    resolveFactsFor(profile, answers).questionValues,
-    { entityType, potentialDecisions }
-  ) as Requirement[];
-
   const canonical = { business: { entityType } } as CanonicalApplicationData;
-  const withoutWrongFormation = exclusiveFormationRequirements<Requirement>(canonical, fromKb);
+  const withoutWrongFormation = exclusiveFormationRequirements<Requirement>(canonical, existing);
   const augments = entityTypeRequirements<Requirement>(
     canonical,
     withoutWrongFormation,
@@ -901,6 +892,22 @@ function computeRequirements(
       }) as Requirement
   );
   return exclusiveFormationRequirements(canonical, [...withoutWrongFormation, ...augments]);
+}
+
+function computeRequirements(
+  profile: BusinessProfile,
+  answers: Record<string, any>,
+  potentialDecisions: Record<string, PotentialDecision> = {}
+): Requirement[] {
+  const entityType = entityTypeFromLegacyStructure(profile.business_structure);
+  const fromKb = computeRequirementsFromKB(
+    profile as any,
+    answers,
+    resolveFactsFor(profile, answers).questionValues,
+    { entityType, potentialDecisions }
+  ) as Requirement[];
+
+  return normalizeEntityFormationRequirements(entityType, fromKb);
 }
 
 // Advisory historical insights shape (from /api/graph/similar).
@@ -3237,8 +3244,24 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     return base;
   }, [profile.name, profile.business_structure, profile.municipality, profile.number_of_employees, canonicalOverride]);
 
-  // Requirement ids currently present (from the rules engine output) plus the
-  // additive entity-type requirements (foreign corp / LLP registration).
+  // Older snapshots may predate entity-specific formation requirements, and a
+  // user can also change the entity type after requirements were computed.
+  // Repair only those deterministic formation rows, leaving the rest of the
+  // rules-engine result untouched.
+  useEffect(() => {
+    if (!profile.business_structure || requirements.length === 0) return;
+    const entityType = entityTypeFromLegacyStructure(profile.business_structure);
+    setRequirements((current) => {
+      const normalized = normalizeEntityFormationRequirements(entityType, current);
+      const unchanged =
+        normalized.length === current.length &&
+        normalized.every((requirement, index) => requirement === current[index]);
+      return unchanged ? current : normalized;
+    });
+  }, [profile.business_structure, requirements.length]);
+
+  // Requirement ids currently present (from the rules engine output) plus any
+  // deterministic entity-type formation requirements.
   const presentRequirementIds = useMemo(() => {
     const ids = new Set<string>();
     for (const r of requirements) if (r.document_id) ids.add(r.document_id);

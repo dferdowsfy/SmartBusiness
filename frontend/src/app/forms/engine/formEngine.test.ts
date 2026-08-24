@@ -271,6 +271,28 @@ test("registry gate: every displayable entry is extracted_from_official_pdf, nev
   }
 });
 
+test("entity-type augmentation restores the applicable corporation formation requirement", () => {
+  for (const entityType of [
+    "stock_corporation",
+    "nonprofit_nonstock_corporation",
+    "close_corporation",
+    "professional_corporation",
+  ] as const) {
+    const augments = entityTypeRequirements(canonical({ entityType }), [], (d) => d);
+    assert.ok(
+      augments.some((r) => r.document_id === "DOC_CERT_INCORPORATION"),
+      `${entityType} should receive its Certificate of Incorporation requirement`
+    );
+  }
+
+  const noDuplicate = entityTypeRequirements(
+    canonical({ entityType: "stock_corporation" }),
+    [{ document_id: "DOC_CERT_INCORPORATION" }],
+    (d) => ({ document_id: d.document_id })
+  );
+  assert.equal(noDuplicate.length, 0);
+});
+
 test("entity-type augmentation adds foreign/LLP requirements additively", () => {
   const foreign = canonical({ formationStatus: "formed_outside_puerto_rico" });
   const augF = entityTypeRequirements(foreign, [], (d) => d);

@@ -30,6 +30,13 @@ interface AugmentDef {
 
 const AUGMENTS: AugmentDef[] = [
   {
+    document_id: "DOC_CERT_INCORPORATION",
+    code: "certificate_of_incorporation",
+    name: "Certificate of Incorporation",
+    reason: "Entity type is a Puerto Rico corporation, which forms by filing the applicable Certificate of Incorporation.",
+    applies: (c) => CORPORATION_TYPES.has(c.business.entityType),
+  },
+  {
     document_id: "DOC_FOREIGN_CORPORATION_AUTHORIZATION",
     code: "foreign_corporation_authorization",
     name: "Certificate of Authorization to Do Business (Foreign Corporation)",
@@ -64,7 +71,7 @@ const CORPORATION_TYPES = new Set([
 ]);
 
 /**
- * Return additive requirements implied by the canonical entity type.
+ * Return formation requirements implied by the canonical entity type.
  * LLC formation is mutually exclusive with Certificate of Incorporation:
  * callers must also drop DOC_CERT_INCORPORATION for an LLC (see
  * applyEntityFormationExclusivity). Foreign-corp and LLP remain additive.
