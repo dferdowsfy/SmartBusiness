@@ -1570,10 +1570,11 @@ export default function SmartPRIntake() {
   // or because the relationship resolver derived it with certainty. A known
   // answer is never asked again, anywhere in the intake.
   //
-  // Note what is NOT suppressed: a question the user answered by hand here
-  // stays visible so Back can return to it.
+  // Manual answers remain part of the guided-question total, but forward
+  // navigation skips them. Back explicitly removes the prior answer before
+  // reopening that question, so recorded answers are never asked twice.
   // ==========================================================================
-  const isQuestionSuppressed = React.useCallback(
+  const isQuestionPreAnswered = React.useCallback(
     (wizardKey: string): boolean => {
       if (aiPrefilledKeys.includes(wizardKey)) return true;
       if (discoveryAnswers[wizardKey] !== undefined) return false;
@@ -1583,24 +1584,27 @@ export default function SmartPRIntake() {
     [aiPrefilledKeys, discoveryAnswers, intakeFacts]
   );
 
-  /** First question at or after `start` that SmartPR still needs an answer to. */
-  const nextOpenQuestion = React.useCallback(
+  /** First eligible, unanswered question at or after `start`. */
+  const nextUnansweredQuestion = React.useCallback(
     (start: number): number => {
       for (let i = Math.max(0, start); i < questionList.length; i++) {
-        if (!isQuestionSuppressed(questionList[i].id)) return i;
+        const questionId = questionList[i].id;
+        if (!isQuestionPreAnswered(questionId) && discoveryAnswers[questionId] === undefined) return i;
       }
       return questionList.length;
     },
-    [questionList, isQuestionSuppressed]
+    [questionList, isQuestionPreAnswered, discoveryAnswers]
   );
 
-  // The question actually on screen. Resolved questions are stepped over here
-  // rather than by mutating the index, so Back and Forward cannot fight.
-  const activeQuestionIndex = nextOpenQuestion(currentQuestionIndex);
-  const openQuestions = questionList.filter((q) => !isQuestionSuppressed(q.id));
-  const openQuestionsAnswered = questionList
-    .slice(0, activeQuestionIndex)
-    .filter((q) => !isQuestionSuppressed(q.id)).length;
+  // The stable guided set excludes answers SmartPR already knew, but retains
+  // questions answered by the user so totals do not shrink while progressing.
+  const activeQuestionIndex = nextUnansweredQuestion(currentQuestionIndex);
+  const guidedQuestions = questionList.filter((q) => !isQuestionPreAnswered(q.id));
+  const guidedQuestionsAnswered = guidedQuestions
+    .filter((q) => discoveryAnswers[q.id] !== undefined).length;
+  const activeGuidedQuestionNumber = activeQuestionIndex < questionList.length
+    ? guidedQuestions.findIndex((q) => q.id === questionList[activeQuestionIndex].id) + 1
+    : guidedQuestions.length;
 
   const handleQuestionAnswer = (yes: boolean) => {
     const q = questionList[activeQuestionIndex];
@@ -1646,8 +1650,8 @@ export default function SmartPRIntake() {
     }
 
     setDiscoveryAnswers(prev => ({ ...prev, [q.id]: yes }));
-    // Advance past the question just answered. Anything this answer makes
-    // certain is skipped by `nextOpenQuestion` on the next render.
+    // Advance past the question just answered. Recorded and derived answers
+    // are skipped by `nextUnansweredQuestion` on the next render.
     setCurrentQuestionIndex(activeQuestionIndex + 1);
   };
 
@@ -3159,9 +3163,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // Totals count only questions SmartPR still needs. A question it can already
   // answer is not work the user has to do, so it must not inflate the progress
   // denominator either.
-  const intakeQuestionTotal = openQuestions.length + potentialItems.length;
+  const intakeQuestionTotal = guidedQuestions.length + potentialItems.length;
   const intakeTotal = 5 + intakeQuestionTotal;
-  const intakeDone = intakeFieldsDone + openQuestionsAnswered + answeredPotentialCount;
+  const intakeDone = intakeFieldsDone + guidedQuestionsAnswered + answeredPotentialCount;
   const intakePct = Math.round((intakeDone / Math.max(1, intakeTotal)) * 100);
   const baseProfileReady = Boolean(profile.name && profile.municipality && profile.industry && profile.business_type && profile.location_type);
   const intakeDisplayTotal = Math.max(7, intakeTotal);
@@ -3451,18 +3455,29 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     : -1;
   const intakeQuestionsComplete = activeQuestionIndex >= questionList.length
     && answeredPotentialCount === potentialItems.length;
-  const canGoBackInIntake = openQuestionsAnswered > 0 || answeredPotentialCount > 0;
-  /** Last question before `start` that the user actually answered here. */
-  const previousOpenQuestion = (start: number): number => {
+  const canGoBackInIntake = guidedQuestionsAnswered > 0 || answeredPotentialCount > 0;
+  /** Last guided question before `start` that has a recorded manual answer. */
+  const previousAnsweredQuestion = (start: number): number => {
     for (let i = Math.min(start, questionList.length) - 1; i >= 0; i--) {
-      if (!isQuestionSuppressed(questionList[i].id)) return i;
+      const questionId = questionList[i].id;
+      if (!isQuestionPreAnswered(questionId) && discoveryAnswers[questionId] !== undefined) return i;
     }
     return -1;
   };
+  const reopenManualQuestion = (index: number) => {
+    const questionId = questionList[index]?.id;
+    if (!questionId) return;
+    setDiscoveryAnswers((previous) => {
+      const next = { ...previous };
+      delete next[questionId];
+      return next;
+    });
+    setCurrentQuestionIndex(index);
+  };
   const handleIntakeBack = () => {
     if (activeQuestionIndex < questionList.length) {
-      const previous = previousOpenQuestion(activeQuestionIndex);
-      if (previous >= 0) setCurrentQuestionIndex(previous);
+      const previous = previousAnsweredQuestion(activeQuestionIndex);
+      if (previous >= 0) reopenManualQuestion(previous);
       return;
     }
 
@@ -3478,8 +3493,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       return;
     }
 
-    const lastOpen = previousOpenQuestion(questionList.length);
-    if (lastOpen >= 0) setCurrentQuestionIndex(lastOpen);
+    const lastAnswered = previousAnsweredQuestion(questionList.length);
+    if (lastAnswered >= 0) reopenManualQuestion(lastAnswered);
   };
 
   const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
@@ -3571,7 +3586,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       { value: liveFacts, label: language === 'es' ? 'Hechos confirmados' : 'Facts understood', emphasis: true },
       { value: liveRequired, label: language === 'es' ? 'Requisitos por reglas' : 'Determined by rules', emphasis: liveRequired > 0 },
       { value: liveConditional, label: language === 'es' ? 'Por verificar' : 'Need verification' },
-      { value: Math.max(0, intakeQuestionTotal - openQuestionsAnswered - answeredPotentialCount), label: language === 'es' ? 'Hechos pendientes' : 'Facts still needed' },
+      { value: Math.max(0, intakeQuestionTotal - guidedQuestionsAnswered - answeredPotentialCount), label: language === 'es' ? 'Hechos pendientes' : 'Facts still needed' },
     ],
     agencies: liveAgencies,
     signals: intelligenceSignals,
@@ -3874,7 +3889,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
               {currentQuestion && (
                 <div className="spr-follow-up">
-                  <div className="spr-kicker">{L('Question', language)} {openQuestionsAnswered + 1} {L('of', language)} {intakeQuestionTotal}</div>
+                  <div className="spr-kicker">{L('Question', language)} {activeGuidedQuestionNumber} {L('of', language)} {intakeQuestionTotal}</div>
                   <h2>{L(currentQuestion.text, language)}</h2>
                   <div className="spr-answer-row">
                     <button onClick={() => handleQuestionAnswer(true)}><CheckCircle className="i" /> {t('yes')}</button>
@@ -3886,7 +3901,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               {currentPotentialQuestion && (
                 <div className="spr-follow-up">
                   <div className="spr-kicker">
-                    {L('Question', language)} {openQuestions.length + currentPotentialQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}
+                    {L('Question', language)} {guidedQuestions.length + currentPotentialQuestionIndex + 1} {L('of', language)} {intakeQuestionTotal}
                   </div>
                   <h2>{L(currentPotentialQuestion.followUp, language)}</h2>
                   <p className="spr-question-context">
