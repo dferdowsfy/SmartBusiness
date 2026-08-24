@@ -3313,7 +3313,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               : req.mandatory ? L('Required', language)
               : L('Optional', language)}
           </span>
-          {req.source_rule && <span className="tag">{req.source_rule}</span>}
         </div>
         <div className="req-actions-stack">
           {(() => {
