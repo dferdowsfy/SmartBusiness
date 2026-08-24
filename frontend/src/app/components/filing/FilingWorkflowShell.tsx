@@ -9,14 +9,11 @@ import {
   CheckCircle2,
   ChevronDown,
   CircleHelp,
-  LoaderCircle,
-  Save,
   Sparkles,
 } from "lucide-react";
 import { TopNav } from "../../history/ui";
 
 export type FilingStage = "intake" | "requirements" | "documents" | "deliverables";
-export type SaveState = "idle" | "saving" | "saved" | "error";
 
 export interface LiveMetric {
   label: string;
@@ -50,11 +47,9 @@ interface FilingWorkflowShellProps {
   matterStatus: string;
   stage: FilingStage;
   availableStages: FilingStage[];
-  saveState: SaveState;
   language: "en" | "es";
   onLanguageChange: (language: "en" | "es") => void;
   onStageChange: (stage: FilingStage) => void;
-  onSaveExit: () => void;
   intelligence: SmartPRLiveData;
   children: ReactNode;
 }
@@ -218,11 +213,9 @@ export function FilingWorkflowShell({
   matterStatus,
   stage,
   availableStages,
-  saveState,
   language,
   onLanguageChange,
   onStageChange,
-  onSaveExit,
   intelligence,
   children,
 }: FilingWorkflowShellProps) {
@@ -260,14 +253,8 @@ export function FilingWorkflowShell({
     : language === "es" ? "Negocio nuevo" : "New Business";
   const labels = language === "es" ? {
     profile: "Perfil del negocio",
-    saving: "Guardando…",
-    retry: "Reintentar guardado",
-    saveExit: "Guardar y salir",
   } : {
     profile: "Business profile",
-    saving: "Saving…",
-    retry: "Retry save",
-    saveExit: "Save & Exit",
   };
 
   const actions = (
@@ -277,10 +264,6 @@ export function FilingWorkflowShell({
         <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => onLanguageChange("en")}>EN</button>
         <button type="button" className={language === "es" ? "active" : ""} aria-pressed={language === "es"} onClick={() => onLanguageChange("es")}>ES</button>
       </div>
-      <button type="button" className="spr-save-exit" onClick={onSaveExit} disabled={saveState === "saving"}>
-        {saveState === "saving" ? <LoaderCircle className="spr-spin" size={16} /> : <Save size={16} />}
-        {saveState === "saving" ? labels.saving : saveState === "error" ? labels.retry : labels.saveExit}
-      </button>
     </div>
   );
 

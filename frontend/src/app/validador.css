@@ -1751,24 +1751,6 @@ button { font-family: inherit; }
   cursor: pointer;
 }
 .spr-context-language button.active { background: #fff; color: var(--spr-shell-navy); box-shadow: 0 1px 4px rgba(15, 35, 50, .1); }
-.spr-save-exit {
-  min-height: 44px;
-  padding: 0 15px;
-  border: 1px solid #245c5c;
-  border-radius: 10px;
-  background: #245c5c;
-  color: #f6f3ea;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-.spr-save-exit:hover:not(:disabled) { background: #1b4747; }
-.spr-save-exit:disabled { opacity: .7; cursor: wait; }
 
 .spr-workflow-stepper {
   max-width: 1440px;
@@ -2004,7 +1986,7 @@ button { font-family: inherit; }
   .spr-stepper-bar .spr-matter-actions {
     grid-row: 2;
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding-bottom: 0;
   }
   .spr-filing-sticky.compact .spr-stepper-bar .spr-context-language { display: none; }
@@ -2012,8 +1994,7 @@ button { font-family: inherit; }
   .spr-matter-name-row { align-items: flex-start; flex-direction: column; gap: 4px; }
   .spr-matter-name-row h1 { max-width: calc(100vw - 82px); font-size: 17px; }
   .spr-business-profile-link { display: none; }
-  .spr-context-language { justify-self: start; }
-  .spr-save-exit { min-height: 38px; padding-inline: 12px; }
+  .spr-context-language { justify-self: end; }
   .spr-workflow-step-wrap { position: relative; display: block; min-width: 0; }
   .spr-workflow-step { position: relative; z-index: 1; width: 100%; padding: 4px 2px; flex-direction: column; gap: 4px; font-size: 9px; }
   .spr-workflow-step-icon { width: 22px; height: 22px; }

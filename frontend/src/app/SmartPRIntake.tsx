@@ -53,7 +53,6 @@ import {
 } from './components/filing/FilingWorkflowShell';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
-import { GUEST_INTAKE } from '../lib/safeNext';
 import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, Upload, FileText,
@@ -1018,61 +1017,6 @@ function ExtractionPanel({ ext, docType, language }: { ext: ExtractionResult; do
   );
 }
 
-// Save Progress + Email Capture panel. Signed-in users save directly; anonymous
-// users provide an email so they can claim this submission on later sign-in.
-function SaveProgressPanel({ me, saveState, setSaveState, claimEmail, setClaimEmail, onSave, language }: {
-  me: { id: string; email: string | null; name: string | null } | null | undefined;
-  saveState: 'idle' | 'saving' | 'saved' | 'error';
-  setSaveState: (s: 'idle' | 'saving' | 'saved' | 'error') => void;
-  claimEmail: string; setClaimEmail: (v: string) => void;
-  onSave: () => void; language: any;
-}) {
-  // While we haven't loaded /api/me yet, render nothing to avoid a flash.
-  if (me === undefined) return null;
-
-  if (me) {
-    return (
-      <div className="mt-4 p-4 bg-[#f4f1ea] border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-semibold text-[#161616]">{L('Save Progress', language)}</div>
-          <div className="text-xs text-[#161616]/60">{L('Saved to your account — resume from History any time.', language)}</div>
-        </div>
-        <button onClick={onSave} disabled={saveState === 'saving'}
-          className="bg-[#161616] text-white rounded-full px-5 py-2 text-sm font-medium disabled:opacity-50">
-          {saveState === 'saving' ? L('Saving…', language)
-           : saveState === 'saved' ? `✓ ${L('Saved', language)}`
-           : saveState === 'error' ? L('Retry', language)
-           : L('Save Progress', language)}
-        </button>
-      </div>
-    );
-  }
-
-  // Anonymous: capture email so they can claim this submission later.
-  return (
-    <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-      <div className="text-sm font-semibold text-amber-900">{L('Save this submission', language)}</div>
-      <div className="text-xs text-amber-800/80 mt-0.5 mb-3">
-        {L('Enter your email and we will save this assessment to your account when you sign in.', language)}
-      </div>
-      <div className="flex flex-col sm:flex-row gap-2">
-        <input type="email" value={claimEmail} onChange={(e) => { setClaimEmail(e.target.value); setSaveState('idle'); }}
-          placeholder="you@business.com"
-          className="flex-1 border border-amber-300 rounded-lg px-3 py-2 text-sm bg-white" />
-        <button onClick={onSave} disabled={!claimEmail || saveState === 'saving'}
-          className="bg-amber-600 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
-          {saveState === 'saving' ? L('Saving…', language)
-           : saveState === 'saved' ? `✓ ${L('Saved', language)}`
-           : L('Save', language)}
-        </button>
-        <a href={`/auth/login?next=${encodeURIComponent('/?entry=new-business')}`} className="bg-[#161616] text-white rounded-lg px-4 py-2 text-sm font-medium text-center">
-          {L('Sign in', language)}
-        </a>
-      </div>
-    </div>
-  );
-}
-
 export default function SmartPRIntake() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [profile, setProfile] = useState<BusinessProfile>({
@@ -1141,8 +1085,6 @@ export default function SmartPRIntake() {
   // matter remain valid; new portfolio entry points always provide one.
   const matterIdRef = useRef<string | null>(null);
   const formationStartAttemptedRef = useRef(false);
-  // For anonymous users: email used to claim this submission on later sign-in.
-  const [claimEmail, setClaimEmail] = useState<string>('');
   // Signed-in user (null when anonymous, undefined while loading).
   const [me, setMe] = useState<{
     id: string;
@@ -1152,8 +1094,13 @@ export default function SmartPRIntake() {
     isAdmin?: boolean;
   } | null | undefined>(undefined);
   const guestRestoredRef = useRef(false);
-  // Save Progress state for user feedback.
+  // Internal autosave state drives the matter status; persistence never
+  // requires a user-facing save or retry action.
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveResetTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (saveResetTimerRef.current !== null) window.clearTimeout(saveResetTimerRef.current);
+  }, []);
   // Advisory historical recommendations (never mandatory; rules stay authoritative).
   const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
   // User decisions on flag-derived "Potentially Required" items.
@@ -1288,7 +1235,8 @@ export default function SmartPRIntake() {
         params.set('matter', created.matter_id);
         window.history.replaceState(null, '', `/?${params.toString()}`);
       } catch {
-        // Intake remains usable; Save Progress will surface persistence errors.
+        // Intake remains usable and matter creation will be attempted again on
+        // the next fresh entry; guest progress continues saving on-device.
       }
     })();
   }, [me]);
@@ -1835,7 +1783,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         business_name: p.name || null,
         business_id: businessIdRef.current || null,
         matter_id: matterIdRef.current || null,
-        claim_email: claimEmail || null,
+        claim_email: null,
         answers: capturedAnswers,
         requirements: capturedReqs,
       });
@@ -1844,8 +1792,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
   };
 
-  // Re-emit the current submission to capture (with claim_email if anonymous),
-  // and store a workflow snapshot if signed in so resume restores exact state.
+  // Re-emit the current submission and store a workflow snapshot if signed in
+  // so resume restores exact state.
   const saveProgress = async (): Promise<boolean> => {
     setSaveState('saving');
     try {
@@ -1866,23 +1814,28 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             },
           }),
         })];
-        if (businessIdRef.current) {
+        const businessPatch = {
+          legal_name: profile.name || undefined,
+          business_structure: profile.business_structure || undefined,
+          business_type: profile.business_type || undefined,
+          industry: profile.industry || undefined,
+          municipality: profile.municipality || undefined,
+        };
+        // A brand-new intake has no business fields yet. Sending an empty PATCH
+        // returns 400 and used to mark an otherwise successful snapshot save as
+        // failed.
+        if (businessIdRef.current && Object.values(businessPatch).some(Boolean)) {
           writes.push(fetch(`/api/businesses/${businessIdRef.current}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              legal_name: profile.name || undefined,
-              business_structure: profile.business_structure || undefined,
-              business_type: profile.business_type || undefined,
-              industry: profile.industry || undefined,
-              municipality: profile.municipality || undefined,
-            }),
+            body: JSON.stringify(businessPatch),
           }));
         }
         const responses = await Promise.all(writes);
         if (responses.some((response) => !response.ok)) throw new Error('Could not persist filing progress.');
       }
       setSaveState('saved');
-      setTimeout(() => setSaveState('idle'), 3500);
+      if (saveResetTimerRef.current !== null) window.clearTimeout(saveResetTimerRef.current);
+      saveResetTimerRef.current = window.setTimeout(() => setSaveState('idle'), 3500);
       return true;
     } catch {
       setSaveState('error');
@@ -1890,23 +1843,29 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     }
   };
 
-  const handleSaveAndExit = async () => {
-    const saved = await saveProgress();
-    if (!saved) return;
-    if (me && businessIdRef.current) {
-      window.location.assign(`/businesses/${businessIdRef.current}`);
-      return;
-    }
-    window.location.assign(me ? '/dashboard' : GUEST_INTAKE);
-  };
-
   // A filing is a persistent Matter, not a temporary wizard. Debounce writes
-  // while the signed-in user types so leaving and resuming restores the latest
-  // meaningful state without issuing a request on every keystroke.
+  // while the signed-in user types. Failed writes retry automatically with
+  // capped exponential backoff; saving never depends on a manual button.
   useEffect(() => {
     if (!me || !businessId || !matterIdRef.current) return;
-    const timer = window.setTimeout(() => { void saveProgress(); }, 1200);
-    return () => window.clearTimeout(timer);
+    let cancelled = false;
+    let retryTimer: number | null = null;
+    let attempts = 0;
+
+    const persist = async () => {
+      const saved = await saveProgress();
+      if (saved || cancelled) return;
+      const delay = Math.min(30_000, 1_500 * (2 ** attempts));
+      attempts += 1;
+      retryTimer = window.setTimeout(() => { void persist(); }, delay);
+    };
+
+    const debounceTimer = window.setTimeout(() => { void persist(); }, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(debounceTimer);
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+    };
     // saveProgress intentionally remains outside the dependency list: the
     // filing state below is the source of truth for when an autosave is due.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3710,11 +3669,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         matterStatus={matterStatus}
         stage={view}
         availableStages={availableStages}
-        saveState={saveState}
         language={language}
         onLanguageChange={setLanguage}
         onStageChange={goTo}
-        onSaveExit={() => { void handleSaveAndExit(); }}
         intelligence={stageIntelligence}
       >
 
@@ -4145,19 +4102,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Save & Resume — anonymous email-capture or signed-in save */}
-          {requirements.length > 0 && (
-            <SaveProgressPanel
-              me={me}
-              saveState={saveState}
-              setSaveState={setSaveState}
-              claimEmail={claimEmail}
-              setClaimEmail={setClaimEmail}
-              onSave={() => saveProgress()}
-              language={language}
-            />
           )}
 
           <div className="helpbar">
