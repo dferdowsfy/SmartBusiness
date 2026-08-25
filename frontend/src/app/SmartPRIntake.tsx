@@ -1211,6 +1211,38 @@ export default function SmartPRIntake() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('entry') !== 'new-business' || params.get('business')) return;
     formationStartAttemptedRef.current = true;
+    // This page is a single long-lived component reused across client-side
+    // navigations (e.g. from an existing business straight into "New
+    // Business" without a full page reload) — so a fresh entry must clear
+    // out whatever the previous business left behind. Otherwise the intake
+    // step and the SmartPR Live panel keep showing that business's answers,
+    // rule-engine results, and identified agencies as if they applied here.
+    setProfile((current) => ({ ...current, name: '', municipality: '', industry: '', business_type: '', location_type: '', business_structure: 'llc',
+      number_of_employees: null, number_of_vehicles: null, number_of_rental_units: null, customers_visit: null, food_prepared_or_sold: null,
+      alcohol_sold: null, professional_licenses_required: null, healthcare_services: null, hazardous_materials: null, employees_hired: null,
+      physical_location: null, products_manufactured: null, vehicles_used: null, commercial_signage: null, outdoor_seating: null,
+      live_entertainment: null, short_term_rental: null, medical_waste: null, import_export: null }));
+    setDiscoveryAnswers({});
+    setRequirements([]);
+    setPotentialDecisions({});
+    setFindings([]);
+    setReadinessScore(null);
+    setCanonicalOverride(null);
+    setUploadedDocs([]);
+    setSampleFormDrafts({});
+    setPreparedSampleApplications({});
+    setGovFormDrafts({});
+    setPreparedGovApplications({});
+    setCurrentQuestionIndex(0);
+    setAiPrefilledKeys([]);
+    setCurrentStep(1);
+    // Clear the previous business's identity too — otherwise the matter
+    // created below is correct, but anything that saves before it resolves
+    // (or reads businessIdRef in the meantime) could still target the old
+    // business's record instead of the new one.
+    businessIdRef.current = null;
+    matterIdRef.current = null;
+    setBusinessId(null);
     void (async () => {
       try {
         const response = await fetch('/api/matters', {
