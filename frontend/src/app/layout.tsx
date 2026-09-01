@@ -15,10 +15,29 @@ const display = Newsreader({
   variable: "--font-display",
 });
 
+const SITE_URL = "https://www.getsmartpr.com/";
+const SITE_TITLE = "SmartPR | Business in Puerto Rico, Simplified";
+const SITE_DESCRIPTION =
+  "Navigate business requirements, permits, licenses, compliance, and more — all in one place.";
+
 export const metadata: Metadata = {
-  title: "SmartPR — Puerto Rico Business Licensing & Permitting",
-  description:
-    "Understand and prepare the permits, licenses, forms and regulatory requirements needed to start and manage a business in Puerto Rico.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: SITE_URL,
+  },
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
