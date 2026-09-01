@@ -157,6 +157,7 @@ export default function MarketingLanding() {
             <a className={styles.ghost} href="#how-it-works">
               {c.seeHow}
             </a>
+            <span className={styles.heroWatermark} aria-hidden="true" />
           </div>
         </section>
 
