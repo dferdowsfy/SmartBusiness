@@ -209,25 +209,33 @@
   align-items: center;
   gap: 0.75rem;
   margin-top: 2.5rem;
+  width: fit-content;
+  max-width: 100%;
 }
 
-/* Decorative brand mark, faded into the page behind the row. Hidden on
-   narrow screens where the actions wrap into the space it occupies. */
+/* Decorative brand mark, faded into the page right next to the CTA row.
+   Hidden on narrow screens where the actions wrap into the space it needs. */
 .heroWatermark {
   display: none;
 }
 
 @media (min-width: 640px) {
+  /* Extra bottom room so the enlarged mark clears the section edge. */
+  .hero {
+    padding-bottom: 6.5rem;
+  }
+
   .heroWatermark {
     display: block;
     position: absolute;
-    right: 0;
+    left: 100%;
     top: 50%;
-    width: 11rem;
+    margin-left: 1rem;
+    width: 15rem;
     aspect-ratio: 600 / 560;
     transform: translateY(-50%);
     background: url("/brand/smartpr-mark.svg") center / contain no-repeat;
-    opacity: 0.055;
+    opacity: 0.06;
     pointer-events: none;
   }
 }
