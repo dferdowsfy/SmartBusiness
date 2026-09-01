@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 560" fill="none">
+  <defs>
+    <mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="560">
+      <g fill="#fff">
+        <!-- finial -->
+        <circle cx="420" cy="40" r="20"/>
+        <rect x="410" y="54" width="20" height="30"/>
+        <!-- dome -->
+        <path d="M330,178 C330,72 510,72 510,178 Z"/>
+        <!-- cornice ring -->
+        <rect x="316" y="176" width="208" height="30" rx="10"/>
+        <!-- tower body -->
+        <rect x="346" y="196" width="148" height="215"/>
+        <!-- rampart bar -->
+        <path d="M150,352 L352,294 L352,320 L150,378 Z"/>
+        <!-- fort mass -->
+        <path d="M10,472 L48,370 L62,366 L62,342 L84,342 L84,366 L106,366 L106,342 L128,342 L128,366 L176,354
+                 L352,312 L352,411 L494,411 L520,436 L578,458
+                 C500,508 420,486 320,494 C214,502 96,550 -14,516 Z"/>
+      </g>
+      <g fill="#000" stroke="#000">
+        <!-- dome highlight -->
+        <path d="M352,166 C366,108 430,88 478,104" fill="none" stroke-width="13" stroke-linecap="round"/>
+        <!-- line under cornice ring -->
+        <rect x="326" y="196" width="188" height="9" rx="4"/>
+        <!-- window slits -->
+        <rect x="372" y="240" width="23" height="80" rx="6"/>
+        <rect x="446" y="240" width="23" height="80" rx="6"/>
+        <!-- cream line along rampart top -->
+        <path d="M156,362 L348,306" fill="none" stroke-width="9" stroke-linecap="round"/>
+        <!-- wave ribbons -->
+        <path d="M-30,432 C90,478 200,410 300,398 C400,386 480,432 630,398" fill="none" stroke-width="26" stroke-linecap="round"/>
+        <path d="M-30,500 C110,548 230,472 330,460 C430,448 510,496 630,462" fill="none" stroke-width="24" stroke-linecap="round"/>
+      </g>
+    </mask>
+  </defs>
+  <rect width="600" height="560" fill="#245c5c" mask="url(#m)"/>
+</svg>

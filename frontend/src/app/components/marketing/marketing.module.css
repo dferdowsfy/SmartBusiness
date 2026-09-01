@@ -203,10 +203,33 @@
 }
 
 .heroActions {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.75rem;
   margin-top: 2.5rem;
+}
+
+/* Decorative brand mark, faded into the page behind the row. Hidden on
+   narrow screens where the actions wrap into the space it occupies. */
+.heroWatermark {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .heroWatermark {
+    display: block;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    width: 11rem;
+    aspect-ratio: 600 / 560;
+    transform: translateY(-50%);
+    background: url("/brand/smartpr-mark.svg") center / contain no-repeat;
+    opacity: 0.055;
+    pointer-events: none;
+  }
 }
 
 .heroActions .primary,
