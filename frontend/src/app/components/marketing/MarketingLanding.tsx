@@ -18,9 +18,10 @@ const copy = {
     started: "Sign up",
     privacy: "Privacy Policy",
     eyebrow: "Puerto Rico · Guided filing",
-    hero: "Know what it takes to open a business in Puerto Rico.",
+    hero: "Starting a business in Puerto Rico? We'll show you exactly what you need.",
     heroSub:
-      "Describe what you want to build. SmartPR maps the permits, licenses, agencies, documents and filing requirements you need — then helps prepare you to submit them.",
+      "Enter your business details and upload any documents you already have. SmartPR identifies the required permits, licenses, registrations, and supporting documents, flags what's missing, and prepares the official government forms for you.",
+    heroCta: "Start my application",
     seeHow: "See how it works",
     stepsTitle: "From uncertainty to submission-ready.",
     steps: [
@@ -52,6 +53,7 @@ const copy = {
     hero: "Sepa lo que toma abrir un negocio en Puerto Rico.",
     heroSub:
       "Describa lo que quiere construir. SmartPR identifica los permisos, licencias, agencias, documentos y requisitos de radicación — y le ayuda a prepararse para presentarlos.",
+    heroCta: "Registrarse",
     seeHow: "Vea cómo funciona",
     stepsTitle: "De la incertidumbre a estar listo para presentar.",
     steps: [
@@ -152,7 +154,7 @@ export default function MarketingLanding() {
           <p className={styles.heroLead}>{c.heroSub}</p>
           <div className={styles.heroActions}>
             <Link className={styles.primary} href="/?entry=new-business">
-              {c.started}
+              {c.heroCta}
             </Link>
             <a className={styles.ghost} href="#how-it-works">
               {c.seeHow}
