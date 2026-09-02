@@ -1,19 +1,24 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CheckCircle2, ChevronRight, Clock, ExternalLink, Upload } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock, Upload } from "lucide-react";
 import type { IconTone } from "./requirementCopy";
 
-export type RequirementActionKind = "upload" | "form" | "external" | "waiting" | "completed" | "none";
+export type RequirementActionKind = "upload" | "form" | "waiting" | "completed" | "none";
 
 export interface RequirementAction {
   kind: RequirementActionKind;
   label: string;
   helper?: string;
   onClick?: () => void;
-  href?: string;
-  /** Only meaningful for kind "external": outline color. */
-  tone?: "green" | "blue";
+}
+
+export interface RequirementSecondaryAction {
+  /** e.g. "Already have your EIN?" */
+  prompt: string;
+  /** e.g. "Upload EIN confirmation" */
+  label: string;
+  onClick: () => void;
 }
 
 export interface RequirementBadge {
@@ -32,6 +37,11 @@ export interface RequirementCardProps {
   whyLabel: string;
   why: ReactNode;
   action: RequirementAction;
+  /** "Already have this? Upload ___" — shown under the primary action
+   * whenever SmartPR can prepare the requirement for the user but the user
+   * may also already hold the document. Omitted once the requirement is
+   * completed, or when upload is already the primary (only) action. */
+  secondary?: RequirementSecondaryAction;
   /** Extraction panels, AI findings, multi-stage processing — rendered full
    * width below the card's three zones, unchanged in substance from before. */
   extra?: ReactNode;
@@ -55,29 +65,14 @@ function ActionButton({ action }: { action: RequirementAction }) {
   }
   if (action.kind === "none") return null;
 
-  const isExternal = action.kind === "external";
   const isForm = action.kind === "form";
-  const className = `rq-cta rq-cta-${action.kind}${isExternal && action.tone ? ` rq-cta-${action.tone}` : ""}`;
+  const className = `rq-cta rq-cta-${action.kind}`;
 
-  const content = (
-    <>
-      {action.kind === "upload" && <Upload size={15} />}
-      <span>{action.label}</span>
-      {(isForm || isExternal) && <ChevronRight size={15} />}
-      {isExternal && <ExternalLink size={13} className="rq-cta-ext-icon" />}
-    </>
-  );
-
-  if (isExternal && action.href) {
-    return (
-      <a className={className} href={action.href} target="_blank" rel="noreferrer" onClick={action.onClick}>
-        {content}
-      </a>
-    );
-  }
   return (
     <button type="button" className={className} onClick={action.onClick}>
-      {content}
+      {action.kind === "upload" && <Upload size={15} />}
+      <span>{action.label}</span>
+      {isForm && <ChevronRight size={15} />}
     </button>
   );
 }
@@ -93,6 +88,7 @@ export function RequirementCard({
   whyLabel,
   why,
   action,
+  secondary,
   extra,
   id,
 }: RequirementCardProps) {
@@ -121,7 +117,17 @@ export function RequirementCard({
 
         <div className="rq-card-right">
           <ActionButton action={action} />
-          {action.helper && action.kind !== "completed" && <span className="rq-cta-helper">{action.helper}</span>}
+          {action.helper && (action.kind === "form" || action.kind === "upload") && (
+            <span className="rq-cta-helper">{action.helper}</span>
+          )}
+          {secondary && action.kind !== "completed" && (
+            <div className="rq-secondary">
+              <span className="rq-secondary-prompt">{secondary.prompt}</span>
+              <button type="button" className="rq-secondary-link" onClick={secondary.onClick}>
+                {secondary.label}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

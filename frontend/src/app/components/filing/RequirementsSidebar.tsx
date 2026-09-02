@@ -7,8 +7,8 @@ export interface RequirementsSidebarProps {
   readinessPct: number;
   totalCount: number;
   completedCount: number;
-  todoCount: number;
-  fillOutCount: number;
+  needsActionCount: number;
+  inProgressCount: number;
   onChat?: () => void;
   onViewRoadmap?: () => void;
 }
@@ -18,13 +18,13 @@ const copy = {
     readiness: "Submission Readiness",
     requirementsLabel: (n: number) => `${n} requirement${n === 1 ? "" : "s"}`,
     completed: "Completed",
-    todo: "To Do",
-    fillOut: "To Fill Out",
+    needsAction: "Needs Action",
+    inProgress: "In Progress",
     whereTitle: "Where to Take Action",
     uploadTitle: "Upload Documents",
     uploadBody: "For items you already have.",
     formsTitle: "SmartPR Forms",
-    formsBody: "We'll guide you through government forms and prefill what we can.",
+    formsBody: "We prepare and prefill your government forms using what you've already told us.",
     learnMore: "Learn more",
     helpTitle: "Need Help?",
     chatTitle: "Chat with SmartPR",
@@ -38,13 +38,13 @@ const copy = {
     readiness: "Preparación para radicar",
     requirementsLabel: (n: number) => `${n} requisito${n === 1 ? "" : "s"}`,
     completed: "Completados",
-    todo: "Por hacer",
-    fillOut: "Por llenar",
+    needsAction: "Necesitan acción",
+    inProgress: "En progreso",
     whereTitle: "Dónde tomar acción",
     uploadTitle: "Subir documentos",
     uploadBody: "Para lo que ya tienes.",
     formsTitle: "Formularios de SmartPR",
-    formsBody: "Te guiamos por los formularios del gobierno y pre-llenamos lo que podamos.",
+    formsBody: "Preparamos y pre-llenamos tus formularios del gobierno con lo que ya nos dijiste.",
     learnMore: "Más información",
     helpTitle: "¿Necesitas ayuda?",
     chatTitle: "Chatea con SmartPR",
@@ -61,8 +61,8 @@ export function RequirementsSidebar({
   readinessPct,
   totalCount,
   completedCount,
-  todoCount,
-  fillOutCount,
+  needsActionCount,
+  inProgressCount,
   onChat,
   onViewRoadmap,
 }: RequirementsSidebarProps) {
@@ -87,12 +87,12 @@ export function RequirementsSidebar({
             <span>{c.completed}</span>
           </div>
           <div>
-            <strong>{todoCount}</strong>
-            <span>{c.todo}</span>
+            <strong>{needsActionCount}</strong>
+            <span>{c.needsAction}</span>
           </div>
           <div>
-            <strong>{fillOutCount}</strong>
-            <span>{c.fillOut}</span>
+            <strong>{inProgressCount}</strong>
+            <span>{c.inProgress}</span>
           </div>
         </div>
       </div>
@@ -100,21 +100,21 @@ export function RequirementsSidebar({
       <div className="rq-side-card">
         <h4 className="rq-side-title">{c.whereTitle}</h4>
         <div className="rq-where-row">
-          <span className="rq-where-icon rq-where-green">
-            <CloudUpload size={16} />
-          </span>
-          <div>
-            <strong>{c.uploadTitle}</strong>
-            <p>{c.uploadBody}</p>
-          </div>
-        </div>
-        <div className="rq-where-row">
           <span className="rq-where-icon rq-where-amber">
             <SquarePen size={16} />
           </span>
           <div>
             <strong>{c.formsTitle}</strong>
             <p>{c.formsBody}</p>
+          </div>
+        </div>
+        <div className="rq-where-row">
+          <span className="rq-where-icon rq-where-green">
+            <CloudUpload size={16} />
+          </span>
+          <div>
+            <strong>{c.uploadTitle}</strong>
+            <p>{c.uploadBody}</p>
           </div>
         </div>
       </div>

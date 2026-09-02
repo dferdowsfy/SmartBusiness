@@ -707,13 +707,6 @@ button { font-family: inherit; }
   color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
 }
 .rq-cta-form:hover { background: linear-gradient(180deg, #2347A8 0%, #1E3A8A 100%); }
-.rq-cta-external {
-  background: transparent; border-color: var(--accent); color: var(--accent);
-}
-.rq-cta-external.rq-cta-blue { border-color: #1E3A8A; color: #1E3A8A; }
-.rq-cta-external:hover { background: var(--accent-soft); }
-.rq-cta-external.rq-cta-blue:hover { background: #EEF2FF; }
-.rq-cta-ext-icon { margin-left: -2px; }
 
 .rq-cta-helper { color: var(--muted); font-size: 11.5px; line-height: 1.4; text-align: right; max-width: 220px; }
 
@@ -725,6 +718,18 @@ button { font-family: inherit; }
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--muted); font-size: 13px; font-weight: 550;
 }
+
+/* "Already have this?" secondary upload option — a deliberately quiet text
+   control underneath the primary SmartPR action, never a second big button. */
+.rq-secondary { margin-top: 8px; text-align: right; max-width: 220px; }
+.rq-secondary-prompt { display: block; color: var(--muted); font-size: 11.5px; }
+.rq-secondary-link {
+  border: 0; background: transparent; padding: 0; margin-top: 2px;
+  color: var(--brand); font-size: 12.5px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px;
+  cursor: pointer; font-family: inherit;
+}
+.rq-secondary-link:hover { color: var(--accent); }
 
 .rq-card-extra { grid-column: 1 / -1; margin-top: 12px; }
 
@@ -794,6 +799,7 @@ button { font-family: inherit; }
   .rq-card-center { order: 1; flex-basis: 100%; }
   .rq-card-right { order: 2; flex-basis: 100%; width: auto; align-items: stretch; margin-top: 4px; }
   .rq-cta-helper { text-align: left; max-width: none; }
+  .rq-secondary { text-align: left; max-width: none; }
 }
 .issued-document-guidance {
   display: flex; align-items: flex-start; gap: 7px;

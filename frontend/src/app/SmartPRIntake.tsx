@@ -7,7 +7,6 @@ import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, 
 import { ACTIVE_JURISDICTION } from './jurisdictions';
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
-import { enrichRequirements, type EnrichedRequirement } from './relationshipEngine';
 import {
   mergeConfirmedPotentialRequirements,
   potentialItemsForFlags,
@@ -51,9 +50,9 @@ import {
   type FilingStage,
   type SmartPRLiveData,
 } from './components/filing/FilingWorkflowShell';
-import { RequirementCard, type RequirementAction, type RequirementBadge } from './components/filing/RequirementCard';
+import { RequirementCard, type RequirementAction, type RequirementBadge, type RequirementSecondaryAction } from './components/filing/RequirementCard';
 import { RequirementsSidebar } from './components/filing/RequirementsSidebar';
-import { iconToneFor, uploadCopy, externalCopy, formEstimateFor } from './components/filing/requirementCopy';
+import { iconToneFor, primaryStartLabelFor, secondaryUploadCopy, uploadOnlyCopy } from './components/filing/requirementCopy';
 import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
 import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
@@ -924,11 +923,6 @@ interface AdvisoryInsights {
   commonValidationFailures: { document_type: string; failures: number }[];
 }
 
-const FACTOR_COLOR: Record<string, string> = {
-  business_type: '#2563eb', question: '#d97706', location: '#0891b2',
-  municipality: '#0891b2', universal: '#6b7280', agency: '#245c5c',
-};
-
 
 // Compose the reasoning from structured parts so it localizes correctly
 // (the stored ext.reasoning is English-only for analytics consistency).
@@ -1162,19 +1156,6 @@ export default function SmartPRIntake() {
     }
     if (Object.keys(patch).length > 0) setProfile((p) => ({ ...p, ...patch }));
   }, [intakeFacts, profile]);
-
-  // Explainability: confidence + weighted "why required" reasons per document.
-  // Additive only — does not change which requirements are produced.
-  const reasonsByDoc = React.useMemo(() => {
-    try {
-      const res = runRulesEngineForProfile(profile as any, discoveryAnswers, intakeFacts.questionValues);
-      const map: Record<string, EnrichedRequirement> = {};
-      for (const e of enrichRequirements(KB, res)) map[e.document_id] = e;
-      return map;
-    } catch {
-      return {} as Record<string, EnrichedRequirement>;
-    }
-  }, [profile, discoveryAnswers, intakeFacts]);
 
   // Fetch advisory historical insights once requirements exist (best-effort).
   // Load the signed-in user (if any) + capture ?business=<id> so this
@@ -3137,7 +3118,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // =========================================================================
 
   // Requirements list filter (All / To Do / To Fill Out / Completed).
-  const [reqFilter, setReqFilter] = useState<'all' | 'todo' | 'fillout' | 'completed'>('all');
+  const [reqFilter, setReqFilter] = useState<'all' | 'needs_action' | 'in_progress' | 'completed'>('all');
   const [reqShowAll, setReqShowAll] = useState(false);
 
   // Live rules-engine output while the user is still in intake, so the
@@ -3293,18 +3274,34 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const name = trReqName(req);
     const isConditional = req.applicability === 'conditional';
     const isReviewCondition = req.kind === 'review_condition';
+    const canUpload = req.acceptsOfficialUpload !== false;
 
-    // Open only a verified, code-backed government PDF. The builder is
-    // available directly on its requirement and populates that existing
-    // artifact from the shared canonical intake data.
+    // Two ways SmartPR can prepare a requirement for the user, in priority
+    // order: (1) an official, code-backed government PDF it can prefill —
+    // opens inside the SmartPR form experience; (2) failing that, SmartPR's
+    // own preparation worksheet for well-known requirements (Certificate of
+    // Incorporation, Merchant Registration, Permiso Único). Either way the
+    // user never has to leave SmartPR to prepare the requirement — only an
+    // agency's own review/issuance is outside SmartPR's control.
     const govEntry = govFormEntryForReq(req);
     const prepared = govEntry ? preparedGovApplications[govEntry.id] : undefined;
     const hasDraft = govEntry ? !!govFormDrafts[govEntry.id] : false;
     const fState = govEntry ? requirementFormState(prepared) : null;
     const formActions = govEntry ? (fState === 'no_record' && hasDraft ? ['edit_form'] : actionsForFormState(fState!)) : [];
 
+    const sampleDef = !govEntry ? getSampleApplication(req.code) : null;
+    const sampleDraft = sampleDef ? sampleFormDrafts[req.code] : undefined;
+    const samplePrepared = sampleDef ? preparedSampleApplications[req.code] : undefined;
+
     let action: RequirementAction;
-    let bucket: 'completed' | 'fillout' | 'todo' | 'none';
+    let secondary: RequirementSecondaryAction | undefined;
+    let bucket: 'completed' | 'in_progress' | 'needs_action' | 'none';
+
+    const secondaryUpload = (): RequirementSecondaryAction | undefined => {
+      if (!canUpload) return undefined;
+      const sc = secondaryUploadCopy(name, !!doc);
+      return { prompt: L(sc.prompt, language), label: L(sc.label, language), onClick: () => triggerFileUploadWithPipeline(req.code) };
+    };
 
     if (state === 'done') {
       action = { kind: 'completed', label: L('Completed', language) };
@@ -3313,59 +3310,56 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       action = { kind: 'none', label: '' };
       bucket = 'none';
     } else if (govEntry && formActions.includes('start_form')) {
-      action = { kind: 'form', label: L('Complete government form', language), helper: formEstimateFor(name), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
-      bucket = 'fillout';
+      action = { kind: 'form', label: L(primaryStartLabelFor(name), language), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
+      secondary = secondaryUpload();
+      bucket = 'needs_action';
     } else if (govEntry && formActions.includes('edit_form')) {
       action = { kind: 'form', label: L('Continue application', language), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
-      bucket = 'fillout';
+      secondary = secondaryUpload();
+      bucket = 'in_progress';
     } else if (govEntry && formActions.includes('review_updates')) {
       action = { kind: 'form', label: L('Review updates', language), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
-      bucket = 'fillout';
+      secondary = secondaryUpload();
+      bucket = 'in_progress';
     } else if (govEntry && (formActions.includes('view_submission') || formActions.includes('view_form'))) {
       action = { kind: 'waiting', label: L('Waiting for confirmation', language) };
-      bucket = 'todo';
-    } else if (req.acceptsOfficialUpload === false) {
+      secondary = secondaryUpload();
+      bucket = 'in_progress';
+    } else if (sampleDef && samplePrepared) {
+      action = { kind: 'form', label: L('Review submission', language), onClick: () => openSampleApplication(req.code) };
+      secondary = secondaryUpload();
+      bucket = 'in_progress';
+    } else if (sampleDef && sampleDraft) {
+      action = { kind: 'form', label: L('Continue application', language), onClick: () => openSampleApplication(req.code) };
+      secondary = secondaryUpload();
+      bucket = 'in_progress';
+    } else if (sampleDef) {
+      action = { kind: 'form', label: L(primaryStartLabelFor(name), language), onClick: () => openSampleApplication(req.code) };
+      secondary = secondaryUpload();
+      bucket = 'needs_action';
+    } else if (!canUpload) {
       action = { kind: 'none', label: '' };
       bucket = 'none';
     } else {
-      const extCopy = externalCopy(name);
-      if (extCopy) {
-        action = { kind: 'external', label: L(extCopy.label, language), helper: extCopy.helper ? L(extCopy.helper, language) : undefined, href: extCopy.externalHref, tone: extCopy.externalTone };
-        bucket = 'todo';
-      } else {
-        const uc = uploadCopy(name, !!doc);
-        action = { kind: 'upload', label: L(uc.label, language), helper: uc.helper ? L(uc.helper, language) : undefined, onClick: () => triggerFileUploadWithPipeline(req.code) };
-        bucket = 'todo';
-      }
+      const uc = uploadOnlyCopy(name, !!doc);
+      action = { kind: 'upload', label: L(uc.label, language), helper: uc.helper ? L(uc.helper, language) : undefined, onClick: () => triggerFileUploadWithPipeline(req.code) };
+      bucket = 'needs_action';
     }
 
     const badge: RequirementBadge | null =
       state === 'done' ? null
-      : action.kind === 'form' ? { label: L('FILL OUT', language), tone: 'amber' }
       : isConditional ? { label: L('Needs verification', language), tone: 'gray' }
       : isReviewCondition ? { label: L('Review condition', language), tone: 'gray' }
-      : req.mandatory ? { label: L('REQUIRED', language), tone: 'amber' }
+      : req.mandatory ? { label: L('Required', language), tone: 'amber' }
       : { label: L('Optional', language), tone: 'gray' };
 
-    const enr = req.document_id ? reasonsByDoc[req.document_id] : undefined;
     const issuedDocumentGuidance = ISSUED_DOCUMENT_GUIDANCE[req.code];
-    // The description above already shows the reason text; only repeat it
-    // here as a fallback when there's no extra structured detail to add.
+    // A concise, user-facing explanation only — never the raw rule-engine
+    // breakdown (factor weights, "Question = Answer" pairs, or unrelated
+    // municipality context). That backend reasoning stays backend-only.
     const why = (
       <>
-        {!enr?.reasons?.length && !issuedDocumentGuidance && <div>{trReqReason(req)}</div>}
-        {!!enr?.reasons?.length && (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {enr.reasons.map((r, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'white', borderRadius: 4, padding: '2px 6px', background: FACTOR_COLOR[r.factor] || '#6b7280' }}>
-                  {L(r.factorLabel, language)}{r.weight > 0 ? ` · ${r.weight}%` : ''}
-                </span>
-                <span>{r.text}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <div>{trReqReason(req)}</div>
         {issuedDocumentGuidance && (
           <div className="issued-document-guidance" style={{ marginTop: 8 }}>
             <Info className="i" style={{ width: 13, height: 13 }} />
@@ -3380,6 +3374,11 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         {prepared && (
           <span className="tag" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
             {fState === 'submitted' ? L('Marked as submitted', language) : L('Application prepared', language)}
+          </span>
+        )}
+        {samplePrepared && (
+          <span className="tag" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+            {L('Application worksheet prepared', language)}
           </span>
         )}
         {ext && analysis && (
@@ -3410,7 +3409,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         )}
       </>
     );
-    const hasExtra = !!(prepared || (ext && analysis) || processingStates[req.code] || ((state === 'review' || reviewingCode === req.code) && analysis));
+    const hasExtra = !!(prepared || samplePrepared || (ext && analysis) || processingStates[req.code] || ((state === 'review' || reviewingCode === req.code) && analysis));
 
     return {
       req, bucket, state,
@@ -3422,6 +3421,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       badge,
       why,
       action,
+      secondary,
       extra: hasExtra ? extra : undefined,
     };
   };
@@ -3431,21 +3431,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       .filter(r => r.applicability !== 'not_applicable')
       .map(computeReqCard),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [requirements, uploadedDocs, processingStates, reviewingCode, preparedGovApplications, govFormDrafts, reasonsByDoc, language, profile.municipality]
+    [requirements, uploadedDocs, processingStates, reviewingCode, preparedGovApplications, govFormDrafts, sampleFormDrafts, preparedSampleApplications, language, profile.municipality]
   );
   const criticalPathCards = reqCards.filter(c => c.req.mandatory && c.bucket !== 'completed' && c.bucket !== 'none' && c.state === 'pending');
   const criticalPathCodes = new Set(criticalPathCards.map(c => c.req.code));
   const restCards = reqCards.filter(c => !criticalPathCodes.has(c.req.code));
   const orderedCards = [...criticalPathCards, ...restCards];
 
-  const tabTodoCount = reqCards.filter(c => c.bucket === 'todo').length;
-  const tabFilloutCount = reqCards.filter(c => c.bucket === 'fillout').length;
+  const tabNeedsActionCount = reqCards.filter(c => c.bucket === 'needs_action').length;
+  const tabInProgressCount = reqCards.filter(c => c.bucket === 'in_progress').length;
   const tabCompletedCount = reqCards.filter(c => c.bucket === 'completed').length;
 
   const tabFilteredCards = orderedCards.filter(c =>
     reqFilter === 'all' ? true
-    : reqFilter === 'todo' ? c.bucket === 'todo'
-    : reqFilter === 'fillout' ? c.bucket === 'fillout'
+    : reqFilter === 'needs_action' ? c.bucket === 'needs_action'
+    : reqFilter === 'in_progress' ? c.bucket === 'in_progress'
     : c.bucket === 'completed'
   );
   const REQ_VISIBLE_DEFAULT = 6;
@@ -3729,8 +3729,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             readinessPct={ringScore}
             totalCount={reqCards.length}
             completedCount={tabCompletedCount}
-            todoCount={tabTodoCount}
-            fillOutCount={tabFilloutCount}
+            needsActionCount={tabNeedsActionCount}
+            inProgressCount={tabInProgressCount}
           />
         ) : undefined}
       >
@@ -4030,13 +4030,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
           {/* Filter tabs */}
           <div className="rq-tabs" role="tablist">
             <button role="tab" aria-selected={reqFilter === 'all'} className={`rq-tab ${reqFilter === 'all' ? 'active' : ''}`} onClick={() => setReqFilter('all')}>
-              {L('All Requirements', language)} <span className="rq-tab-count">{reqCards.length}</span>
+              {L('All', language)} <span className="rq-tab-count">{reqCards.length}</span>
             </button>
-            <button role="tab" aria-selected={reqFilter === 'todo'} className={`rq-tab ${reqFilter === 'todo' ? 'active' : ''}`} onClick={() => setReqFilter('todo')}>
-              {L('To Do', language)} <span className="rq-tab-count">{tabTodoCount}</span>
+            <button role="tab" aria-selected={reqFilter === 'needs_action'} className={`rq-tab ${reqFilter === 'needs_action' ? 'active' : ''}`} onClick={() => setReqFilter('needs_action')}>
+              {L('Needs Action', language)} <span className="rq-tab-count">{tabNeedsActionCount}</span>
             </button>
-            <button role="tab" aria-selected={reqFilter === 'fillout'} className={`rq-tab ${reqFilter === 'fillout' ? 'active' : ''}`} onClick={() => setReqFilter('fillout')}>
-              {L('To Fill Out', language)} <span className="rq-tab-count">{tabFilloutCount}</span>
+            <button role="tab" aria-selected={reqFilter === 'in_progress'} className={`rq-tab ${reqFilter === 'in_progress' ? 'active' : ''}`} onClick={() => setReqFilter('in_progress')}>
+              {L('In Progress', language)} <span className="rq-tab-count">{tabInProgressCount}</span>
             </button>
             <button role="tab" aria-selected={reqFilter === 'completed'} className={`rq-tab ${reqFilter === 'completed' ? 'active' : ''}`} onClick={() => setReqFilter('completed')}>
               {L('Completed', language)} <span className="rq-tab-count">{tabCompletedCount}</span>
@@ -4095,6 +4095,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 whyLabel={L('Why is this required?', language)}
                 why={c.why}
                 action={c.action}
+                secondary={c.secondary}
                 extra={c.extra}
               />
             ))}
