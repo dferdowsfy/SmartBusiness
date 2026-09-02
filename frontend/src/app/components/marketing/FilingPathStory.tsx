@@ -124,6 +124,10 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const routeRef = useRef<SVGPathElement | null>(null);
   const arrowRefs = useRef<(SVGPathElement | null)[]>([]);
   const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
+  /** Where the route currently sits, so a re-measure can restore that state
+   * instead of blanking it. Mobile browsers fire resize on every URL-bar
+   * collapse mid-scroll, which is exactly when this section animates. */
+  const drawStateRef = useRef<"hidden" | "drawing" | "drawn">("hidden");
 
   const [typedCount, setTypedCount] = useState(0);
   const [caretDone, setCaretDone] = useState(false);
@@ -202,34 +206,60 @@ export default function FilingPathStory({ language }: { language: Language }) {
     });
     route.setAttribute("d", d);
     const len = route.getTotalLength();
-    route.style.transition = "none";
     route.style.strokeDasharray = String(len);
-    route.style.strokeDashoffset = String(len);
+    // Restore whatever state the route was in — re-measuring must not un-draw
+    // it. Mid-draw, leave the in-flight transition alone so it keeps running.
+    if (drawStateRef.current === "hidden") {
+      route.style.transition = "none";
+      route.style.strokeDashoffset = String(len);
+    } else if (drawStateRef.current === "drawn") {
+      route.style.transition = "none";
+      route.style.strokeDashoffset = "0";
+    }
     return len;
   };
 
   useEffect(() => {
     layoutPath();
-    const onResize = () => layoutPath();
+    let frame = 0;
+    const onResize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => layoutPath());
+    };
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", onResize);
+    };
   }, [language]);
 
   useEffect(() => {
     const route = routeRef.current;
     if (!route) return;
-    layoutPath();
-    if (effPathDrawn) {
-      if (reduced) {
-        route.style.transition = "none";
-        route.style.strokeDashoffset = "0";
-      } else {
-        requestAnimationFrame(() => {
-          route.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.35,.55,.2,1)";
-          route.style.strokeDashoffset = "0";
-        });
-      }
+    if (!effPathDrawn) {
+      drawStateRef.current = "hidden";
+      layoutPath();
+      return;
     }
+    if (reduced) {
+      drawStateRef.current = "drawn";
+      layoutPath();
+      return;
+    }
+    drawStateRef.current = "hidden";
+    layoutPath();
+    drawStateRef.current = "drawing";
+    const frame = requestAnimationFrame(() => {
+      route.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.35,.55,.2,1)";
+      route.style.strokeDashoffset = "0";
+    });
+    const settle = setTimeout(() => {
+      drawStateRef.current = "drawn";
+    }, 2300);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(settle);
+    };
   }, [effPathDrawn, reduced]);
 
   useEffect(() => {
