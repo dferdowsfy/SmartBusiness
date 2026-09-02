@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Building2, Receipt, Landmark, ShieldCheck, HeartPulse } from "lucide-react";
+import { Building2, Check, HeartPulse, Landmark, Receipt, ShieldCheck } from "lucide-react";
 import styles from "./filingPath.module.css";
 
 type Language = "EN" | "ES";
 
-const STEP_ICONS: Array<typeof Building2> = [Building2, Receipt, Landmark, ShieldCheck, HeartPulse];
+const STEP_ICONS: Array<typeof Building2> = [Building2, Receipt, Landmark, ShieldCheck, HeartPulse, Check];
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -60,6 +59,7 @@ function tokenize(sentence: string, marks: string[]): Token[] {
 const copy = {
   EN: {
     mapped: "Your filing path, mapped.",
+    summary: "6 agencies · 8 filings",
     sentence: "I want to open a restaurant in Bayamón with 10 employees and outdoor seating.",
     marks: ["restaurant", "Bayamón", "10 employees", "outdoor seating"],
     chips: ["Restaurant", "Bayamón", "10 employees", "Outdoor seating"],
@@ -74,11 +74,12 @@ const copy = {
       { title: "Municipal registration", detail: "Municipio de Bayamón · Municipal patent application" },
       { title: "Permits & use requirements", detail: "OGPe · Permiso Único" },
       { title: "Health / fire requirements", detail: "Department of Health · Fire" },
+      { title: "Review & submission", detail: "SmartPR review before you submit" },
     ],
-    cta: "Build my filing path",
   },
   ES: {
     mapped: "Su ruta de radicación, trazada.",
+    summary: "6 agencias · 8 trámites",
     sentence: "Quiero abrir un restaurante en Bayamón con 10 empleados y asientos al aire libre.",
     marks: ["restaurante", "Bayamón", "10 empleados", "asientos al aire libre"],
     chips: ["Restaurante", "Bayamón", "10 empleados", "Asientos al aire libre"],
@@ -93,13 +94,12 @@ const copy = {
       { title: "Registro municipal", detail: "Municipio de Bayamón · Solicitud de patente municipal" },
       { title: "Permisos y requisitos de uso", detail: "OGPe · Permiso Único" },
       { title: "Requisitos de salud y bomberos", detail: "Departamento de Salud · Bomberos" },
+      { title: "Revisión y radicación", detail: "Revisión de SmartPR antes de presentar" },
     ],
-    cta: "Armar mi ruta de radicación",
   },
 } as const;
 
 export default function FilingPathStory({ language }: { language: Language }) {
-  const router = useRouter();
   const reduced = useReducedMotion();
   const c = copy[language];
   const tokens = useMemo(() => tokenize(c.sentence, [...c.marks]), [c]);
@@ -117,7 +117,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const [liftedCount, setLiftedCount] = useState(0);
   const [agenciesShown, setAgenciesShown] = useState(0);
   const [stepsShown, setStepsShown] = useState(0);
-  const [ctaShown, setCtaShown] = useState(false);
 
   // Reduced motion never touches the timeline state above — it just renders
   // the finished values directly, so there's nothing to synchronize in an effect.
@@ -130,7 +129,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const effLiftedCount = reduced ? markTokens.length : liftedCount;
   const effAgenciesShown = reduced ? c.agencies.length : agenciesShown;
   const effStepsShown = reduced ? c.path.length : stepsShown;
-  const effCtaShown = reduced ? true : ctaShown;
 
   const reset = () => {
     setTypedCount(0);
@@ -142,7 +140,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
     setLiftedCount(0);
     setAgenciesShown(0);
     setStepsShown(0);
-    setCtaShown(false);
   };
 
   useEffect(() => {
@@ -150,6 +147,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
     const section = sectionRef.current;
     const anchor = anchorRef.current;
     if (!section || !anchor) return;
+    const compactLayout = window.matchMedia("(max-width: 959px)").matches;
 
     let armed = true;
     let runId = 0;
@@ -201,8 +199,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
         setStepsShown(i);
         if (!(await pause(430, id))) return;
       }
-      if (!(await pause(300, id))) return;
-      setCtaShown(true);
     }
 
     const player = new IntersectionObserver(
@@ -217,7 +213,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
       // viewport the sentence sits within the first screen, so an edge-only
       // trigger starts the sequence at page load — and it is over by the time
       // you have scrolled down far enough to watch it.
-      { threshold: 0, rootMargin: "0px 0px -50% 0px" },
+      { threshold: 0, rootMargin: compactLayout ? "0px 0px -10% 0px" : "0px 0px -50% 0px" },
     );
     player.observe(anchor);
 
@@ -243,14 +239,13 @@ export default function FilingPathStory({ language }: { language: Language }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduced, language]);
 
-  function startExample() {
-    router.push("/?entry=new-business");
-  }
-
   return (
-    <section id="how-it-works" ref={sectionRef} className={styles.pin}>
+    <section id="how-it-works" ref={sectionRef} className={styles.pin} aria-labelledby="filing-path-title">
       <div className={styles.frame}>
-        <h2 className={styles.heading}>{c.mapped}</h2>
+        <div className={styles.headingRow}>
+          <h2 id="filing-path-title" className={styles.heading}>{c.mapped}</h2>
+          <span className={styles.summary}>{c.summary}</span>
+        </div>
 
         {/* Full sentence for assistive tech / no-JS; the animated version below is aria-hidden. */}
         <p className={styles.srOnly}>{c.sentence}</p>
@@ -321,12 +316,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
               );
             })}
           </ol>
-        </div>
-
-        <div className={styles.cta}>
-          <button type="button" className={effCtaShown ? styles.in : ""} onClick={startExample}>
-            {c.cta}
-          </button>
         </div>
       </div>
     </section>

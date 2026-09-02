@@ -18,9 +18,10 @@ const copy = {
     started: "Sign up",
     privacy: "Privacy Policy",
     eyebrow: "Puerto Rico · Guided filing",
-    hero: "Starting a business in Puerto Rico? We'll show you exactly what you need.",
+    hero: "Start your business in Puerto Rico.",
+    heroAccent: "We make it easy.",
     heroSub:
-      "Enter your business details and upload any documents you already have. SmartPR identifies the required permits, licenses, registrations, and supporting documents, flags what's missing, and prepares the official government forms for you.",
+      "Enter your business details and upload any documents you already have. SmartPR identifies the required permits, licenses, registrations, and supporting documents, flags what’s missing, and prepares the official government forms for you.",
     heroCta: "Start my application",
     seeHow: "See how it works",
     stepsTitle: "From uncertainty to submission-ready.",
@@ -50,10 +51,11 @@ const copy = {
     started: "Registrarse",
     privacy: "Política de privacidad",
     eyebrow: "Puerto Rico · Trámite guiado",
-    hero: "Sepa lo que toma abrir un negocio en Puerto Rico.",
+    hero: "Comience su negocio en Puerto Rico.",
+    heroAccent: "Lo hacemos fácil.",
     heroSub:
-      "Describa lo que quiere construir. SmartPR identifica los permisos, licencias, agencias, documentos y requisitos de radicación — y le ayuda a prepararse para presentarlos.",
-    heroCta: "Registrarse",
+      "Ingrese los datos de su negocio y cargue los documentos que ya tenga. SmartPR identifica los permisos, licencias, registros y documentos de apoyo requeridos, señala lo que falta y prepara los formularios oficiales del gobierno.",
+    heroCta: "Comenzar mi solicitud",
     seeHow: "Vea cómo funciona",
     stepsTitle: "De la incertidumbre a estar listo para presentar.",
     steps: [
@@ -148,22 +150,28 @@ export default function MarketingLanding() {
       </header>
 
       <main>
-        <section className={styles.hero}>
-          <p className={styles.eyebrow}>{c.eyebrow}</p>
-          <h1>{c.hero}</h1>
-          <p className={styles.heroLead}>{c.heroSub}</p>
-          <div className={styles.heroActions}>
-            <Link className={styles.primary} href="/?entry=new-business">
-              {c.heroCta}
-            </Link>
-            <a className={styles.ghost} href="#how-it-works">
-              {c.seeHow}
-            </a>
-            <span className={styles.heroWatermark} aria-hidden="true" />
-          </div>
-        </section>
+        <div className={styles.showcase}>
+          <section className={styles.hero}>
+            <div className={styles.heroCopy}>
+              <p className={styles.eyebrow}>{c.eyebrow}</p>
+              <h1>
+                <span>{c.hero}</span>
+                <strong>{c.heroAccent}</strong>
+              </h1>
+              <p className={styles.heroLead}>{c.heroSub}</p>
+              <div className={styles.heroActions}>
+                <Link className={styles.primary} href="/?entry=new-business">
+                  {c.heroCta}
+                </Link>
+                <a className={styles.ghost} href="#how-it-works">
+                  {c.seeHow} <span aria-hidden>→</span>
+                </a>
+              </div>
+            </div>
+          </section>
 
-        <FilingPathStory language={language} />
+          <FilingPathStory language={language} />
+        </div>
 
         <section className={styles.section}>
           <div className={styles.sectionInner}>

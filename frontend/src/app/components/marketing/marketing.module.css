@@ -19,9 +19,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  max-width: 64rem;
+  width: min(100%, 94rem);
   margin: 0 auto;
-  padding: 0.85rem 1.5rem;
+  padding: 0.9rem clamp(1rem, 2.6vw, 2.5rem);
 }
 
 .logo {
@@ -41,29 +41,29 @@
 
 .desktopNav {
   display: none;
-  gap: 1.5rem;
+  gap: 2.5rem;
   font-size: 0.875rem;
 }
 
-.desktopNav a {
-  color: #3d3d3d;
+.desktopNav a,
+.desktopActions > a:not(.primary) {
+  color: #161616;
   text-decoration: none;
 }
 
-.desktopNav a:hover {
-  color: #161616;
+.desktopNav a:hover,
+.desktopActions > a:not(.primary):hover {
+  color: #245c5c;
 }
 
 .desktopActions {
   display: none;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .desktopActions > a:not(.primary) {
-  color: #161616;
   font-size: 0.875rem;
-  text-decoration: none;
 }
 
 .language {
@@ -94,31 +94,52 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 2.5rem;
-  padding: 0 1rem;
+  min-height: 2.6rem;
+  padding: 0 1.15rem;
   border-radius: 8px;
   background: #245c5c;
   color: #f6f3ea;
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none;
+  transition: background 180ms ease, transform 180ms ease;
+}
+
+.primary:hover {
+  background: #194d4d;
+}
+
+.primary:active {
+  transform: translateY(1px);
 }
 
 .ghost {
   display: inline-flex;
   align-items: center;
-  height: 2.5rem;
-  padding: 0 0.85rem;
+  gap: 1rem;
+  min-height: 2.6rem;
+  padding: 0 0.25rem;
   color: #161616;
   font-size: 0.875rem;
   text-decoration: none;
+}
+
+.ghost span {
+  font-size: 1.15rem;
+  transition: transform 180ms ease;
+}
+
+.ghost:hover span {
+  transform: translateX(3px);
 }
 
 .menuButton {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  height: 2.4rem;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  justify-content: center;
   padding: 0 0.75rem;
   border: 1px solid color-mix(in oklab, #161616 22%, transparent);
   border-radius: 8px;
@@ -168,92 +189,112 @@
   color: #161616;
 }
 
-.hero {
-  max-width: 64rem;
+.showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.85rem;
+  width: min(100%, 94rem);
   margin: 0 auto;
-  padding: 3.5rem 1.5rem 4rem;
+  padding: 0.85rem 1rem 2rem;
+}
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  padding: 2.4rem 1.5rem 2rem;
+  border: 1px solid color-mix(in oklab, #161616 13%, transparent);
+  border-radius: 15px;
+  background: color-mix(in oklab, #fbf8f2 38%, transparent);
+}
+
+.hero::after {
+  position: absolute;
+  right: -4%;
+  bottom: -3%;
+  z-index: -1;
+  width: 57%;
+  aspect-ratio: 1 / 0.9;
+  background: url("/smartpr-landmark-fort.png") right bottom / contain no-repeat;
+  content: "";
+  opacity: 0.2;
+  pointer-events: none;
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
 }
 
 .eyebrow {
   margin: 0;
   color: #245c5c;
-  font-size: 0.6875rem;
-  font-weight: 500;
+  font-size: 0.675rem;
+  font-weight: 600;
   letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 
 .hero h1 {
-  max-width: 52rem;
+  max-width: 35rem;
   margin: 1.25rem 0 0;
   font-family: var(--font-display), Newsreader, "Times New Roman", serif;
-  font-size: clamp(2.6rem, 7vw, 4.4rem);
+  font-size: clamp(2.55rem, 12vw, 3.6rem);
   font-weight: 500;
-  line-height: 1.05;
-  letter-spacing: -0.04em;
-  text-wrap: pretty;
+  line-height: 1.01;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+}
+
+.hero h1 span,
+.hero h1 strong {
+  display: block;
+}
+
+.hero h1 strong {
+  color: #245c5c;
+  font-weight: 500;
 }
 
 .heroLead {
-  max-width: 36rem;
-  margin: 1.5rem 0 0;
-  font-size: 1.125rem;
-  line-height: 1.7;
-  color: #1b1b1b;
+  max-width: 37rem;
+  margin: 1.4rem 0 0;
+  font-size: 0.99rem;
+  line-height: 1.62;
+  color: #242424;
 }
 
 .heroActions {
-  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 2.5rem;
-  width: fit-content;
-  max-width: 100%;
-}
-
-/* Decorative brand mark, faded into the page right next to the CTA row.
-   Hidden on narrow screens where the actions wrap into the space it needs. */
-.heroWatermark {
-  display: none;
-}
-
-@media (min-width: 640px) {
-  /* Extra bottom room so the enlarged mark clears the section edge. */
-  .hero {
-    padding-bottom: 6.5rem;
-  }
-
-  .heroWatermark {
-    display: block;
-    position: absolute;
-    left: 100%;
-    top: 50%;
-    margin-left: 1rem;
-    width: 15rem;
-    aspect-ratio: 600 / 560;
-    transform: translateY(-50%);
-    background: url("/brand/smartpr-mark.svg") center / contain no-repeat;
-    opacity: 0.06;
-    pointer-events: none;
-  }
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  margin-top: 1.6rem;
 }
 
 .heroActions .primary,
 .heroActions .ghost {
-  height: 3rem;
-  padding: 0 1.25rem;
+  min-height: 3.1rem;
+}
+
+.heroActions .primary {
+  width: 100%;
+}
+
+.heroActions .ghost {
+  justify-content: center;
 }
 
 .section {
   border-top: 1px solid color-mix(in oklab, #161616 12%, transparent);
 }
 
-.sectionInner {
-  max-width: 64rem;
+.sectionInner,
+.close {
+  width: min(100%, 94rem);
   margin: 0 auto;
-  padding: 5rem 1.5rem;
+  padding: 5rem clamp(1rem, 2.6vw, 2.5rem);
 }
 
 .section h2,
@@ -268,7 +309,7 @@
 }
 
 .lead {
-  max-width: 36rem;
+  max-width: 42rem;
   margin: 1rem 0 0;
   color: #1b1b1b;
 }
@@ -277,6 +318,8 @@
   display: grid;
   gap: 1rem;
   margin: 3.5rem 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .card {
@@ -346,19 +389,13 @@
   cursor: pointer;
 }
 
-.close {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 6rem 1.5rem;
-}
-
 .close .lead {
   font-size: 1.25rem;
 }
 
 .close .primary {
   margin-top: 2.5rem;
-  height: 3rem;
+  min-height: 3rem;
   padding: 0 1.25rem;
 }
 
@@ -372,9 +409,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  max-width: 64rem;
+  width: min(100%, 94rem);
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 1.5rem clamp(1rem, 2.6vw, 2.5rem);
   color: #5a5a5a;
   font-size: 0.8rem;
 }
@@ -384,16 +421,68 @@
   text-decoration: none;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 520px) {
+  .heroActions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .heroActions .primary {
+    width: auto;
+  }
+
   .cards {
     grid-template-columns: 1fr 1fr;
   }
+
   .portfolio li {
     grid-template-columns: 1.4fr 1fr auto;
     align-items: center;
   }
+
   .continue {
     justify-self: end;
+  }
+}
+
+@media (min-width: 960px) {
+  .showcase {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.03fr);
+    gap: clamp(0.9rem, 1.3vw, 1.2rem);
+    padding: 1rem clamp(1.5rem, 2.6vw, 2.5rem) 2.5rem;
+  }
+
+  .hero {
+    min-height: clamp(37rem, calc(100svh - 7.1rem), 47rem);
+    padding: clamp(3rem, 5.2vh, 4.75rem) clamp(2rem, 3vw, 3.25rem) 2.75rem;
+  }
+
+  .hero::after {
+    right: -1%;
+    bottom: 2%;
+    width: 53%;
+    opacity: 0.25;
+  }
+
+  .hero h1 {
+    margin-top: clamp(1.7rem, 3.4vh, 3rem);
+    font-size: clamp(3.1rem, 4.2vw, 4.45rem);
+  }
+
+  .heroLead {
+    margin-top: clamp(1.5rem, 3.2vh, 2.5rem);
+    font-size: clamp(0.96rem, 1.15vw, 1.08rem);
+    line-height: 1.65;
+  }
+
+  .heroActions {
+    margin-top: clamp(2rem, 4vh, 3.25rem);
+    gap: clamp(1rem, 2vw, 2.1rem);
+  }
+
+  .heroActions .primary {
+    min-height: 3.2rem;
+    padding-inline: 1.35rem;
   }
 }
 
@@ -402,8 +491,68 @@
   .desktopActions {
     display: flex;
   }
+
   .menuButton,
   .mobileNav {
     display: none;
+  }
+}
+
+@media (max-width: 519px) {
+  .headerInner {
+    padding-block: 0.7rem;
+  }
+
+  .hero::after {
+    width: 45%;
+    opacity: 0.12;
+  }
+
+  .hero {
+    padding: 1.9rem 1.25rem 1.35rem;
+  }
+
+  .hero h1 {
+    margin-top: 1rem;
+    font-size: clamp(2.1rem, 10vw, 2.35rem);
+    line-height: 1.01;
+  }
+
+  .heroLead {
+    margin-top: 1.1rem;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .heroActions {
+    margin-top: 1.15rem;
+  }
+
+  .heroActions .primary,
+  .heroActions .ghost {
+    min-height: 2.8rem;
+  }
+
+  .sectionInner,
+  .close {
+    padding-block: 3.5rem;
+  }
+}
+
+@media (min-width: 360px) and (max-width: 519px) {
+  .heroActions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .heroActions .primary {
+    flex: 1;
+    width: auto;
+    padding-inline: 0.7rem;
+  }
+
+  .heroActions .ghost {
+    flex: 0 0 auto;
+    padding-inline: 0.35rem;
   }
 }
