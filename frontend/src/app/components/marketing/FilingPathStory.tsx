@@ -330,7 +330,12 @@ export default function FilingPathStory({ language }: { language: Language }) {
           run();
         }
       },
-      { threshold: 0.2 },
+      // Hold off until the section has actually scrolled up into view, rather
+      // than the instant it peeks over the bottom edge. On a tall phone
+      // viewport the sentence sits within the first screen, so an edge-only
+      // trigger starts the sequence at page load — and it is over by the time
+      // you have scrolled down far enough to watch it.
+      { threshold: 0, rootMargin: "0px 0px -50% 0px" },
     );
     player.observe(anchor);
 
