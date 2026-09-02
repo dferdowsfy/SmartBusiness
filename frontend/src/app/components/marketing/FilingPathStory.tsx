@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Building2, Receipt, Landmark, ShieldCheck, HeartPulse } from "lucide-react";
 import styles from "./filingPath.module.css";
 
 type Language = "EN" | "ES";
+
+const STEP_ICONS: Array<typeof Building2> = [Building2, Receipt, Landmark, ShieldCheck, HeartPulse];
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -18,21 +21,12 @@ function useReducedMotion() {
   return reduced;
 }
 
-function clamp01(n: number) {
-  return n < 0 ? 0 : n > 1 ? 1 : n;
-}
-function range(p: number, a: number, b: number) {
-  if (b === a) return p >= b ? 1 : 0;
-  return clamp01((p - a) / (b - a));
-}
-function ease(t: number) {
-  return t * t * (3 - 2 * t);
-}
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * t;
-}
+type Token = { text: string; mark: boolean; start: number; end: number };
 
-function tokenize(sentence: string, marks: string[]) {
+/** Splits `sentence` into ordered, non-overlapping segments, tagging the ones
+ * that match an entry in `marks`. Segments partition the sentence exactly,
+ * so cumulative lengths double as reveal offsets for the typing animation. */
+function tokenize(sentence: string, marks: string[]): Token[] {
   const lower = sentence.toLowerCase();
   const hits: { start: number; end: number }[] = [];
   for (const mark of marks) {
@@ -55,29 +49,25 @@ function tokenize(sentence: string, marks: string[]) {
     cursor = hit.end;
   }
   if (cursor < sentence.length) parts.push({ text: sentence.slice(cursor), mark: false });
-  return parts;
+  let offset = 0;
+  return parts.map((part) => {
+    const start = offset;
+    offset += part.text.length;
+    return { ...part, start, end: offset };
+  });
 }
 
 const copy = {
   EN: {
-    title: "One sentence becomes a filing path.",
     mapped: "Your filing path, mapped.",
     sentence: "I want to open a restaurant in Bayamón with 10 employees and outdoor seating.",
     marks: ["restaurant", "Bayamón", "10 employees", "outdoor seating"],
-    facts: [
-      { id: "type", label: "Restaurant", links: ["dos", "health", "muni"] },
-      { id: "place", label: "Bayamón", links: ["muni", "ogpe"] },
-      { id: "emp", label: "10 employees", links: ["hacienda"] },
-      { id: "out", label: "Outdoor seating", links: ["muni", "ogpe", "health", "fire"] },
-    ],
-    agencies: [
-      { id: "dos", label: "Department of State" },
-      { id: "hacienda", label: "Hacienda" },
-      { id: "muni", label: "Municipio de Bayamón" },
-      { id: "ogpe", label: "OGPe" },
-      { id: "health", label: "Department of Health" },
-      { id: "fire", label: "Fire" },
-    ],
+    chips: ["Restaurant", "Bayamón", "10 employees", "Outdoor seating"],
+    parseReading: "Reading your business",
+    parseDetails: (n: number) => `${n} details identified`,
+    parseAgencies: (n: number) => `${n} agencies apply`,
+    parseMapped: "Filing sequence mapped",
+    agencies: ["Department of State", "Hacienda", "Municipio de Bayamón", "OGPe", "Department of Health", "Fire"],
     path: [
       { title: "Entity registration", detail: "Department of State · Certificate of Incorporation" },
       { title: "Tax registration", detail: "Hacienda · Employer Identification Number (SS-4)" },
@@ -88,24 +78,15 @@ const copy = {
     cta: "Build my filing path",
   },
   ES: {
-    title: "Una oración se convierte en una ruta de radicación.",
     mapped: "Su ruta de radicación, trazada.",
     sentence: "Quiero abrir un restaurante en Bayamón con 10 empleados y asientos al aire libre.",
     marks: ["restaurante", "Bayamón", "10 empleados", "asientos al aire libre"],
-    facts: [
-      { id: "type", label: "Restaurante", links: ["dos", "health", "muni"] },
-      { id: "place", label: "Bayamón", links: ["muni", "ogpe"] },
-      { id: "emp", label: "10 empleados", links: ["hacienda"] },
-      { id: "out", label: "Asientos al aire libre", links: ["muni", "ogpe", "health", "fire"] },
-    ],
-    agencies: [
-      { id: "dos", label: "Departamento de Estado" },
-      { id: "hacienda", label: "Hacienda" },
-      { id: "muni", label: "Municipio de Bayamón" },
-      { id: "ogpe", label: "OGPe" },
-      { id: "health", label: "Departamento de Salud" },
-      { id: "fire", label: "Bomberos" },
-    ],
+    chips: ["Restaurante", "Bayamón", "10 empleados", "Asientos al aire libre"],
+    parseReading: "Leyendo su negocio",
+    parseDetails: (n: number) => `${n} detalles identificados`,
+    parseAgencies: (n: number) => `${n} agencias aplican`,
+    parseMapped: "Ruta de radicación trazada",
+    agencies: ["Departamento de Estado", "Hacienda", "Municipio de Bayamón", "OGPe", "Departamento de Salud", "Bomberos"],
     path: [
       { title: "Registro de entidad", detail: "Departamento de Estado · Certificado de incorporación" },
       { title: "Registro contributivo", detail: "Hacienda · Número de identificación patronal (SS-4)" },
@@ -117,228 +98,332 @@ const copy = {
   },
 } as const;
 
+function bezier(p0: number, p1: number, p2: number, p3: number, t: number) {
+  const m = 1 - t;
+  return m * m * m * p0 + 3 * m * m * t * p1 + 3 * m * t * t * p2 + t * t * t * p3;
+}
+
+function arrowheadPath(x: number, y: number, angle: number) {
+  const size = 4.2;
+  const a1 = angle + Math.PI - 0.42;
+  const a2 = angle + Math.PI + 0.42;
+  return `M ${x} ${y} L ${x + size * Math.cos(a1)} ${y + size * Math.sin(a1)} L ${x + size * Math.cos(a2)} ${y + size * Math.sin(a2)} Z`;
+}
+
 export default function FilingPathStory({ language }: { language: Language }) {
   const router = useRouter();
   const reduced = useReducedMotion();
-  const [phase, setPhase] = useState(0);
-  const sectionRef = useRef<HTMLElement | null>(null);
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const phaseRef = useRef(0);
   const c = copy[language];
-  const parts = useMemo(() => tokenize(c.sentence, [...c.marks]), [c]);
-  const phaseClass = [styles.phase0, styles.phase1, styles.phase2, styles.phase3][phase];
+  const tokens = useMemo(() => tokenize(c.sentence, [...c.marks]), [c]);
+  const markTokens = useMemo(() => tokens.filter((t) => t.mark), [tokens]);
+
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const routeRef = useRef<SVGPathElement | null>(null);
+  const arrowRefs = useRef<(SVGPathElement | null)[]>([]);
+  const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const [typedCount, setTypedCount] = useState(0);
+  const [caretDone, setCaretDone] = useState(false);
+  const [parseOn, setParseOn] = useState(false);
+  const [parseSettled, setParseSettled] = useState(false);
+  const [parseLabel, setParseLabel] = useState<string>(c.parseReading);
+  const [markedCount, setMarkedCount] = useState(0);
+  const [liftedCount, setLiftedCount] = useState(0);
+  const [agenciesShown, setAgenciesShown] = useState(0);
+  const [pathDrawn, setPathDrawn] = useState(false);
+  const [stepsShown, setStepsShown] = useState(0);
+  const [ctaShown, setCtaShown] = useState(false);
+
+  // Reduced motion never touches the timeline state above — it just renders
+  // the finished values directly, so there's nothing to synchronize in an effect.
+  const effTypedCount = reduced ? c.sentence.length : typedCount;
+  const effCaretDone = reduced ? true : caretDone;
+  const effParseOn = reduced ? true : parseOn;
+  const effParseSettled = reduced ? true : parseSettled;
+  const effParseLabel = reduced ? c.parseMapped : parseLabel;
+  const effMarkedCount = reduced ? markTokens.length : markedCount;
+  const effLiftedCount = reduced ? markTokens.length : liftedCount;
+  const effAgenciesShown = reduced ? c.agencies.length : agenciesShown;
+  const effStepsShown = reduced ? c.path.length : stepsShown;
+  const effPathDrawn = reduced ? true : pathDrawn;
+  const effCtaShown = reduced ? true : ctaShown;
+
+  const reset = () => {
+    setTypedCount(0);
+    setCaretDone(false);
+    setParseOn(false);
+    setParseSettled(false);
+    setParseLabel(c.parseReading);
+    setMarkedCount(0);
+    setLiftedCount(0);
+    setAgenciesShown(0);
+    setPathDrawn(false);
+    setStepsShown(0);
+    setCtaShown(false);
+  };
+
+  /** Measures the current node circles and writes the connecting curve +
+   * arrowheads straight onto the SVG (matches how the rest of this file
+   * drives the desktop canvas: geometry is imperative, content is not). */
+  const layoutPath = () => {
+    const wrap = wrapRef.current;
+    const svg = svgRef.current;
+    const route = routeRef.current;
+    if (!wrap || !svg || !route) return 0;
+    const wrapBox = wrap.getBoundingClientRect();
+    svg.setAttribute("viewBox", `0 0 56 ${wrapBox.height}`);
+    svg.setAttribute("height", String(wrapBox.height));
+    const nodes = nodeRefs.current
+      .filter((n): n is HTMLDivElement => Boolean(n))
+      .map((n) => {
+        const r = n.getBoundingClientRect();
+        return { x: r.left - wrapBox.left + r.width / 2, y: r.top - wrapBox.top + r.height / 2 };
+      });
+    if (nodes.length < 2) return 0;
+    let d = `M ${nodes[0].x} ${nodes[0].y}`;
+    nodes.slice(1).forEach((p1, i) => {
+      const p0 = nodes[i];
+      const dir = i % 2 === 0 ? 1 : -1;
+      const bow = 9 * dir;
+      const c1x = p0.x + bow;
+      const c1y = p0.y + (p1.y - p0.y) * 0.33;
+      const c2x = p1.x - bow;
+      const c2y = p0.y + (p1.y - p0.y) * 0.66;
+      d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p1.x} ${p1.y}`;
+      const ax = bezier(p0.x, c1x, c2x, p1.x, 0.9);
+      const ay = bezier(p0.y, c1y, c2y, p1.y, 0.9);
+      const bx = bezier(p0.x, c1x, c2x, p1.x, 0.98);
+      const by = bezier(p0.y, c1y, c2y, p1.y, 0.98);
+      const arrow = arrowRefs.current[i];
+      if (arrow) arrow.setAttribute("d", arrowheadPath(bx, by, Math.atan2(by - ay, bx - ax)));
+    });
+    route.setAttribute("d", d);
+    const len = route.getTotalLength();
+    route.style.transition = "none";
+    route.style.strokeDasharray = String(len);
+    route.style.strokeDashoffset = String(len);
+    return len;
+  };
+
+  useEffect(() => {
+    layoutPath();
+    const onResize = () => layoutPath();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [language]);
+
+  useEffect(() => {
+    const route = routeRef.current;
+    if (!route) return;
+    layoutPath();
+    if (effPathDrawn) {
+      if (reduced) {
+        route.style.transition = "none";
+        route.style.strokeDashoffset = "0";
+      } else {
+        requestAnimationFrame(() => {
+          route.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.35,.55,.2,1)";
+          route.style.strokeDashoffset = "0";
+        });
+      }
+    }
+  }, [effPathDrawn, reduced]);
+
+  useEffect(() => {
+    if (reduced) return;
+    const section = sectionRef.current;
+    const anchor = anchorRef.current;
+    if (!section || !anchor) return;
+
+    let armed = true;
+    let runId = 0;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const pause = (ms: number, id: number) =>
+      new Promise<void>((resolve) => {
+        timers.push(setTimeout(resolve, ms));
+      }).then(() => id === runId);
+
+    async function run() {
+      const id = ++runId;
+      reset();
+      if (!(await pause(400, id))) return;
+
+      for (const token of tokens) {
+        for (let i = token.start + 1; i <= token.end; i++) {
+          setTypedCount(i);
+          if (!(await pause(token.mark ? 34 : 22, id))) return;
+        }
+      }
+      setCaretDone(true);
+      if (!(await pause(420, id))) return;
+
+      setParseOn(true);
+      for (let i = 1; i <= markTokens.length; i++) {
+        setMarkedCount(i);
+        if (!(await pause(230, id))) return;
+      }
+      if (!(await pause(180, id))) return;
+      setParseLabel(c.parseDetails(markTokens.length));
+      setParseSettled(true);
+      if (!(await pause(320, id))) return;
+
+      for (let i = 1; i <= markTokens.length; i++) {
+        setLiftedCount(i);
+        if (!(await pause(150, id))) return;
+      }
+      if (!(await pause(280, id))) return;
+
+      setParseLabel(c.parseAgencies(c.agencies.length));
+      for (let i = 1; i <= c.agencies.length; i++) {
+        setAgenciesShown(i);
+        if (!(await pause(70, id))) return;
+      }
+      if (!(await pause(360, id))) return;
+
+      setParseLabel(c.parseMapped);
+      setPathDrawn(true);
+      for (let i = 1; i <= c.path.length; i++) {
+        setStepsShown(i);
+        if (!(await pause(430, id))) return;
+      }
+      if (!(await pause(300, id))) return;
+      setCtaShown(true);
+    }
+
+    const player = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && armed) {
+          armed = false;
+          run();
+        }
+      },
+      { threshold: 0.2 },
+    );
+    player.observe(anchor);
+
+    const rearm = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting && !armed) {
+          armed = true;
+          runId++;
+          timers.splice(0).forEach(clearTimeout);
+          reset();
+        }
+      },
+      { threshold: 0 },
+    );
+    rearm.observe(section);
+
+    return () => {
+      runId++;
+      timers.splice(0).forEach(clearTimeout);
+      player.disconnect();
+      rearm.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reduced, language]);
 
   function startExample() {
     router.push("/?entry=new-business");
   }
 
-  useEffect(() => {
-    if (reduced) {
-      setPhase(3);
-      return;
-    }
-    const section = sectionRef.current;
-    const canvas = canvasRef.current;
-    if (!section) return;
-    const mq = window.matchMedia("(max-width: 1023px)");
-    let frame = 0;
-    let playing = section.getBoundingClientRect().bottom > 80 && section.getBoundingClientRect().top < window.innerHeight;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        playing = entry.isIntersecting;
-      },
-      { threshold: 0.05, rootMargin: "80px 0px" },
-    );
-    io.observe(section);
-
-    const applyDesktop = (p: number) => {
-      if (!canvas || mq.matches) return;
-      const extract = ease(range(p, 0.06, 0.28));
-      const graph = ease(range(p, 0.3, 0.52));
-      const toPath = ease(range(p, 0.58, 0.82));
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (w < 40 || h < 40) return;
-      const svg = svgRef.current;
-      if (svg) {
-        svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-        svg.setAttribute("width", String(w));
-        svg.setAttribute("height", String(h));
-      }
-      const facts = [...canvas.querySelectorAll<HTMLElement>("[data-fact]")];
-      const agencies = [...canvas.querySelectorAll<HTMLElement>("[data-agency]")];
-      const nF = facts.length;
-      const nA = agencies.length;
-      const factPts: { x: number; y: number }[] = [];
-      facts.forEach((el, i) => {
-        const spreadX = nF === 1 ? 0.5 : lerp(0.14, 0.86, i / Math.max(1, nF - 1));
-        const colY = nF === 1 ? 0.48 : lerp(0.18, 0.82, i / Math.max(1, nF - 1));
-        const graphX = lerp(spreadX, 0.16, graph);
-        const graphY = lerp(0.18, colY, graph);
-        const x = lerp(graphX, spreadX, toPath) * w;
-        const y = lerp(graphY, 0.08, toPath) * h;
-        el.style.opacity = String(extract * lerp(1, 0.28, toPath));
-        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
-        factPts.push({ x, y });
-      });
-      const agencyPts: { x: number; y: number }[] = [];
-      agencies.forEach((el, i) => {
-        const x = 0.78 * w;
-        const y = lerp(0.24, 0.82, nA === 1 ? 0.5 : i / Math.max(1, nA - 1)) * h;
-        el.style.opacity = String(graph * (1 - toPath));
-        el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
-        agencyPts.push({ x, y });
-      });
-      canvas.querySelectorAll<SVGPathElement>("[data-link]").forEach((path) => {
-        const a = factPts[Number(path.dataset.fi)];
-        const b = agencyPts[Number(path.dataset.ai)];
-        if (!a || !b) return;
-        const x1 = a.x + 58;
-        const x2 = b.x - 72;
-        const midX = lerp(x1, x2, 0.5);
-        path.setAttribute("d", `M ${x1} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${x2} ${b.y}`);
-        let len = 160;
-        try {
-          len = path.getTotalLength() || 160;
-        } catch {
-          /* empty */
-        }
-        path.style.strokeDasharray = String(len);
-        path.style.strokeDashoffset = String(len * (1 - graph));
-        path.style.opacity = String(graph * (1 - toPath) * 0.9);
-      });
-      const pathBox = canvas.querySelector<HTMLElement>("[data-story=path]");
-      if (pathBox) {
-        pathBox.style.opacity = String(toPath);
-        pathBox.style.transform = `translate(-50%, ${lerp(22, 0, toPath)}px)`;
-      }
-      canvas.querySelectorAll<HTMLElement>("[data-path-step]").forEach((el, i) => {
-        const local = ease(range(toPath, i * 0.12, Math.min(1, i * 0.12 + 0.4)));
-        el.style.opacity = String(local);
-        el.style.transform = `translateY(${lerp(12, 0, local)}px)`;
-      });
-      const rail = section.querySelector<HTMLElement>("[data-story=rail]");
-      if (rail) rail.style.transform = `scaleY(${p})`;
-    };
-
-    const playFor = () => (mq.matches ? 7500 : 10000);
-    const hold = 2200;
-    let start = 0;
-    const tick = (now: number) => {
-      if (!playing) {
-        start = 0;
-        frame = requestAnimationFrame(tick);
-        return;
-      }
-      if (!start) start = now;
-      const play = playFor();
-      const elapsed = (now - start) % (play + hold);
-      const p = elapsed <= play ? elapsed / play : 1;
-      const nextPhase = p < 0.2 ? 0 : p < 0.48 ? 1 : p < 0.76 ? 2 : 3;
-      if (phaseRef.current !== nextPhase) {
-        phaseRef.current = nextPhase;
-        setPhase(nextPhase);
-      }
-      applyDesktop(p);
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(frame);
-      io.disconnect();
-    };
-  }, [reduced, language]);
-
-  const links = c.facts.flatMap((fact, fi) =>
-    fact.links
-      .map((id) => ({ fi, ai: c.agencies.findIndex((a) => a.id === id) }))
-      .filter((l) => l.ai >= 0),
-  );
-
   return (
     <section id="how-it-works" ref={sectionRef} className={styles.pin}>
-      <div className={styles.pinInner}>
-        <div className={styles.frame}>
-          <div className={styles.heading}>
-            <h2 className={phase >= 3 ? styles.hidden : undefined}>{c.title}</h2>
-            <h2 className={phase >= 3 ? undefined : styles.hidden} aria-hidden={phase < 3}>
-              {c.mapped}
-            </h2>
-          </div>
+      <div className={styles.frame}>
+        <h2 className={styles.heading}>{c.mapped}</h2>
 
-          <blockquote className={styles.sentence}>
-            {parts.map((part, i) =>
-              part.mark ? <em key={i}>{part.text}</em> : <span key={i}>{part.text}</span>,
-            )}
-          </blockquote>
+        {/* Full sentence for assistive tech / no-JS; the animated version below is aria-hidden. */}
+        <p className={styles.srOnly}>{c.sentence}</p>
 
-          <div className={`${styles.mobileStory} ${phaseClass}`}>
-            <div className={styles.mobilePills}>
-              {c.facts.map((fact, i) => (
-                <span key={fact.id} style={{ transitionDelay: `${i * 70}ms` }}>
-                  {fact.label}
-                </span>
-              ))}
+        <div ref={anchorRef} className={styles.sentence} aria-hidden="true">
+          {tokens.map((token, i) => {
+            const markIndex = markTokens.indexOf(token);
+            const revealed = token.text.slice(0, Math.max(0, effTypedCount - token.start));
+            if (!revealed) return null;
+            const isMarked = token.mark && markIndex < effMarkedCount;
+            const isLifted = token.mark && markIndex < effLiftedCount;
+            return (
+              <span
+                key={i}
+                className={
+                  token.mark
+                    ? `${styles.tok} ${styles.key} ${isMarked ? styles.marked : ""} ${isLifted ? styles.lifted : ""}`
+                    : styles.tok
+                }
+              >
+                {revealed}
+              </span>
+            );
+          })}
+          <span className={`${styles.caret} ${effCaretDone ? styles.caretDone : ""}`} />
+        </div>
+
+        <div
+          className={`${styles.parse} ${effParseOn ? styles.on : ""} ${effParseSettled ? styles.settled : ""}`}
+          aria-hidden="true"
+        >
+          <span className={styles.pulse} />
+          <span>{effParseLabel}</span>
+        </div>
+
+        <div className={styles.chips} aria-hidden="true">
+          {c.chips.map((label, i) => (
+            <div key={label} className={`${styles.chip} ${i < effLiftedCount ? styles.in : ""}`}>
+              {label}
             </div>
-            <span className={styles.mobileConnect} aria-hidden />
-            <div className={styles.mobileAgencies}>
-              {c.agencies.map((agency, i) => (
-                <span key={agency.id} style={{ transitionDelay: `${i * 60}ms` }}>
-                  <i />
-                  {agency.label}
-                </span>
-              ))}
-            </div>
-            <ol className={styles.mobilePath}>
-              {c.path.map((step, i) => (
-                <li key={step.title} style={{ transitionDelay: `${i * 80}ms` }}>
-                  {i > 0 ? <span className={styles.join} aria-hidden /> : null}
-                  <p>{step.title}</p>
-                  <small>{step.detail}</small>
+          ))}
+        </div>
+
+        <p className={styles.agencies}>
+          {c.agencies.map((agency, i) => (
+            <span key={agency} className={`${styles.ag} ${i < effAgenciesShown ? styles.in : ""}`}>
+              {agency}
+              {i < c.agencies.length - 1 ? <span className={styles.dot}>•</span> : null}
+            </span>
+          ))}
+        </p>
+
+        <div ref={wrapRef} className={styles.stepsWrap}>
+          <svg ref={svgRef} className={styles.pathSvg} aria-hidden="true">
+            <path ref={routeRef} className={styles.route} />
+            {c.path.slice(0, -1).map((_, i) => (
+              <path
+                key={i}
+                ref={(el) => {
+                  arrowRefs.current[i] = el;
+                }}
+                className={`${styles.arrow} ${i < effStepsShown - 1 ? styles.show : ""}`}
+              />
+            ))}
+          </svg>
+          <ol className={styles.steps}>
+            {c.path.map((step, i) => {
+              const Icon = STEP_ICONS[i];
+              return (
+                <li key={step.title} className={`${styles.step} ${i < effStepsShown ? styles.in : ""}`}>
+                  <div
+                    className={styles.node}
+                    ref={(el) => {
+                      nodeRefs.current[i] = el;
+                    }}
+                  >
+                    <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
+                  </div>
+                  <h3>{step.title}</h3>
+                  <p>{step.detail}</p>
                 </li>
-              ))}
-            </ol>
-          </div>
+              );
+            })}
+          </ol>
+        </div>
 
-          <div ref={canvasRef} className={styles.canvas} aria-hidden>
-            <div className={styles.rail}>
-              <span data-story="rail" />
-            </div>
-            {c.facts.map((fact) => (
-              <span key={fact.id} data-fact={fact.id} className={styles.pill}>
-                {fact.label}
-              </span>
-            ))}
-            {c.agencies.map((agency) => (
-              <span key={agency.id} data-agency={agency.id} className={styles.agency}>
-                <i />
-                {agency.label}
-              </span>
-            ))}
-            <svg ref={svgRef} className={styles.svg}>
-              {links.map((link, i) => (
-                <path key={`${link.fi}-${link.ai}-${i}`} data-link data-fi={link.fi} data-ai={link.ai} />
-              ))}
-            </svg>
-            <div data-story="path" className={styles.path}>
-              <ol>
-                {c.path.map((step, i) => (
-                  <li key={step.title} data-path-step>
-                    {i > 0 ? <span className={styles.join} aria-hidden /> : null}
-                    <p>{step.title}</p>
-                    <small>{step.detail}</small>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-
-          <div className={styles.cta}>
-            <button type="button" onClick={startExample}>
-              {c.cta}
-            </button>
-          </div>
+        <div className={styles.cta}>
+          <button type="button" className={effCtaShown ? styles.in : ""} onClick={startExample}>
+            {c.cta}
+          </button>
         </div>
       </div>
     </section>
