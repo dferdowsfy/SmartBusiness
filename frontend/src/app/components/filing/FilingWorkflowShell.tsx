@@ -51,6 +51,9 @@ interface FilingWorkflowShellProps {
   onLanguageChange: (language: "en" | "es") => void;
   onStageChange: (stage: FilingStage) => void;
   intelligence: SmartPRLiveData;
+  /** Overrides the default SmartPR Live sidebar when provided (e.g. the
+   * Requirements page's own readiness sidebar). */
+  sidebar?: ReactNode;
   children: ReactNode;
 }
 
@@ -216,6 +219,7 @@ export function FilingWorkflowShell({
   onLanguageChange,
   onStageChange,
   intelligence,
+  sidebar,
   children,
 }: FilingWorkflowShellProps) {
   const [compact, setCompact] = useState(false);
@@ -294,7 +298,7 @@ export function FilingWorkflowShell({
 
       <div className="spr-workflow-grid">
         <section className="spr-main-workarea">{children}</section>
-        <SmartPRLivePanel data={intelligence} language={language} />
+        {sidebar ?? <SmartPRLivePanel data={intelligence} language={language} />}
       </div>
     </div>
   );

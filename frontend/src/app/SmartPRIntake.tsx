@@ -51,15 +51,19 @@ import {
   type FilingStage,
   type SmartPRLiveData,
 } from './components/filing/FilingWorkflowShell';
+import { RequirementCard, type RequirementAction, type RequirementBadge } from './components/filing/RequirementCard';
+import { RequirementsSidebar } from './components/filing/RequirementsSidebar';
+import { iconToneFor, uploadCopy, externalCopy, formEstimateFor } from './components/filing/requirementCopy';
 import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
 import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
 import { jsPDF } from 'jspdf';
 import {
-  CheckCircle, AlertTriangle, Info, Upload, FileText,
+  CheckCircle, AlertTriangle, Info, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle, Eye
+  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle, Eye,
+  Star, ChevronDown,
 } from 'lucide-react';
 
 // SmartPR
@@ -925,30 +929,6 @@ const FACTOR_COLOR: Record<string, string> = {
   municipality: '#0891b2', universal: '#6b7280', agency: '#245c5c',
 };
 
-// Expandable "Why is this required?" breakdown for a single requirement.
-// Presentation-only; never affects whether the document is required.
-function ReqReasons({ enr, language }: { enr: EnrichedRequirement; language: any }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-1">
-      <button onClick={() => setOpen(o => !o)} className="text-xs font-semibold text-[#245c5c] hover:underline">
-        {open ? L('Hide reasons', language) : L('Why is this required?', language)}
-      </button>
-      {open && (
-        <div className="mt-1.5 flex flex-col gap-1">
-          {enr.reasons.map((r, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="text-[10px] font-semibold text-white rounded px-1.5 py-0.5" style={{ background: FACTOR_COLOR[r.factor] || '#6b7280' }}>
-                {L(r.factorLabel, language)}{r.weight > 0 ? ` · ${r.weight}%` : ''}
-              </span>
-              <span className="text-xs text-[#161616]/80">{r.text}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Compose the reasoning from structured parts so it localizes correctly
 // (the stored ext.reasoning is English-only for analytics consistency).
@@ -3156,8 +3136,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   // generation above are unchanged.
   // =========================================================================
 
-  // Requirements list filter (All / To do / Done / Recommended).
-  const [reqFilter, setReqFilter] = useState<'all' | 'todo' | 'done' | 'recommended'>('all');
+  // Requirements list filter (All / To Do / To Fill Out / Completed).
+  const [reqFilter, setReqFilter] = useState<'all' | 'todo' | 'fillout' | 'completed'>('all');
+  const [reqShowAll, setReqShowAll] = useState(false);
 
   // Live rules-engine output while the user is still in intake, so the
   // intelligence panel and progress stats update as they answer.
@@ -3199,8 +3180,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   const missingCount = requirements.filter(r => r.mandatory && r.status === 'pending').length;
   const reviewCount = requirements.filter(r => r.mandatory && r.status === 'warning').length;
-  const doneCount = completedMandatory;
-  const recommendedCount = requirements.filter(r => !r.mandatory).length;
 
   // Current view derives from the preserved step state machine so snapshots
   // and ?resume= links keep working. Historical document-step snapshots (7)
@@ -3217,11 +3196,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   const ringScore = readinessScore !== null ? readinessScore : checklistProgress;
-  const readinessEyebrow =
-    ringScore >= 90 ? L('Ready For Submission', language)
-    : ringScore >= 70 ? L('Nearly Ready', language)
-    : ringScore >= 40 ? L('In Progress', language)
-    : L('Getting Started', language);
 
   // Canonical application profile — the shared business information entered once
   // during core intake, reused across every applicable government form. In-form
@@ -3298,9 +3272,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     setActiveGovForm({ formId, requirementCode, mode });
   };
 
-  // One Validador-styled requirement row. Upload flow, reasons, and the
-  // extraction panel are the same components/handlers as before.
-  const renderReqRow = (req: Requirement) => {
+  // Derive the single primary action for a requirement card. Priority order
+  // (never show two competing actions at once): completed > a SmartPR-guided
+  // government form still in progress > a known external government step >
+  // a plain document upload. `acceptsOfficialUpload === false` or a
+  // conditional/review-condition requirement gets no action — those need the
+  // user's answer, not a button, before SmartPR can say what's next.
+  const computeReqCard = (req: Requirement) => {
     const doc = uploadedDocs.find(d => d.requirement_code === req.code);
     const analysis = doc?.ai_analysis;
     const ext: ExtractionResult | undefined = analysis?.extraction;
@@ -3312,109 +3290,103 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     } else if (req.status === 'warning') {
       state = 'review';
     }
-    const checkCls = state === 'done' ? 'done' : state === 'review' ? 'progress' : 'missing';
-    const promoted = req.code.startsWith('potential_');
-    const issuedDocumentGuidance = ISSUED_DOCUMENT_GUIDANCE[req.code];
-    return (
-      <div id={`req-row-${req.code}`} key={req.code} className="req-row">
-        <div className={`req-check ${checkCls}`}>
-          {state === 'done' ? <CheckCircle className="i" style={{ width: 14, height: 14 }} />
-            : state === 'review' ? <AlertTriangle className="i" style={{ width: 13, height: 13 }} />
-            : <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'block' }} />}
-        </div>
-        <div className="req-main">
-          <div className="name" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {docIconFor(trReqName(req))}
-            {trReqName(req)}
-          </div>
-          <details>
-            <summary className="why" style={{ color: 'var(--brand-2)', fontWeight: 500 }}>
-              <Info className="i" style={{ width: 12, height: 12, display: 'inline', verticalAlign: '-1px' }} /> {L('Why is this required?', language)}
-            </summary>
-            <div className="why">{trReqReason(req)}</div>
-            {req.document_id && reasonsByDoc[req.document_id] && (
-              <ReqReasons enr={reasonsByDoc[req.document_id]} language={language} />
-            )}
-          </details>
-          {issuedDocumentGuidance && (
-            <div className="issued-document-guidance">
-              <Info className="i" style={{ width: 13, height: 13 }} />
-              <span>{issuedDocumentGuidance}</span>
-            </div>
-          )}
-          {ext && analysis && (
-            <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
-          )}
-        </div>
-        <div className="req-tags">
-          {req.agency && <span className="tag agency">{L(req.agency, language)}</span>}
-          <span className={`tag ${req.applicability === 'conditional' ? '' : req.mandatory ? 'due' : ''}`}>
-            {req.applicability === 'conditional' ? L('Needs verification', language)
-              : req.applicability === 'not_applicable' ? L('Not applicable', language)
-              : req.kind === 'review_condition' ? L('Review condition', language)
-              : promoted ? L('Confirmed', language)
-              : req.mandatory ? L('Required', language)
-              : L('Optional', language)}
-          </span>
-        </div>
-        <div className="req-actions-stack">
-          {(() => {
-            // Open only a verified, code-backed government PDF. The builder is
-            // available directly on its requirement and populates that existing
-            // artifact from the shared canonical intake data.
-            const govEntry = govFormEntryForReq(req);
-            if (govEntry) {
-              const prepared = preparedGovApplications[govEntry.id];
-              const hasDraft = !!govFormDrafts[govEntry.id];
-              const fState = requirementFormState(prepared);
-              const actions = fState === 'no_record' && hasDraft ? ['edit_form'] : actionsForFormState(fState);
-              return (
-                <>
-                  {prepared && (
-                    <span className="tag" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
-                      {fState === 'submitted' ? L('Marked as submitted', language) : L('Application prepared', language)}
-                    </span>
-                  )}
-                  {actions.includes('start_form') && (
-                    <button className="req-action primary" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Open official form', language)}
-                    </button>
-                  )}
-                  {actions.includes('edit_form') && (
-                    <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('Continue official form', language)}
-                    </button>
-                  )}
-                  {actions.includes('view_form') && (
-                    <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'view')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View official form', language)}
-                    </button>
-                  )}
-                  {actions.includes('review_updates') && (
-                    <button className="req-action primary" onClick={() => openGovForm(govEntry.id, req.code, 'edit')}>
-                      <RefreshCw className="i" style={{ width: 13, height: 13 }} /> {L('Review Updates', language)}
-                    </button>
-                  )}
-                  {actions.includes('view_submission') && (
-                    <button className="req-action" onClick={() => openGovForm(govEntry.id, req.code, 'view')}>
-                      <FileText className="i" style={{ width: 13, height: 13 }} /> {L('View Submission', language)}
-                    </button>
-                  )}
-                </>
-              );
-            }
-            return null;
-          })()}
-          {req.acceptsOfficialUpload !== false && req.kind !== 'review_condition' && req.applicability !== 'conditional' && req.applicability !== 'not_applicable' ? (
-          <button className={`req-action ${state !== 'done' ? 'primary' : ''}`} onClick={() => triggerFileUploadWithPipeline(req.code)}>
-            <Upload className="i" style={{ width: 13, height: 13 }} /> {L(doc ? 'Re-upload official' : 'Upload official', language)}
-          </button>
-          ) : null}
-        </div>
+    const name = trReqName(req);
+    const isConditional = req.applicability === 'conditional';
+    const isReviewCondition = req.kind === 'review_condition';
 
-        {/* Multi-stage processing (visible inside card) */}
+    // Open only a verified, code-backed government PDF. The builder is
+    // available directly on its requirement and populates that existing
+    // artifact from the shared canonical intake data.
+    const govEntry = govFormEntryForReq(req);
+    const prepared = govEntry ? preparedGovApplications[govEntry.id] : undefined;
+    const hasDraft = govEntry ? !!govFormDrafts[govEntry.id] : false;
+    const fState = govEntry ? requirementFormState(prepared) : null;
+    const formActions = govEntry ? (fState === 'no_record' && hasDraft ? ['edit_form'] : actionsForFormState(fState!)) : [];
+
+    let action: RequirementAction;
+    let bucket: 'completed' | 'fillout' | 'todo' | 'none';
+
+    if (state === 'done') {
+      action = { kind: 'completed', label: L('Completed', language) };
+      bucket = 'completed';
+    } else if (isConditional || isReviewCondition) {
+      action = { kind: 'none', label: '' };
+      bucket = 'none';
+    } else if (govEntry && formActions.includes('start_form')) {
+      action = { kind: 'form', label: L('Complete government form', language), helper: formEstimateFor(name), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
+      bucket = 'fillout';
+    } else if (govEntry && formActions.includes('edit_form')) {
+      action = { kind: 'form', label: L('Continue application', language), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
+      bucket = 'fillout';
+    } else if (govEntry && formActions.includes('review_updates')) {
+      action = { kind: 'form', label: L('Review updates', language), onClick: () => openGovForm(govEntry.id, req.code, 'edit') };
+      bucket = 'fillout';
+    } else if (govEntry && (formActions.includes('view_submission') || formActions.includes('view_form'))) {
+      action = { kind: 'waiting', label: L('Waiting for confirmation', language) };
+      bucket = 'todo';
+    } else if (req.acceptsOfficialUpload === false) {
+      action = { kind: 'none', label: '' };
+      bucket = 'none';
+    } else {
+      const extCopy = externalCopy(name);
+      if (extCopy) {
+        action = { kind: 'external', label: L(extCopy.label, language), helper: extCopy.helper ? L(extCopy.helper, language) : undefined, href: extCopy.externalHref, tone: extCopy.externalTone };
+        bucket = 'todo';
+      } else {
+        const uc = uploadCopy(name, !!doc);
+        action = { kind: 'upload', label: L(uc.label, language), helper: uc.helper ? L(uc.helper, language) : undefined, onClick: () => triggerFileUploadWithPipeline(req.code) };
+        bucket = 'todo';
+      }
+    }
+
+    const badge: RequirementBadge | null =
+      state === 'done' ? null
+      : action.kind === 'form' ? { label: L('FILL OUT', language), tone: 'amber' }
+      : isConditional ? { label: L('Needs verification', language), tone: 'gray' }
+      : isReviewCondition ? { label: L('Review condition', language), tone: 'gray' }
+      : req.mandatory ? { label: L('REQUIRED', language), tone: 'amber' }
+      : { label: L('Optional', language), tone: 'gray' };
+
+    const enr = req.document_id ? reasonsByDoc[req.document_id] : undefined;
+    const issuedDocumentGuidance = ISSUED_DOCUMENT_GUIDANCE[req.code];
+    // The description above already shows the reason text; only repeat it
+    // here as a fallback when there's no extra structured detail to add.
+    const why = (
+      <>
+        {!enr?.reasons?.length && !issuedDocumentGuidance && <div>{trReqReason(req)}</div>}
+        {!!enr?.reasons?.length && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {enr.reasons.map((r, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'white', borderRadius: 4, padding: '2px 6px', background: FACTOR_COLOR[r.factor] || '#6b7280' }}>
+                  {L(r.factorLabel, language)}{r.weight > 0 ? ` · ${r.weight}%` : ''}
+                </span>
+                <span>{r.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {issuedDocumentGuidance && (
+          <div className="issued-document-guidance" style={{ marginTop: 8 }}>
+            <Info className="i" style={{ width: 13, height: 13 }} />
+            <span>{issuedDocumentGuidance}</span>
+          </div>
+        )}
+      </>
+    );
+
+    const extra = (
+      <>
+        {prepared && (
+          <span className="tag" style={{ background: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}>
+            {fState === 'submitted' ? L('Marked as submitted', language) : L('Application prepared', language)}
+          </span>
+        )}
+        {ext && analysis && (
+          <ExtractionPanel ext={ext} docType={analysis.document_type} language={language} />
+        )}
         {processingStates[req.code] && (
-          <div style={{ gridColumn: '1 / -1', marginTop: 8, padding: '6px 10px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 12 }}>
+          <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--surface-2)', borderRadius: 8, fontSize: 12 }}>
             {PROCESS_STAGES.map((lab, i) => {
               const p = processingStates[req.code]!;
               const done = i < p.stageIndex;
@@ -3427,10 +3399,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             })}
           </div>
         )}
-
-        {/* Inline review / AI findings when needs attention */}
         {(state === 'review' || reviewingCode === req.code) && analysis && (
-          <div style={{ gridColumn: '1 / -1', marginTop: 8, padding: 10, background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 8, fontSize: 13 }}>
+          <div style={{ marginTop: 8, padding: 10, background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 8, fontSize: 13 }}>
             <div style={{ fontWeight: 600, color: 'var(--warn)' }}>AI Findings</div>
             <div style={{ marginTop: 4 }}>{analysis.notes || 'Required fields incomplete or mismatched per validation.'}</div>
             <button onClick={() => resolveAndMarkComplete(req.code)} style={{ marginTop: 6, fontSize: 12, padding: '2px 8px', borderRadius: 6, border: '1px solid var(--warn)', background: 'white' }}>
@@ -3438,23 +3408,49 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </button>
           </div>
         )}
-      </div>
+      </>
     );
+    const hasExtra = !!(prepared || (ext && analysis) || processingStates[req.code] || ((state === 'review' || reviewingCode === req.code) && analysis));
+
+    return {
+      req, bucket, state,
+      name,
+      icon: docIconFor(name),
+      iconTone: iconToneFor(name),
+      agency: req.agency ? L(req.agency, language) : null,
+      description: trReqReason(req),
+      badge,
+      why,
+      action,
+      extra: hasExtra ? extra : undefined,
+    };
   };
 
-  const reqGroups: { key: string; label: string; pip: string; items: Requirement[] }[] = [
-    { key: 'review', label: L('Needs Review — action required', language), pip: 'warn', items: requirements.filter(r => r.mandatory && r.status === 'warning' && r.applicability !== 'not_applicable') },
-    { key: 'verify', label: L('Needs verification', language), pip: 'amber', items: requirements.filter(r => r.applicability === 'conditional') },
-    { key: 'missing', label: L('Critical path — handle these next', language), pip: 'amber', items: requirements.filter(r => r.mandatory && r.status === 'pending' && r.applicability !== 'conditional' && r.kind !== 'review_condition') },
-    { key: 'conditions', label: L('Review conditions', language), pip: 'blue', items: requirements.filter(r => r.kind === 'review_condition' && r.applicability === 'required' && r.status === 'pending') },
-    { key: 'done', label: L('Completed — looking good', language), pip: 'green', items: requirements.filter(r => r.mandatory && (r.status === 'passed' || r.status === 'uploaded')) },
-    { key: 'recommended', label: L('Recommended Items', language), pip: 'blue', items: requirements.filter(r => r.applicability === 'recommended' || (!r.mandatory && r.applicability !== 'conditional' && r.applicability !== 'not_applicable' && r.kind !== 'review_condition')) },
-  ];
-  const groupVisible = (key: string) =>
-    reqFilter === 'all' ? key !== 'recommended' || requirements.some(r => r.applicability === 'recommended' || !r.mandatory)
-    : reqFilter === 'todo' ? key === 'missing' || key === 'review' || key === 'verify'
-    : reqFilter === 'done' ? key === 'done'
-    : key === 'recommended';
+  const reqCards = useMemo(
+    () => requirements
+      .filter(r => r.applicability !== 'not_applicable')
+      .map(computeReqCard),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [requirements, uploadedDocs, processingStates, reviewingCode, preparedGovApplications, govFormDrafts, reasonsByDoc, language, profile.municipality]
+  );
+  const criticalPathCards = reqCards.filter(c => c.req.mandatory && c.bucket !== 'completed' && c.bucket !== 'none' && c.state === 'pending');
+  const criticalPathCodes = new Set(criticalPathCards.map(c => c.req.code));
+  const restCards = reqCards.filter(c => !criticalPathCodes.has(c.req.code));
+  const orderedCards = [...criticalPathCards, ...restCards];
+
+  const tabTodoCount = reqCards.filter(c => c.bucket === 'todo').length;
+  const tabFilloutCount = reqCards.filter(c => c.bucket === 'fillout').length;
+  const tabCompletedCount = reqCards.filter(c => c.bucket === 'completed').length;
+
+  const tabFilteredCards = orderedCards.filter(c =>
+    reqFilter === 'all' ? true
+    : reqFilter === 'todo' ? c.bucket === 'todo'
+    : reqFilter === 'fillout' ? c.bucket === 'fillout'
+    : c.bucket === 'completed'
+  );
+  const REQ_VISIBLE_DEFAULT = 6;
+  const visibleReqCards = reqShowAll ? tabFilteredCards : tabFilteredCards.slice(0, REQ_VISIBLE_DEFAULT);
+  const hiddenReqCount = tabFilteredCards.length - visibleReqCards.length;
 
   // Contradictions only the user can settle. Clashes SmartPR resolved itself
   // (a derivation losing to a user answer) are deliberately not shown.
@@ -3727,6 +3723,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         onLanguageChange={setLanguage}
         onStageChange={goTo}
         intelligence={stageIntelligence}
+        sidebar={view === 'requirements' ? (
+          <RequirementsSidebar
+            language={language}
+            readinessPct={ringScore}
+            totalCount={reqCards.length}
+            completedCount={tabCompletedCount}
+            todoCount={tabTodoCount}
+            fillOutCount={tabFilloutCount}
+          />
+        ) : undefined}
       >
 
       {/* ====================== INTAKE ====================== */}
@@ -4015,47 +4021,105 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             );
           })()}
 
-          {/* Compact readiness banner */}
-          <div className="req-banner">
-            <div className="mini-ring" style={{ ['--p' as string]: ringScore }}>
-              <div className="num">{ringScore}%</div>
-            </div>
-            <div className="headline">
-              <div className="eyebrow">{readinessEyebrow}</div>
-              <h1>{profile.name || L('Your Business', language)}{profile.municipality ? ` — ${profile.municipality}` : ''}</h1>
-              <p>{completedMandatory} {L('of', language)} {totalMandatory} {L('required documents validated', language)}.</p>
-            </div>
-            <div className="banner-stat">
-              <div className="lab">{L('Required', language)}</div>
-              <div className="val">{totalMandatory}</div>
-            </div>
-            <div className="banner-stat">
-              <div className="lab">{L('Completed', language)}</div>
-              <div className="val">{doneCount}</div>
-            </div>
-            <div className="banner-stat">
-              <div className="lab">{L('Missing', language)}</div>
-              <div className="val amber">{missingCount}</div>
-            </div>
-            <div className="banner-stat">
-              <div className="lab">{L('Recommended', language)}</div>
-              <div className="val">{recommendedCount}</div>
-            </div>
-
+          {/* Page head — Step 2 of 3 */}
+          <div className="rq-page-head">
+            <h1>{L('Requirements', language)}</h1>
+            <p>{L('Step 2 of 3 — SmartPR shows you what you need and what to do next.', language)}</p>
           </div>
+
+          {/* Filter tabs */}
+          <div className="rq-tabs" role="tablist">
+            <button role="tab" aria-selected={reqFilter === 'all'} className={`rq-tab ${reqFilter === 'all' ? 'active' : ''}`} onClick={() => setReqFilter('all')}>
+              {L('All Requirements', language)} <span className="rq-tab-count">{reqCards.length}</span>
+            </button>
+            <button role="tab" aria-selected={reqFilter === 'todo'} className={`rq-tab ${reqFilter === 'todo' ? 'active' : ''}`} onClick={() => setReqFilter('todo')}>
+              {L('To Do', language)} <span className="rq-tab-count">{tabTodoCount}</span>
+            </button>
+            <button role="tab" aria-selected={reqFilter === 'fillout'} className={`rq-tab ${reqFilter === 'fillout' ? 'active' : ''}`} onClick={() => setReqFilter('fillout')}>
+              {L('To Fill Out', language)} <span className="rq-tab-count">{tabFilloutCount}</span>
+            </button>
+            <button role="tab" aria-selected={reqFilter === 'completed'} className={`rq-tab ${reqFilter === 'completed' ? 'active' : ''}`} onClick={() => setReqFilter('completed')}>
+              {L('Completed', language)} <span className="rq-tab-count">{tabCompletedCount}</span>
+            </button>
+          </div>
+
+          {requirements.length === 0 && (
+            <div style={{ padding: 24 }}>
+              <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={loadRequirements}>
+                {L('Compute Requirements from Rules Engine', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
+              </button>
+            </div>
+          )}
+
+          {/* Prominent Attention banner — surfaces AI findings at the top */}
+          {(() => {
+            const reviewItems = requirements.filter(r => r.mandatory && r.status === 'warning');
+            if (reviewItems.length === 0) return null;
+            return (
+              <div style={{ margin: '16px 0', padding: 14, background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                <AlertTriangle className="i-lg" style={{ color: 'var(--warn)', marginTop: 2 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: 'var(--warn)' }}>⚠ Attention Required</div>
+                  <div style={{ fontSize: 13, marginTop: 4, opacity: 0.9 }}>
+                    {reviewItems.slice(0, 3).map((r, i) => (
+                      <div key={i}>• {trReqName(r)} — review findings in the card below</div>
+                    ))}
+                  </div>
+                  <button onClick={() => { const f = reviewItems[0]; const el = document.getElementById(`req-row-${f.code}`); el?.scrollIntoView({behavior:'smooth', block:'center'}); setReviewingCode(f.code); }} style={{ marginTop: 8, fontSize: 13, padding: '4px 12px', borderRadius: 8, background: 'var(--warn)', color: 'white', border: 'none', cursor: 'pointer' }}>
+                    {L('Review now', language)}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Critical path — restrained, no repeated explanatory copy per item */}
+          {reqFilter === 'all' && criticalPathCards.length > 0 && (
+            <div className="rq-critical-head">
+              <Star size={13} /> {L('CRITICAL PATH — HANDLE THESE NEXT', language)}
+            </div>
+          )}
+
+          <div className="rq-list">
+            {visibleReqCards.map((c, i) => (
+              <RequirementCard
+                key={c.req.code}
+                id={`req-row-${c.req.code}`}
+                index={i + 1}
+                icon={c.icon}
+                iconTone={c.iconTone}
+                name={c.name}
+                agency={c.agency}
+                description={c.description}
+                badge={c.badge}
+                whyLabel={L('Why is this required?', language)}
+                why={c.why}
+                action={c.action}
+                extra={c.extra}
+              />
+            ))}
+          </div>
+
+          {hiddenReqCount > 0 && (
+            <button type="button" className={`rq-show-more ${reqShowAll ? 'expanded' : ''}`} onClick={() => setReqShowAll(true)}>
+              {L('Show more requirements', language)} ({hiddenReqCount}) <ChevronDown size={15} />
+            </button>
+          )}
 
           {/* Parallel assessment output: obligation rules remain authoritative
               for Requirements; the separate incentive engine evaluates only
               published, source-backed opportunity nodes. */}
-          <OpportunitiesPanel
-            profile={profile}
-            facts={incentiveFacts}
-            language={language}
-            verifiedEvidenceTypeIds={verifiedIncentiveEvidenceTypeIds}
-            initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
-            onAssessmentChange={recordIncentiveAssessment}
-            onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
-          />
+          <div style={{ marginTop: 20 }}>
+            <OpportunitiesPanel
+              profile={profile}
+              facts={incentiveFacts}
+              language={language}
+              verifiedEvidenceTypeIds={verifiedIncentiveEvidenceTypeIds}
+              initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
+              onAssessmentChange={recordIncentiveAssessment}
+              onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
+            />
+          </div>
 
           {/* Municipal notices */}
           {municipalNotices.length > 0 && (
@@ -4068,51 +4132,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               ))}
             </div>
           )}
-
-          {/* Requirements section */}
-          <div className="req-section">
-            <div className="req-head">
-              <div className="left">
-                <h2>{L('Your requirements', language)}</h2>
-                <p>{L('Review every applicable license, permit, inspection, and document here. Open official forms, upload evidence, and resolve anything that needs attention from the same list.', language)}</p>
-              </div>
-              <div className="filter">
-                <button className={reqFilter === 'all' ? 'active' : ''} onClick={() => setReqFilter('all')}>
-                  {L('All', language)} · {requirements.length}
-                </button>
-                <button className={reqFilter === 'todo' ? 'active' : ''} onClick={() => setReqFilter('todo')}>
-                  {L('To do', language)} · {missingCount + reviewCount}
-                </button>
-                <button className={reqFilter === 'done' ? 'active' : ''} onClick={() => setReqFilter('done')}>
-                  {L('Done', language)} · {doneCount}
-                </button>
-                <button className={reqFilter === 'recommended' ? 'active' : ''} onClick={() => setReqFilter('recommended')}>
-                  {L('Recommended', language)} · {recommendedCount}
-                </button>
-              </div>
-            </div>
-
-            {requirements.length === 0 && (
-              <div style={{ padding: 24 }}>
-                <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={loadRequirements}>
-                  {L('Compute Requirements from Rules Engine', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
-                </button>
-              </div>
-            )}
-
-            {reqGroups.map(g => {
-              if (!groupVisible(g.key) || g.items.length === 0) return null;
-              return (
-                <div key={g.key} className="req-group">
-                  <div className="req-group-title">
-                    <span className={`pip ${g.pip}`} />{g.label}<span className="count">{g.items.length}</span>
-                  </div>
-                  {g.items.map(req => renderReqRow(req))}
-                </div>
-              );
-            })}
-
-          </div>
 
           {/* Recommendation panel — advisory historical insights (never mandatory) */}
           {advisory && advisory.enabled && advisory.similarCount > 0 &&
