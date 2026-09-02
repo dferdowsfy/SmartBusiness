@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building, Building2, Check, HeartPulse, Landmark, Receipt, ShieldCheck } from "lucide-react";
+import { Building, Building2, Check, HeartPulse, Landmark, Lightbulb, Receipt, ShieldCheck } from "lucide-react";
 import styles from "./filingPath.module.css";
 
 type Language = "EN" | "ES";
@@ -93,6 +93,13 @@ const copy = {
       { title: "Health & fire requirements", detail: "Department of Health · Fire Bureau / applicable inspections" },
       { title: "Review & submission", detail: "SmartPR review before you submit" },
     ],
+    incentivesLabel: "Possible incentives",
+    incentives: [
+      "Municipal tax exemption",
+      "Small business incentives (Act 60)",
+      "Job creation incentive",
+    ],
+    incentivesNote: "Example only — actual eligibility depends on your full business profile.",
   },
   ES: {
     mapped: "Su ruta de radicación, trazada.",
@@ -122,6 +129,13 @@ const copy = {
       { title: "Requisitos de salud y bomberos", detail: "Departamento de Salud · Negociado de Bomberos / inspecciones aplicables" },
       { title: "Revisión y radicación", detail: "Revisión de SmartPR antes de presentar" },
     ],
+    incentivesLabel: "Posibles incentivos",
+    incentives: [
+      "Exención de patente municipal",
+      "Incentivos para pequeños negocios (Ley 60)",
+      "Incentivo por creación de empleos",
+    ],
+    incentivesNote: "Solo un ejemplo — la elegibilidad real depende del perfil completo de su negocio.",
   },
 } as const;
 
@@ -143,6 +157,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const [liftedCount, setLiftedCount] = useState(0);
   const [agenciesShown, setAgenciesShown] = useState(0);
   const [stepsShown, setStepsShown] = useState(0);
+  const [incentivesShown, setIncentivesShown] = useState(0);
 
   // Reduced motion never touches the timeline state above — it just renders
   // the finished values directly, so there's nothing to synchronize in an effect.
@@ -155,6 +170,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const effLiftedCount = reduced ? markTokens.length : liftedCount;
   const effAgenciesShown = reduced ? c.agencies.length : agenciesShown;
   const effStepsShown = reduced ? c.path.length : stepsShown;
+  const effIncentivesShown = reduced ? c.incentives.length : incentivesShown;
 
   const reset = () => {
     setTypedCount(0);
@@ -166,6 +182,7 @@ export default function FilingPathStory({ language }: { language: Language }) {
     setLiftedCount(0);
     setAgenciesShown(0);
     setStepsShown(0);
+    setIncentivesShown(0);
   };
 
   useEffect(() => {
@@ -224,6 +241,12 @@ export default function FilingPathStory({ language }: { language: Language }) {
       for (let i = 1; i <= c.path.length; i++) {
         setStepsShown(i);
         if (!(await pause(430, id))) return;
+      }
+      if (!(await pause(300, id))) return;
+
+      for (let i = 1; i <= c.incentives.length; i++) {
+        setIncentivesShown(i);
+        if (!(await pause(150, id))) return;
       }
     }
 
@@ -342,6 +365,19 @@ export default function FilingPathStory({ language }: { language: Language }) {
               );
             })}
           </ol>
+        </div>
+
+        <div className={styles.incentivesWrap}>
+          <p className={styles.incentivesLabel}>{c.incentivesLabel}</p>
+          <ul className={styles.incentives}>
+            {c.incentives.map((incentive, i) => (
+              <li key={incentive} className={`${styles.incentive} ${i < effIncentivesShown ? styles.in : ""}`}>
+                <Lightbulb size={13} strokeWidth={1.75} aria-hidden="true" />
+                <span>{incentive}</span>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.incentivesNote}>{c.incentivesNote}</p>
         </div>
       </div>
     </section>
