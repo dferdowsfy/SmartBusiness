@@ -98,18 +98,6 @@ const copy = {
   },
 } as const;
 
-function bezier(p0: number, p1: number, p2: number, p3: number, t: number) {
-  const m = 1 - t;
-  return m * m * m * p0 + 3 * m * m * t * p1 + 3 * m * t * t * p2 + t * t * t * p3;
-}
-
-function arrowheadPath(x: number, y: number, angle: number) {
-  const size = 4.2;
-  const a1 = angle + Math.PI - 0.42;
-  const a2 = angle + Math.PI + 0.42;
-  return `M ${x} ${y} L ${x + size * Math.cos(a1)} ${y + size * Math.sin(a1)} L ${x + size * Math.cos(a2)} ${y + size * Math.sin(a2)} Z`;
-}
-
 export default function FilingPathStory({ language }: { language: Language }) {
   const router = useRouter();
   const reduced = useReducedMotion();
@@ -119,15 +107,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
 
   const sectionRef = useRef<HTMLElement | null>(null);
   const anchorRef = useRef<HTMLDivElement | null>(null);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const routeRef = useRef<SVGPathElement | null>(null);
-  const arrowRefs = useRef<(SVGPathElement | null)[]>([]);
-  const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
-  /** Where the route currently sits, so a re-measure can restore that state
-   * instead of blanking it. Mobile browsers fire resize on every URL-bar
-   * collapse mid-scroll, which is exactly when this section animates. */
-  const drawStateRef = useRef<"hidden" | "drawing" | "drawn">("hidden");
 
   const [typedCount, setTypedCount] = useState(0);
   const [caretDone, setCaretDone] = useState(false);
@@ -137,7 +116,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const [markedCount, setMarkedCount] = useState(0);
   const [liftedCount, setLiftedCount] = useState(0);
   const [agenciesShown, setAgenciesShown] = useState(0);
-  const [pathDrawn, setPathDrawn] = useState(false);
   const [stepsShown, setStepsShown] = useState(0);
   const [ctaShown, setCtaShown] = useState(false);
 
@@ -152,7 +130,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
   const effLiftedCount = reduced ? markTokens.length : liftedCount;
   const effAgenciesShown = reduced ? c.agencies.length : agenciesShown;
   const effStepsShown = reduced ? c.path.length : stepsShown;
-  const effPathDrawn = reduced ? true : pathDrawn;
   const effCtaShown = reduced ? true : ctaShown;
 
   const reset = () => {
@@ -164,119 +141,9 @@ export default function FilingPathStory({ language }: { language: Language }) {
     setMarkedCount(0);
     setLiftedCount(0);
     setAgenciesShown(0);
-    setPathDrawn(false);
     setStepsShown(0);
     setCtaShown(false);
   };
-
-  /** Measures the current node circles and writes the connecting curve +
-   * arrowheads straight onto the SVG (matches how the rest of this file
-   * drives the desktop canvas: geometry is imperative, content is not). */
-  const layoutPath = () => {
-    const wrap = wrapRef.current;
-    const svg = svgRef.current;
-    const route = routeRef.current;
-    if (!wrap || !svg || !route) return 0;
-    const wrapBox = wrap.getBoundingClientRect();
-    svg.setAttribute("viewBox", `0 0 56 ${wrapBox.height}`);
-    svg.setAttribute("height", String(wrapBox.height));
-    const nodes = nodeRefs.current
-      .filter((n): n is HTMLDivElement => Boolean(n))
-      .map((n) => {
-        const r = n.getBoundingClientRect();
-        return { x: r.left - wrapBox.left + r.width / 2, y: r.top - wrapBox.top + r.height / 2 };
-      });
-    if (nodes.length < 2) return 0;
-    let d = `M ${nodes[0].x} ${nodes[0].y}`;
-    nodes.slice(1).forEach((p1, i) => {
-      const p0 = nodes[i];
-      const dir = i % 2 === 0 ? 1 : -1;
-      const bow = 9 * dir;
-      const c1x = p0.x + bow;
-      const c1y = p0.y + (p1.y - p0.y) * 0.33;
-      const c2x = p1.x - bow;
-      const c2y = p0.y + (p1.y - p0.y) * 0.66;
-      d += ` C ${c1x} ${c1y}, ${c2x} ${c2y}, ${p1.x} ${p1.y}`;
-      const ax = bezier(p0.x, c1x, c2x, p1.x, 0.9);
-      const ay = bezier(p0.y, c1y, c2y, p1.y, 0.9);
-      const bx = bezier(p0.x, c1x, c2x, p1.x, 0.98);
-      const by = bezier(p0.y, c1y, c2y, p1.y, 0.98);
-      const arrow = arrowRefs.current[i];
-      if (arrow) arrow.setAttribute("d", arrowheadPath(bx, by, Math.atan2(by - ay, bx - ax)));
-    });
-    route.setAttribute("d", d);
-    const len = route.getTotalLength();
-    route.style.strokeDasharray = String(len);
-    // Restore whatever state the route was in — re-measuring must not un-draw
-    // it. Mid-draw, leave the in-flight transition alone so it keeps running.
-    if (drawStateRef.current === "hidden") {
-      route.style.transition = "none";
-      route.style.strokeDashoffset = String(len);
-    } else if (drawStateRef.current === "drawn") {
-      route.style.transition = "none";
-      route.style.strokeDashoffset = "0";
-    }
-    return len;
-  };
-
-  useEffect(() => {
-    const wrap = wrapRef.current;
-    layoutPath();
-
-    let frame = 0;
-    const relayout = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => layoutPath());
-    };
-
-    // A plain window "resize" only fires on viewport changes. It misses the
-    // far more common case on a first visit: the step titles render in a
-    // fallback font, then reflow taller/shorter once the real webfont swaps
-    // in (next/font's default font-display: swap) — same width, no resize
-    // event, but every node below the swap has moved. A ResizeObserver on
-    // the list catches that reflow directly; document.fonts.ready is a
-    // belt-and-suspenders nudge for browsers where the observer fires before
-    // the swapped glyphs actually affect layout.
-    const ro = wrap ? new ResizeObserver(relayout) : null;
-    ro?.observe(wrap!);
-    window.addEventListener("resize", relayout);
-    document.fonts?.ready?.then(relayout);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      ro?.disconnect();
-      window.removeEventListener("resize", relayout);
-    };
-  }, [language]);
-
-  useEffect(() => {
-    const route = routeRef.current;
-    if (!route) return;
-    if (!effPathDrawn) {
-      drawStateRef.current = "hidden";
-      layoutPath();
-      return;
-    }
-    if (reduced) {
-      drawStateRef.current = "drawn";
-      layoutPath();
-      return;
-    }
-    drawStateRef.current = "hidden";
-    layoutPath();
-    drawStateRef.current = "drawing";
-    const frame = requestAnimationFrame(() => {
-      route.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.35,.55,.2,1)";
-      route.style.strokeDashoffset = "0";
-    });
-    const settle = setTimeout(() => {
-      drawStateRef.current = "drawn";
-    }, 2300);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(settle);
-    };
-  }, [effPathDrawn, reduced]);
 
   useEffect(() => {
     if (reduced) return;
@@ -330,7 +197,6 @@ export default function FilingPathStory({ language }: { language: Language }) {
       if (!(await pause(360, id))) return;
 
       setParseLabel(c.parseMapped);
-      setPathDrawn(true);
       for (let i = 1; i <= c.path.length; i++) {
         setStepsShown(i);
         if (!(await pause(430, id))) return;
@@ -437,32 +303,18 @@ export default function FilingPathStory({ language }: { language: Language }) {
           ))}
         </p>
 
-        <div ref={wrapRef} className={styles.stepsWrap}>
-          <svg ref={svgRef} className={styles.pathSvg} aria-hidden="true">
-            <path ref={routeRef} className={styles.route} />
-            {c.path.slice(0, -1).map((_, i) => (
-              <path
-                key={i}
-                ref={(el) => {
-                  arrowRefs.current[i] = el;
-                }}
-                className={`${styles.arrow} ${i < effStepsShown - 1 ? styles.show : ""}`}
-              />
-            ))}
-          </svg>
+        <div className={styles.stepsWrap}>
           <ol className={styles.steps}>
             {c.path.map((step, i) => {
               const Icon = STEP_ICONS[i];
               return (
                 <li key={step.title} className={`${styles.step} ${i < effStepsShown ? styles.in : ""}`}>
-                  <div
-                    className={styles.node}
-                    ref={(el) => {
-                      nodeRefs.current[i] = el;
-                    }}
-                  >
+                  <div className={styles.node}>
                     <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
                   </div>
+                  {/* A plain CSS line between fixed-position circles — always
+                      geometrically correct, no measurement involved. */}
+                  {i < c.path.length - 1 ? <span className={styles.connector} aria-hidden="true" /> : null}
                   <h3>{step.title}</h3>
                   <p>{step.detail}</p>
                 </li>
