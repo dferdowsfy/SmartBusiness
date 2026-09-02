@@ -191,32 +191,6 @@
   margin: 2.25rem 0 0;
 }
 
-.pathSvg {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 2.5rem;
-  height: 100%;
-  overflow: visible;
-}
-
-.route {
-  fill: none;
-  stroke: #245c5c;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-}
-
-.arrow {
-  fill: #245c5c;
-  opacity: 0;
-  transition: opacity 0.45s ease;
-}
-
-.arrow.show {
-  opacity: 0.9;
-}
-
 .steps {
   margin: 0;
   padding: 0 0 0 2.5rem;
@@ -256,6 +230,28 @@
   opacity: 0;
   transform: scale(0.55);
   transition: opacity 0.35s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* A straight line from the bottom of this node down to the top edge of the
+   next one. Both circles are fixed at the same left offset within their own
+   list item, so this position is exact by construction — never measured,
+   never dependent on layout timing, fonts, or viewport size. */
+.connector {
+  position: absolute;
+  left: calc(-2.5rem + 1.0625rem - 0.7px);
+  top: 2.125rem;
+  width: 1.4px;
+  height: calc(100% - 2.125rem);
+  background: #245c5c;
+  opacity: 0;
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: opacity 0.35s ease, transform 0.5s cubic-bezier(0.35, 0.55, 0.2, 1);
+}
+
+.step.in .connector {
+  opacity: 0.85;
+  transform: scaleY(1);
 }
 
 .step.in .node {
@@ -316,9 +312,9 @@
   .parse,
   .chip,
   .ag,
-  .arrow,
   .step,
   .node,
+  .connector,
   .cta button {
     transition: none !important;
     animation: none !important;
