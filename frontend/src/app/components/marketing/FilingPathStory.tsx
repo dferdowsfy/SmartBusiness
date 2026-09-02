@@ -220,16 +220,32 @@ export default function FilingPathStory({ language }: { language: Language }) {
   };
 
   useEffect(() => {
+    const wrap = wrapRef.current;
     layoutPath();
+
     let frame = 0;
-    const onResize = () => {
+    const relayout = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => layoutPath());
     };
-    window.addEventListener("resize", onResize);
+
+    // A plain window "resize" only fires on viewport changes. It misses the
+    // far more common case on a first visit: the step titles render in a
+    // fallback font, then reflow taller/shorter once the real webfont swaps
+    // in (next/font's default font-display: swap) — same width, no resize
+    // event, but every node below the swap has moved. A ResizeObserver on
+    // the list catches that reflow directly; document.fonts.ready is a
+    // belt-and-suspenders nudge for browsers where the observer fires before
+    // the swapped glyphs actually affect layout.
+    const ro = wrap ? new ResizeObserver(relayout) : null;
+    ro?.observe(wrap!);
+    window.addEventListener("resize", relayout);
+    document.fonts?.ready?.then(relayout);
+
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("resize", onResize);
+      ro?.disconnect();
+      window.removeEventListener("resize", relayout);
     };
   }, [language]);
 
