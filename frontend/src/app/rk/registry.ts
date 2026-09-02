@@ -30,6 +30,8 @@ export interface FieldSpec {
   options?: string[];
   /** for kind=entity_ref / entity_ref_list: which node type it points to */
   refType?: NodeType;
+  /** Some relationships may target any incentive subtype. */
+  refTypes?: NodeType[];
   help?: string;
   /** warn before renaming — the rules engine matches some entities by name */
   renameWarning?: boolean;
@@ -84,6 +86,48 @@ export const RULE_TYPES = [
 
 export const MANDATORINESS = ["mandatory", "conditional", "informational"];
 
+export const INCENTIVE_NODE_TYPES: NodeType[] = [
+  "incentive",
+  "tax_incentive",
+  "tax_credit",
+  "tax_exemption",
+  "grant",
+  "reimbursement_program",
+  "funding_program",
+];
+
+export const PROJECT_FACT_KEYS = [
+  "business_type",
+  "industry",
+  "naics_code",
+  "municipality",
+  "physical_location",
+  "business_stage",
+  "entity_type",
+  "ownership_structure",
+  "number_of_employees",
+  "planned_job_creation",
+  "annual_payroll",
+  "average_wage",
+  "expected_revenue",
+  "capital_investment",
+  "property_tenure",
+  "export_activity",
+  "outside_pr_revenue_percentage",
+  "tourism_activity",
+  "manufacturing_activity",
+  "research_and_development_activity",
+  "renewable_energy_investment",
+  "construction_or_rehabilitation_activity",
+  "agricultural_activity",
+  "business_size",
+  "veteran_owned",
+  "minority_owned",
+  "woman_owned",
+  "opportunity_zone",
+  "project_start_date",
+];
+
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
 const list = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
@@ -91,6 +135,73 @@ const list = (v: unknown): string[] =>
 function pushRef(out: DerivedEdge[], edgeType: EdgeType, v: unknown) {
   const id = s(v);
   if (id) out.push({ edgeType, toEntity: id });
+}
+
+function pushRefs(out: DerivedEdge[], edgeType: EdgeType, v: unknown) {
+  for (const id of list(v)) out.push({ edgeType, toEntity: id });
+}
+
+const INCENTIVE_PROGRAM_FIELDS: FieldSpec[] = [
+  { key: "name", label: "Program name", kind: "text", required: true },
+  { key: "description", label: "Short description", kind: "textarea", required: true },
+  { key: "administering_agency_id", label: "Administering agency", kind: "entity_ref", refType: "agency", required: true },
+  { key: "application_agency_id", label: "Application agency", kind: "entity_ref", refType: "agency" },
+  { key: "authorized_by_ids", label: "Authorizing law / regulation / public source", kind: "entity_ref_list", refType: "regulatory_source", required: true },
+  { key: "industry_ids", label: "Applicable industries", kind: "entity_ref_list", refType: "industry" },
+  { key: "municipality_ids", label: "Available in municipalities", kind: "entity_ref_list", refType: "municipality" },
+  { key: "geography_level", label: "Geography level", kind: "select", options: ["Federal", "Puerto Rico", "Municipal", "Other"], required: true },
+  { key: "geography_notes", label: "Geography notes", kind: "textarea" },
+  { key: "criterion_ids", label: "Eligibility criteria", kind: "entity_ref_list", refType: "eligibility_criterion", required: true },
+  { key: "evidence_type_ids", label: "Supporting evidence", kind: "entity_ref_list", refType: "evidence_type" },
+  { key: "benefit_ids", label: "Benefits", kind: "entity_ref_list", refType: "benefit", required: true },
+  { key: "application_window_id", label: "Application window", kind: "entity_ref", refType: "application_window" },
+  { key: "application_process", label: "Application process", kind: "textarea" },
+  { key: "compatible_incentive_ids", label: "Compatible incentives", kind: "entity_ref_list", refTypes: INCENTIVE_NODE_TYPES },
+  { key: "conflicting_incentive_ids", label: "Conflicting incentives", kind: "entity_ref_list", refTypes: INCENTIVE_NODE_TYPES },
+  { key: "prerequisite_for_incentive_ids", label: "Prerequisite for incentives", kind: "entity_ref_list", refTypes: INCENTIVE_NODE_TYPES },
+  { key: "program_status", label: "Program status", kind: "select", options: ["active", "expired", "suspended", "proposed"], required: true },
+  { key: "effective_from", label: "Effective from (YYYY-MM-DD)", kind: "text" },
+  { key: "effective_to", label: "Effective to (YYYY-MM-DD)", kind: "text" },
+  { key: "last_verified_at", label: "Last verified at (ISO date)", kind: "text", required: true },
+  { key: "source_version", label: "Source version", kind: "text", required: true },
+  { key: "supersedes", label: "Supersedes incentive", kind: "entity_ref", refTypes: INCENTIVE_NODE_TYPES },
+  { key: "superseded_by", label: "Superseded by incentive", kind: "entity_ref", refTypes: INCENTIVE_NODE_TYPES },
+  { key: "automatic_eligibility", label: "Official source establishes automatic eligibility", kind: "boolean", help: "Leave off unless the authoritative source explicitly states that eligibility is automatic." },
+  { key: "notes", label: "Internal review notes", kind: "textarea" },
+];
+
+function incentiveConfig(
+  type: NodeType,
+  label: string,
+  plural: string,
+  color: string
+): NodeTypeConfig {
+  return {
+    type,
+    label,
+    plural,
+    color,
+    labelOf: (d) => s(d.name) || s(d.id),
+    fields: INCENTIVE_PROGRAM_FIELDS,
+    edgesOf: (d) => {
+      const out: DerivedEdge[] = [];
+      pushRef(out, "administered_by", d.administering_agency_id);
+      pushRef(out, "requires_application_to", d.application_agency_id);
+      pushRefs(out, "authorized_by", d.authorized_by_ids);
+      pushRefs(out, "applies_to", d.industry_ids);
+      pushRefs(out, "available_in", d.municipality_ids);
+      pushRefs(out, "requires", d.criterion_ids);
+      pushRefs(out, "requires", d.evidence_type_ids);
+      pushRefs(out, "provides", d.benefit_ids);
+      pushRef(out, "has_deadline", d.application_window_id);
+      pushRefs(out, "compatible_with", d.compatible_incentive_ids);
+      pushRefs(out, "conflicts_with", d.conflicting_incentive_ids);
+      pushRefs(out, "prerequisite_for", d.prerequisite_for_incentive_ids);
+      pushRef(out, "supersedes", d.supersedes);
+      pushRef(out, "superseded_by", d.superseded_by);
+      return out;
+    },
+  };
 }
 
 export const NODE_TYPE_CONFIGS: Record<NodeType, NodeTypeConfig> = {
@@ -324,14 +435,147 @@ export const NODE_TYPE_CONFIGS: Record<NodeType, NodeTypeConfig> = {
     fields: [
       { key: "name", label: "Name", kind: "text", required: true },
       { key: "description", label: "Description", kind: "textarea" },
+      { key: "satisfies_criterion_ids", label: "Satisfies eligibility criteria", kind: "entity_ref_list", refType: "eligibility_criterion" },
+    ],
+    edgesOf: (d) => list(d.satisfies_criterion_ids).map((id) => ({ edgeType: "satisfies" as EdgeType, toEntity: id })),
+  },
+
+  incentive: incentiveConfig("incentive", "Incentive", "Incentives", "#0f766e"),
+  tax_incentive: incentiveConfig("tax_incentive", "Tax Incentive", "Tax Incentives", "#0d9488"),
+  tax_credit: incentiveConfig("tax_credit", "Tax Credit", "Tax Credits", "#059669"),
+  tax_exemption: incentiveConfig("tax_exemption", "Tax Exemption", "Tax Exemptions", "#16a34a"),
+  grant: incentiveConfig("grant", "Grant", "Grants", "#2563eb"),
+  reimbursement_program: incentiveConfig("reimbursement_program", "Reimbursement Program", "Reimbursement Programs", "#7c3aed"),
+  funding_program: incentiveConfig("funding_program", "Funding Program", "Funding Programs", "#9333ea"),
+
+  eligibility_criterion: {
+    type: "eligibility_criterion",
+    label: "Eligibility Criterion",
+    plural: "Eligibility Criteria",
+    color: "#d97706",
+    labelOf: (d) => s(d.name) || s(d.description) || s(d.id),
+    fields: [
+      { key: "name", label: "Criterion name", kind: "text", required: true },
+      { key: "description", label: "Plain-language criterion", kind: "textarea", required: true },
+      { key: "project_fact_id", label: "Evaluated against project fact", kind: "entity_ref", refType: "project_fact", required: true },
+      { key: "fact_key", label: "Normalized fact key", kind: "select", options: PROJECT_FACT_KEYS, required: true },
+      { key: "operator", label: "Operator", kind: "select", options: ["equals", "not_equals", "in", "not_in", "contains", "gte", "lte", "gt", "lt", "truthy", "falsy", "exists", "date_on_or_after", "date_on_or_before"], required: true },
+      { key: "expected_value", label: "Expected value", kind: "text", help: "For lists, enter one value per line in Expected values instead." },
+      { key: "expected_values", label: "Expected values", kind: "multiselect" },
+      { key: "required", label: "Required for eligibility", kind: "boolean" },
+      { key: "material", label: "Material to classification", kind: "boolean", help: "Only material unknowns become adaptive follow-up questions." },
+      { key: "question", label: "Adaptive follow-up question", kind: "textarea" },
+      { key: "answer_type", label: "Answer type", kind: "select", options: ["boolean", "number", "text", "date", "single_select"] },
+      { key: "answer_options", label: "Answer options", kind: "multiselect" },
+      { key: "voluntary", label: "Voluntary disclosure", kind: "boolean" },
+      { key: "legally_relevant", label: "Legally relevant", kind: "boolean", help: "Required before voluntary ownership-status questions can be surfaced." },
+      { key: "evidence_type_ids", label: "Evidence that supports this criterion", kind: "entity_ref_list", refType: "evidence_type" },
+      { key: "evidence_can_satisfy", label: "Verified evidence can satisfy this criterion", kind: "boolean", help: "Enable only when the official source allows this evidence to establish the criterion without an additional project fact." },
+      { key: "citation", label: "Source citation", kind: "text", required: true },
+    ],
+    edgesOf: (d) => {
+      const out: DerivedEdge[] = [];
+      pushRef(out, "evaluated_against", d.project_fact_id);
+      pushRefs(out, "requires", d.evidence_type_ids);
+      return out;
+    },
+  },
+
+  benefit: {
+    type: "benefit",
+    label: "Benefit",
+    plural: "Benefits",
+    color: "#0891b2",
+    labelOf: (d) => s(d.name) || s(d.id),
+    fields: [
+      { key: "name", label: "Benefit name", kind: "text", required: true },
+      { key: "description", label: "Benefit description", kind: "textarea", required: true },
+      { key: "benefit_type", label: "Benefit type", kind: "select", options: ["credit", "exemption", "deduction", "grant", "reimbursement", "loan", "guarantee", "technical_assistance", "other"], required: true },
+      { key: "amount_description", label: "Amount / value description", kind: "textarea", help: "Use only source-backed language. Do not estimate or invent amounts." },
+      { key: "citation", label: "Source citation", kind: "text", required: true },
     ],
     edgesOf: () => [],
+  },
+
+  application_window: {
+    type: "application_window",
+    label: "Application Window",
+    plural: "Application Windows",
+    color: "#ea580c",
+    labelOf: (d) => s(d.name) || s(d.id),
+    fields: [
+      { key: "name", label: "Window name", kind: "text", required: true },
+      { key: "opens_at", label: "Opens at (ISO date)", kind: "text" },
+      { key: "closes_at", label: "Closes at (ISO date)", kind: "text" },
+      { key: "rolling", label: "Rolling application", kind: "boolean" },
+      { key: "description", label: "Deadline / window guidance", kind: "textarea", required: true },
+      { key: "last_verified_at", label: "Last verified at (ISO date)", kind: "text", required: true },
+      { key: "citation", label: "Source citation", kind: "text", required: true },
+    ],
+    edgesOf: () => [],
+  },
+
+  project_fact: {
+    type: "project_fact",
+    label: "Project Fact",
+    plural: "Project Facts",
+    color: "#475569",
+    labelOf: (d) => s(d.name) || s(d.fact_key) || s(d.id),
+    fields: [
+      { key: "name", label: "Fact name", kind: "text", required: true },
+      { key: "fact_key", label: "Normalized fact key", kind: "select", options: PROJECT_FACT_KEYS, required: true },
+      { key: "value_type", label: "Value type", kind: "select", options: ["boolean", "number", "text", "date", "string_list"], required: true },
+      { key: "description", label: "Description", kind: "textarea" },
+      { key: "sensitive", label: "Sensitive", kind: "boolean" },
+      { key: "voluntary", label: "Voluntary", kind: "boolean" },
+    ],
+    edgesOf: () => [],
+  },
+
+  regulatory_source: {
+    type: "regulatory_source",
+    label: "Law / Regulation / Public Source",
+    plural: "Laws, Regulations & Public Sources",
+    color: "#be123c",
+    labelOf: (d) => s(d.name) || s(d.title) || s(d.id),
+    fields: [
+      { key: "name", label: "Source name", kind: "text", required: true },
+      { key: "source_type", label: "Source type", kind: "select", options: ["bill", "law", "regulation", "ordinance", "guidance", "program_page", "form", "announcement", "web", "other"], required: true },
+      { key: "legal_status", label: "Legal status", kind: "select", options: ["proposed", "introduced", "under_review", "approved", "signed", "effective", "amended", "repealed", "superseded"], required: true },
+      { key: "jurisdiction", label: "Jurisdiction", kind: "select", options: ["Federal", "Puerto Rico", "Municipal", "Other"], required: true },
+      { key: "citation", label: "Citation", kind: "text", required: true },
+      { key: "url", label: "Official source URL", kind: "text", required: true },
+      { key: "effective_date", label: "Effective date", kind: "text" },
+      { key: "last_verified_at", label: "Last verified at", kind: "text", required: true },
+      { key: "source_version", label: "Source version", kind: "text", required: true },
+      { key: "supports_incentive_ids", label: "Supports incentives", kind: "entity_ref_list", refTypes: INCENTIVE_NODE_TYPES },
+    ],
+    edgesOf: (d) => list(d.supports_incentive_ids).map((id) => ({ edgeType: "supports" as EdgeType, toEntity: id })),
   },
 };
 
 export const NODE_TYPES = Object.keys(NODE_TYPE_CONFIGS) as NodeType[];
 
 /** Allowed (from, edge, to) triples — powers the legend + write validation. */
+const INCENTIVE_EDGE_RULES: { from: NodeType; edge: EdgeType; to: NodeType }[] = INCENTIVE_NODE_TYPES.flatMap((from) => [
+  { from, edge: "administered_by" as EdgeType, to: "agency" as NodeType },
+  { from, edge: "requires_application_to" as EdgeType, to: "agency" as NodeType },
+  { from, edge: "authorized_by" as EdgeType, to: "regulatory_source" as NodeType },
+  { from, edge: "applies_to" as EdgeType, to: "industry" as NodeType },
+  { from, edge: "available_in" as EdgeType, to: "municipality" as NodeType },
+  { from, edge: "requires" as EdgeType, to: "eligibility_criterion" as NodeType },
+  { from, edge: "requires" as EdgeType, to: "evidence_type" as NodeType },
+  { from, edge: "provides" as EdgeType, to: "benefit" as NodeType },
+  { from, edge: "has_deadline" as EdgeType, to: "application_window" as NodeType },
+  ...INCENTIVE_NODE_TYPES.flatMap((to) => [
+    { from, edge: "compatible_with" as EdgeType, to },
+    { from, edge: "conflicts_with" as EdgeType, to },
+    { from, edge: "prerequisite_for" as EdgeType, to },
+    { from, edge: "supersedes" as EdgeType, to },
+    { from, edge: "superseded_by" as EdgeType, to },
+  ]),
+]);
+
 export const EDGE_RULES: { from: NodeType; edge: EdgeType; to: NodeType }[] = [
   { from: "business_type", edge: "belongs_to", to: "industry" },
   { from: "business_type", edge: "asks", to: "intake_question" },
@@ -346,6 +590,11 @@ export const EDGE_RULES: { from: NodeType; edge: EdgeType; to: NodeType }[] = [
   { from: "renewal", edge: "renews", to: "document" },
   { from: "inspection", edge: "inspects", to: "document" },
   { from: "inspection", edge: "issued_by", to: "agency" },
+  { from: "evidence_type", edge: "satisfies", to: "eligibility_criterion" },
+  { from: "eligibility_criterion", edge: "evaluated_against", to: "project_fact" },
+  { from: "eligibility_criterion", edge: "requires", to: "evidence_type" },
+  ...INCENTIVE_NODE_TYPES.map((to) => ({ from: "regulatory_source" as NodeType, edge: "supports" as EdgeType, to })),
+  ...INCENTIVE_EDGE_RULES,
 ];
 
 export function labelForNode(nodeType: NodeType, data: Record<string, unknown>): string {
@@ -380,6 +629,23 @@ export function validateNodeData(nodeType: NodeType, data: Record<string, unknow
       problems.push("municipality_flag rules need a flag.");
     }
   }
+  if (INCENTIVE_NODE_TYPES.includes(nodeType)) {
+    if (!list(data.authorized_by_ids).length) problems.push("Incentives need at least one authoritative source.");
+    if (!list(data.criterion_ids).length) problems.push("Incentives need at least one eligibility criterion.");
+    if (!list(data.benefit_ids).length) problems.push("Incentives need at least one source-backed benefit.");
+    if (data.program_status === "active" && (!s(data.last_verified_at) || !s(data.source_version))) {
+      problems.push("Active incentives need a last verified date and source version.");
+    }
+  }
+  if (nodeType === "eligibility_criterion") {
+    const factKey = s(data.fact_key);
+    if (!PROJECT_FACT_KEYS.includes(factKey)) problems.push("Eligibility criteria must use a supported project fact key.");
+    if (["veteran_owned", "minority_owned", "woman_owned"].includes(factKey)) {
+      if (data.voluntary !== true || data.legally_relevant !== true) {
+        problems.push("Ownership-status criteria must be voluntary and marked legally relevant.");
+      }
+    }
+  }
   return problems;
 }
 
@@ -398,6 +664,18 @@ export function newEntityId(nodeType: NodeType, name: string): string {
     renewal: "RNW",
     inspection: "INSP",
     evidence_type: "EVD",
+    incentive: "INC",
+    tax_incentive: "TAXINC",
+    tax_credit: "TAXCR",
+    tax_exemption: "TAXEX",
+    grant: "GRANT",
+    reimbursement_program: "REIMB",
+    funding_program: "FUND",
+    eligibility_criterion: "CRIT",
+    benefit: "BEN",
+    application_window: "WIN",
+    project_fact: "FACT",
+    regulatory_source: "SRC",
   };
   const slug = name
     .normalize("NFD")

@@ -36,11 +36,12 @@ function FieldInput({
   graph: GraphData;
 }) {
   const refOptions = useMemo(() => {
-    if (!spec.refType || !graph.graph) return [];
+    const refTypes = spec.refTypes ?? (spec.refType ? [spec.refType] : []);
+    if (refTypes.length === 0 || !graph.graph) return [];
     return graph.graph.nodes
-      .filter((n) => n.nodeType === spec.refType && n.status !== "archived")
+      .filter((n) => refTypes.includes(n.nodeType) && n.status !== "archived")
       .sort((a, b) => a.label.localeCompare(b.label));
-  }, [spec.refType, graph.graph]);
+  }, [spec.refType, spec.refTypes, graph.graph]);
 
   switch (spec.kind) {
     case "textarea":

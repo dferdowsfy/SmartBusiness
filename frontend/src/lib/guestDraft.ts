@@ -4,6 +4,9 @@ export interface GuestDraft {
   profile: Record<string, unknown>;
   discoveryAnswers: Record<string, unknown>;
   potentialDecisions: Record<string, string>;
+  requirements?: unknown[];
+  incentiveFacts?: Record<string, string | number | boolean | string[] | null | undefined>;
+  incentiveAssessmentHistory?: unknown[];
   currentStep: number;
   language: string;
   savedAt: number;

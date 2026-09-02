@@ -8,6 +8,7 @@
 
 import { getPool } from "../graph/db";
 import { labelForNode, validateNodeData } from "./registry";
+import { INCENTIVE_NODE_TYPES } from "./registry";
 import { ensureRkReady } from "./store";
 import { writeAudit } from "./audit";
 import type {
@@ -24,6 +25,18 @@ const DEFAULT_CLASSIFICATION: Record<ChangeKind, ProposalClassification> = {
   update_node: "modified_requirement",
   archive_node: "removed_requirement",
 };
+
+function defaultClassification(changeKind: ChangeKind, nodeType: NodeType): ProposalClassification {
+  if (INCENTIVE_NODE_TYPES.includes(nodeType)) {
+    if (changeKind === "create_node") return "new_incentive";
+    if (changeKind === "update_node") return "modified_incentive";
+    return "expired_incentive";
+  }
+  if (nodeType === "eligibility_criterion") return "changed_eligibility_rule";
+  if (nodeType === "application_window") return "changed_deadline";
+  if (nodeType === "benefit") return "changed_benefit";
+  return DEFAULT_CLASSIFICATION[changeKind];
+}
 
 export interface CreateProposalInput {
   origin: "manual" | "ai_extraction";
@@ -101,7 +114,7 @@ export async function createProposal(input: CreateProposalInput): Promise<{ ok: 
       baseRow?.id ?? null,
       baseRow ? JSON.stringify(baseRow.data) : null,
       proposedData ? JSON.stringify(proposedData) : null,
-      input.classification ?? DEFAULT_CLASSIFICATION[input.changeKind],
+      input.classification ?? defaultClassification(input.changeKind, input.nodeType),
       input.confidence ?? (input.origin === "manual" ? 1 : null),
       input.aiExplanation ?? null,
       input.citationSection ?? null,

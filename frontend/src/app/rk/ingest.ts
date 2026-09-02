@@ -3,8 +3,9 @@
 //
 //   source raw text
 //     → sectionize (ARTÍCULO / Sección / CAPÍTULO + English equivalents)
-//     → classify per section: business_permitting | construction_only | general
-//     → extract proposed graph changes per business-permitting section
+//     → classify per section: business_permitting | incentive_program |
+//       construction_only | general
+//     → extract proposed graph changes per relevant section
 //         · xAI Responses API when XAI_API_KEY is set
 //         · deterministic low-confidence flagging otherwise — the fallback
 //           NEVER invents legal requirements, it only files sections for
@@ -96,6 +97,15 @@ const BUSINESS_KEYWORDS = [
   "microempresa", "pequeño comerciante", "renovación", "inspección sanitaria",
 ];
 
+const INCENTIVE_KEYWORDS = [
+  "incentivo", "crédito contributivo", "credito contributivo", "exención contributiva",
+  "exencion contributiva", "decreto contributivo", "subvención", "subvencion", "beca",
+  "reembolso", "financiamiento", "fondo rotatorio", "beneficio contributivo",
+  "elegibilidad", "solicitud de incentivo", "empleos creados", "inversión elegible",
+  "inversion elegible", "tax incentive", "tax credit", "tax exemption", "grant program",
+  "reimbursement program", "funding program", "eligible business", "application window",
+];
+
 const CONSTRUCTION_KEYWORDS = [
   "construcción", "construccion", "obra", "edificación", "edificacion",
   "estructural", "demolición", "demolicion", "excavación", "excavacion",
@@ -109,8 +119,10 @@ const CONSTRUCTION_KEYWORDS = [
 export function classifySectionText(text: string): string {
   const t = text.toLowerCase();
   const hits = (keys: string[]) => keys.reduce((n, k) => (t.includes(k) ? n + 1 : n), 0);
+  const incentive = hits(INCENTIVE_KEYWORDS);
   const biz = hits(BUSINESS_KEYWORDS);
   const con = hits(CONSTRUCTION_KEYWORDS);
+  if (incentive > 0) return "incentive_program";
   // Construction-only provisions are excluded UNLESS they also touch business
   // licensing directly (spec) — a section with both counts as business.
   if (biz > 0) return "business_permitting";
@@ -135,34 +147,43 @@ interface ExtractedChange {
 
 const EXTRACTABLE_TYPES: NodeType[] = [
   "document", "rule", "agency", "renewal", "inspection", "exemption", "intake_question",
+  "incentive", "tax_incentive", "tax_credit", "tax_exemption", "grant",
+  "reimbursement_program", "funding_program", "eligibility_criterion", "benefit",
+  "application_window", "project_fact", "regulatory_source",
 ];
 
 const VALID_CLASSIFICATIONS: ProposalClassification[] = [
   "new_requirement", "modified_requirement", "removed_requirement", "new_exemption",
   "changed_agency_responsibility", "changed_form", "changed_eligibility_rule",
-  "changed_deadline", "no_action_required", "needs_legal_review",
+  "changed_deadline", "new_incentive", "modified_incentive", "expired_incentive",
+  "changed_benefit", "no_action_required", "needs_legal_review",
 ];
 
 async function extractWithLLM(
   sectionText: string,
   sectionKey: string,
   sourceTitle: string,
-  catalog: string
+  catalog: string,
+  sourceGraphEntityId: string
 ): Promise<ExtractedChange[] | null> {
   if (!isXaiConfigured()) return null;
 
-  const system = `You are a Puerto Rico business-permitting regulatory analyst for SmartPR.
+  const system = `You are a Puerto Rico business-permitting and government-benefits regulatory analyst for SmartPR.
 You read one section of a regulatory source and extract PROPOSED changes to a knowledge graph
-of business permits/licenses. Scope: business permitting and licensing ONLY (restaurants, retail,
-daycares, salons, offices, pharmacies, short-term rentals, food trucks, alcohol, manufacturers).
+of business permits/licenses and incentives. Scope includes permits, licenses, tax incentives,
+tax credits, tax exemptions, grants, reimbursement programs, and funding programs for businesses.
 EXCLUDE construction-only provisions unless they directly affect business licensing.
+
+The graph source entity for this reviewed source is ${sourceGraphEntityId}. Every incentive candidate
+must include it in authorized_by_ids. Extract only criteria, benefits, amounts, dates, agencies,
+geographies, and industry applicability stated in this section. Never infer a threshold or benefit.
 
 Existing graph entities you may reference by id (documents/permits and agencies):
 ${catalog}
 
 Return STRICT JSON: {"changes": [{
   "action": "create" | "update",
-  "node_type": "document" | "rule" | "agency" | "renewal" | "inspection" | "exemption" | "intake_question",
+  "node_type": ${EXTRACTABLE_TYPES.map((type) => `"${type}"`).join(" | ")},
   "entity_id": "<existing id when action=update, else null>",
   "data": { ...canonical fields for the node type... },
   "classification": one of ${JSON.stringify(VALID_CLASSIFICATIONS)},
@@ -175,9 +196,21 @@ requires_document_id, business_type_id?, question_id?, expected_answer?, municip
 mandatoriness, conditions, citation, guidance}; agency {name, acronym, level};
 renewal {name, document_id, frequency_months, description, citation};
 inspection {name, document_id, description, citation}; exemption {name, description, conditions, citation};
-intake_question {question, type: "boolean", guidance}.
+intake_question {question, type: "boolean", guidance};
+incentive/tax_incentive/tax_credit/tax_exemption/grant/reimbursement_program/funding_program
+{name, description, administering_agency_id, application_agency_id?, authorized_by_ids:["${sourceGraphEntityId}"],
+industry_ids?, municipality_ids?, geography_level, geography_notes?, criterion_ids, evidence_type_ids?, benefit_ids,
+application_window_id?, application_process?, program_status, effective_from?, effective_to?, last_verified_at,
+source_version, compatible_incentive_ids?, conflicting_incentive_ids?, prerequisite_for_incentive_ids?,
+supersedes?, superseded_by?, automatic_eligibility:false}; eligibility_criterion {name, description, project_fact_id, fact_key,
+operator, expected_value?, expected_values?, required, material, question?, answer_type?, answer_options?, voluntary?,
+legally_relevant?, evidence_type_ids?, citation}; benefit {name, description, benefit_type, amount_description?, citation};
+application_window {name, opens_at?, closes_at?, rolling, description, last_verified_at, citation};
+project_fact {name, fact_key, value_type, description?, sensitive?, voluntary?}.
 RULES: never invent requirements not stated in the text; when the section changes nothing for
-business permitting return {"changes": []}; low certainty -> low confidence; quote the provision
+business permitting or incentive eligibility return {"changes": []}; low certainty -> low confidence;
+leave unknown fields empty and classify needs_legal_review; do not mark automatic_eligibility true unless the
+source explicitly establishes automatic eligibility; quote the provision
 in "explanation". Answer with JSON only.`;
 
   try {
@@ -224,11 +257,16 @@ in "explanation". Answer with JSON only.`;
 
 /**
  * Deterministic fallback when no LLM key is configured: file each
- * business-permitting section as a LOW-confidence draft "rule" flag for human
+ * relevant section as a LOW-confidence draft source flag for human
  * review. It asserts nothing — the requirement_name is the section heading and
  * mandatoriness is informational.
  */
 function fallbackExtract(section: SourceSection, sourceTitle: string): ExtractedChange[] {
+  if (section.classification === "incentive_program") {
+    // The source itself is already mirrored into a reviewable graph proposal.
+    // Without extraction support, do not create even a placeholder program.
+    return [];
+  }
   return [
     {
       action: "create",
@@ -260,6 +298,7 @@ export interface IngestionResult {
   runId?: string;
   sections?: number;
   businessSections?: number;
+  incentiveSections?: number;
   skippedConstruction?: number;
   proposalsCreated?: number;
   usedAI?: boolean;
@@ -284,13 +323,17 @@ export async function runIngestion(sourceId: string, actor?: string | null): Pro
   ]);
 
   const businessSections = sections.filter((s) => s.classification === "business_permitting");
+  const incentiveSections = sections.filter((s) => s.classification === "incentive_program");
+  const relevantSections = [...businessSections, ...incentiveSections];
   const skippedConstruction = sections.filter((s) => s.classification === "construction_only").length;
 
   // Compact catalog of existing documents + agencies for the LLM to match against.
   const catalogRows = (
     await pool.query(
       `SELECT entity_id, node_type, label FROM rk_nodes
-        WHERE status = 'active' AND node_type IN ('document','agency')
+        WHERE status = 'active' AND node_type IN ('document','agency','industry','municipality','evidence_type',
+          'incentive','tax_incentive','tax_credit','tax_exemption','grant','reimbursement_program',
+          'funding_program','eligibility_criterion','benefit','application_window','project_fact','regulatory_source')
         ORDER BY node_type, entity_id`
     )
   ).rows as { entity_id: string; node_type: string; label: string }[];
@@ -298,9 +341,64 @@ export async function runIngestion(sourceId: string, actor?: string | null): Pro
 
   const usedAI = isXaiConfigured();
   let proposalsCreated = 0;
+  let sourceGraphEntityId = newEntityId("regulatory_source", source.title);
 
-  for (const section of businessSections.slice(0, MAX_AI_SECTIONS)) {
-    let changes = usedAI ? await extractWithLLM(section.text, section.key, source.title, catalog) : null;
+  // Incentive nodes must be traceable to a graph source entity. Mirror the
+  // uploaded source as a reviewable proposal; do not auto-publish it.
+  if (incentiveSections.length > 0) {
+    const linked = (
+      await pool.query(
+        `SELECT entity_id FROM rk_nodes
+          WHERE node_type = 'regulatory_source' AND status = 'active'
+            AND data->>'ingestion_source_id' = $1
+         UNION ALL
+         SELECT entity_id FROM rk_change_proposals
+          WHERE node_type = 'regulatory_source'
+            AND status NOT IN ('rejected','merged','published')
+            AND proposed_json->>'ingestion_source_id' = $1
+         LIMIT 1`,
+        [source.id]
+      )
+    ).rows[0] as { entity_id: string } | undefined;
+    if (linked) {
+      sourceGraphEntityId = linked.entity_id;
+    } else {
+      sourceGraphEntityId = await uniqueEntityId(
+        "regulatory_source",
+        sourceGraphEntityId
+      );
+      const sourceProposal = await createProposal({
+        origin: "ai_extraction",
+        changeKind: "create_node",
+        nodeType: "regulatory_source",
+        entityId: sourceGraphEntityId,
+        data: {
+          name: source.title,
+          source_type: source.source_type,
+          legal_status: source.legal_status,
+          jurisdiction: source.jurisdiction === "PR" ? "Puerto Rico" : source.jurisdiction || "Puerto Rico",
+          citation: source.citation || source.title,
+          url: source.url || "",
+          effective_date: source.effective_date,
+          last_verified_at: source.updated_at,
+          source_version: source.checksum || source.updated_at,
+          ingestion_source_id: source.id,
+        },
+        classification: "needs_legal_review",
+        confidence: source.url ? 0.95 : 0.7,
+        aiExplanation: "Direct provenance mirror of the uploaded regulatory source. Review the official URL, citation, version, and effective date before publication.",
+        citationSection: source.citation || source.title,
+        sourceId: source.id,
+        extractionRunId: runId,
+        status: "under_review",
+        actor: actor ?? "ingestion-agent",
+      });
+      if (sourceProposal.ok) proposalsCreated += 1;
+    }
+  }
+
+  for (const section of relevantSections.slice(0, MAX_AI_SECTIONS)) {
+    let changes = usedAI ? await extractWithLLM(section.text, section.key, source.title, catalog, sourceGraphEntityId) : null;
     if (changes === null) changes = fallbackExtract(section, source.title);
 
     for (const c of changes) {
@@ -352,6 +450,7 @@ export async function runIngestion(sourceId: string, actor?: string | null): Pro
       runId,
       sections: sections.length,
       businessSections: businessSections.length,
+      incentiveSections: incentiveSections.length,
       skippedConstruction,
       proposalsCreated,
       usedAI,
@@ -363,6 +462,7 @@ export async function runIngestion(sourceId: string, actor?: string | null): Pro
     runId,
     sections: sections.length,
     businessSections: businessSections.length,
+    incentiveSections: incentiveSections.length,
     skippedConstruction,
     proposalsCreated,
     usedAI,

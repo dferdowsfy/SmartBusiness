@@ -21,7 +21,19 @@ export type NodeType =
   | "exemption"
   | "renewal"
   | "inspection"
-  | "evidence_type";
+  | "evidence_type"
+  | "incentive"
+  | "tax_incentive"
+  | "tax_credit"
+  | "tax_exemption"
+  | "grant"
+  | "reimbursement_program"
+  | "funding_program"
+  | "eligibility_criterion"
+  | "benefit"
+  | "application_window"
+  | "project_fact"
+  | "regulatory_source";
 
 export type NodeStatus =
   | "draft"
@@ -41,7 +53,21 @@ export type EdgeType =
   | "exempts"
   | "renews"
   | "inspects"
-  | "depends_on";
+  | "depends_on"
+  | "administered_by"
+  | "authorized_by"
+  | "available_in"
+  | "provides"
+  | "requires_application_to"
+  | "has_deadline"
+  | "compatible_with"
+  | "conflicts_with"
+  | "prerequisite_for"
+  | "evaluated_against"
+  | "satisfies"
+  | "supports"
+  | "supersedes"
+  | "superseded_by";
 
 export type SourceType =
   | "bill"
@@ -92,6 +118,10 @@ export type ProposalClassification =
   | "changed_form"
   | "changed_eligibility_rule"
   | "changed_deadline"
+  | "new_incentive"
+  | "modified_incentive"
+  | "expired_incentive"
+  | "changed_benefit"
   | "no_action_required"
   | "needs_legal_review";
 
@@ -153,7 +183,7 @@ export interface SourceSection {
   key: string;
   heading: string;
   text: string;
-  /** business_permitting | construction_only | general | unknown */
+  /** business_permitting | incentive_program | construction_only | general | unknown */
   classification: string;
 }
 
@@ -283,6 +313,18 @@ export interface CompiledKb {
     renewals: Record<string, unknown>[];
     inspections: Record<string, unknown>[];
     evidenceTypes: Record<string, unknown>[];
+    incentives: Record<string, unknown>[];
+    taxIncentives: Record<string, unknown>[];
+    taxCredits: Record<string, unknown>[];
+    taxExemptions: Record<string, unknown>[];
+    grants: Record<string, unknown>[];
+    reimbursementPrograms: Record<string, unknown>[];
+    fundingPrograms: Record<string, unknown>[];
+    eligibilityCriteria: Record<string, unknown>[];
+    benefits: Record<string, unknown>[];
+    applicationWindows: Record<string, unknown>[];
+    projectFacts: Record<string, unknown>[];
+    regulatorySources: Record<string, unknown>[];
   };
   meta: { version: number; compiledAt: string; batchId: string | null };
 }

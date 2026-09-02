@@ -42,7 +42,10 @@ CREATE TABLE IF NOT EXISTS rk_nodes (
   node_type          TEXT NOT NULL
                        CHECK (node_type IN ('municipality','industry','business_type','business_activity',
                                             'intake_question','document','rule','agency','exemption',
-                                            'renewal','inspection','evidence_type')),
+                                            'renewal','inspection','evidence_type','incentive','tax_incentive',
+                                            'tax_credit','tax_exemption','grant','reimbursement_program',
+                                            'funding_program','eligibility_criterion','benefit','application_window',
+                                            'project_fact','regulatory_source')),
   label              TEXT NOT NULL,
   data               JSONB NOT NULL DEFAULT '{}'::jsonb,
   status             TEXT NOT NULL DEFAULT 'draft'
@@ -62,6 +65,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_rk_nodes_active ON rk_nodes (entity_id) WHE
 CREATE INDEX IF NOT EXISTS idx_rk_nodes_type_status ON rk_nodes (node_type, status);
 CREATE INDEX IF NOT EXISTS idx_rk_nodes_entity ON rk_nodes (entity_id);
 
+-- Existing installations were created with a narrower CHECK constraint.
+ALTER TABLE rk_nodes DROP CONSTRAINT IF EXISTS rk_nodes_node_type_check;
+ALTER TABLE rk_nodes ADD CONSTRAINT rk_nodes_node_type_check CHECK (node_type IN
+  ('municipality','industry','business_type','business_activity','intake_question','document','rule',
+   'agency','exemption','renewal','inspection','evidence_type','incentive','tax_incentive',
+   'tax_credit','tax_exemption','grant','reimbursement_program','funding_program',
+   'eligibility_criterion','benefit','application_window','project_fact','regulatory_source'));
+
 -- ============================================================
 -- Derived edges. Owned by a specific node VERSION row (from_node_id) so
 -- version supersession/rollback never needs edge surgery.
@@ -73,11 +84,22 @@ CREATE TABLE IF NOT EXISTS rk_edges (
   to_entity     TEXT NOT NULL,
   edge_type     TEXT NOT NULL
                   CHECK (edge_type IN ('requires','applies_to','asks','belongs_to','issued_by',
-                                       'derived_from','exempts','renews','inspects','depends_on')),
+                                       'derived_from','exempts','renews','inspects','depends_on',
+                                       'administered_by','authorized_by','available_in','provides',
+                                       'requires_application_to','has_deadline','compatible_with',
+                                       'conflicts_with','prerequisite_for','evaluated_against',
+                                       'satisfies','supports','supersedes','superseded_by')),
   data          JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE INDEX IF NOT EXISTS idx_rk_edges_from ON rk_edges (from_node_id);
 CREATE INDEX IF NOT EXISTS idx_rk_edges_to ON rk_edges (to_entity);
+
+ALTER TABLE rk_edges DROP CONSTRAINT IF EXISTS rk_edges_edge_type_check;
+ALTER TABLE rk_edges ADD CONSTRAINT rk_edges_edge_type_check CHECK (edge_type IN
+  ('requires','applies_to','asks','belongs_to','issued_by','derived_from','exempts','renews',
+   'inspects','depends_on','administered_by','authorized_by','available_in','provides',
+   'requires_application_to','has_deadline','compatible_with','conflicts_with','prerequisite_for',
+   'evaluated_against','satisfies','supports','supersedes','superseded_by'));
 
 -- ============================================================
 -- Change proposals: EVERY graph change (manual or AI) flows through here.
@@ -97,7 +119,8 @@ CREATE TABLE IF NOT EXISTS rk_change_proposals (
                        CHECK (classification IS NULL OR classification IN
                          ('new_requirement','modified_requirement','removed_requirement','new_exemption',
                           'changed_agency_responsibility','changed_form','changed_eligibility_rule',
-                          'changed_deadline','no_action_required','needs_legal_review')),
+                          'changed_deadline','new_incentive','modified_incentive','expired_incentive',
+                          'changed_benefit','no_action_required','needs_legal_review')),
   confidence         NUMERIC(4,3),
   ai_explanation     TEXT,
   citation_section   TEXT,
@@ -117,6 +140,14 @@ CREATE TABLE IF NOT EXISTS rk_change_proposals (
 CREATE INDEX IF NOT EXISTS idx_rk_proposals_status ON rk_change_proposals (status);
 CREATE INDEX IF NOT EXISTS idx_rk_proposals_source ON rk_change_proposals (source_id);
 CREATE INDEX IF NOT EXISTS idx_rk_proposals_entity ON rk_change_proposals (entity_id);
+
+ALTER TABLE rk_change_proposals DROP CONSTRAINT IF EXISTS rk_change_proposals_classification_check;
+ALTER TABLE rk_change_proposals ADD CONSTRAINT rk_change_proposals_classification_check CHECK
+  (classification IS NULL OR classification IN
+    ('new_requirement','modified_requirement','removed_requirement','new_exemption',
+     'changed_agency_responsibility','changed_form','changed_eligibility_rule','changed_deadline',
+     'new_incentive','modified_incentive','expired_incentive','changed_benefit',
+     'no_action_required','needs_legal_review'));
 
 -- ============================================================
 -- Publication batches: the ONLY path by which accepted proposals go live.

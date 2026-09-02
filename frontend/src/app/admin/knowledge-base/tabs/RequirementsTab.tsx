@@ -7,14 +7,27 @@
 // ============================================================================
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Btn, COLORS, StatusBadge, inputStyle, selectStyle } from "../ui";
 import { DetailPanel } from "../graph/DetailPanel";
 import { NODE_TYPES, NODE_TYPE_CONFIGS } from "../../../rk/registry";
 import type { NodeType } from "../../../rk/types";
 import type { GraphData } from "../graph/useGraphData";
 
-export function RequirementsTab({ graph, onSaved }: { graph: GraphData; onSaved: (msg: string) => void }) {
-  const [typeFilter, setTypeFilter] = useState<NodeType | "all">("rule");
+export function RequirementsTab({
+  graph,
+  onSaved,
+  initialType = "rule",
+  allowedTypes = NODE_TYPES,
+  intro,
+}: {
+  graph: GraphData;
+  onSaved: (msg: string) => void;
+  initialType?: NodeType | "all";
+  allowedTypes?: NodeType[];
+  intro?: ReactNode;
+}) {
+  const [typeFilter, setTypeFilter] = useState<NodeType | "all">(initialType);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [creating, setCreating] = useState<NodeType | null>(null);
@@ -36,6 +49,7 @@ export function RequirementsTab({ graph, onSaved }: { graph: GraphData; onSaved:
   return (
     <div className={showPanel ? "kb-split detail" : undefined}>
       <div>
+        {intro}
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
           <button
             onClick={() => setTypeFilter("all")}
@@ -43,7 +57,7 @@ export function RequirementsTab({ graph, onSaved }: { graph: GraphData; onSaved:
           >
             All
           </button>
-          {NODE_TYPES.map((t) => (
+          {allowedTypes.map((t) => (
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
@@ -87,7 +101,7 @@ export function RequirementsTab({ graph, onSaved }: { graph: GraphData; onSaved:
               disabled={!graph.enabled}
             >
               <option value="">+ New…</option>
-              {NODE_TYPES.map((t) => (
+              {allowedTypes.map((t) => (
                 <option key={t} value={t}>{NODE_TYPE_CONFIGS[t].label}</option>
               ))}
             </select>

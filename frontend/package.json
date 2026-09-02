@@ -12,6 +12,7 @@
     "forms:demo": "node --experimental-strip-types scripts/generate-filing-demo.ts",
     "forms:sync": "node --experimental-strip-types scripts/sync-template-library.ts",
     "test:forms": "node --experimental-strip-types --test src/app/forms/artifacts/artifacts.test.ts src/app/forms/artifacts/bayamonRestaurant.e2e.test.ts src/app/forms/artifacts/deliverableOutput.e2e.test.ts src/app/forms/engine/formEngine.test.ts",
+    "test:incentives": "tsx --test src/app/incentives/engine.test.ts src/app/incentives/catalog.test.ts",
     "forms:verify": "node --experimental-strip-types scripts/verify-deliverable-output.ts"
   },
   "dependencies": {

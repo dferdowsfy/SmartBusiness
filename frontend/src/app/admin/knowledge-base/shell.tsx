@@ -11,8 +11,8 @@
 
 import { useState } from "react";
 import { COLORS, KB_CSS, StatusBadge } from "./ui";
-import { NODE_TYPE_CONFIGS } from "../../rk/registry";
-import type { GraphMode } from "../../rk/types";
+import { INCENTIVE_NODE_TYPES, NODE_TYPE_CONFIGS } from "../../rk/registry";
+import type { GraphMode, NodeType } from "../../rk/types";
 import { useGraphData } from "./graph/useGraphData";
 import { GraphView } from "./graph/GraphView";
 import { DetailPanel } from "./graph/DetailPanel";
@@ -27,6 +27,7 @@ import { FormsTab } from "./tabs/FormsTab";
 const TABS = [
   { id: "graph", label: "Graph" },
   { id: "requirements", label: "Requirements" },
+  { id: "incentives", label: "Incentives & Programs" },
   { id: "forms", label: "Forms" },
   { id: "sources", label: "Regulatory Sources" },
   { id: "proposals", label: "Proposed Changes" },
@@ -35,6 +36,19 @@ const TABS = [
   { id: "audit", label: "Audit Log" },
 ] as const;
 type TabId = (typeof TABS)[number]["id"];
+
+const INCENTIVE_ADMIN_TYPES: NodeType[] = [
+  ...INCENTIVE_NODE_TYPES,
+  "eligibility_criterion",
+  "benefit",
+  "application_window",
+  "project_fact",
+  "regulatory_source",
+  "agency",
+  "industry",
+  "municipality",
+  "evidence_type",
+];
 
 const MODES: { id: GraphMode; label: string; hint: string }[] = [
   { id: "live", label: "Live Rules", hint: "What production users get today" },
@@ -57,6 +71,7 @@ export default function KnowledgeBaseShell() {
   };
 
   const counts = graph.graph?.counts ?? {};
+  const incentiveCount = INCENTIVE_NODE_TYPES.reduce((total, type) => total + (counts[type] ?? 0), 0);
   const stat = (t: keyof typeof NODE_TYPE_CONFIGS, label?: string) => (
     <span style={{ color: COLORS.dim, fontSize: 12, whiteSpace: "nowrap" }}>
       <span style={{ color: NODE_TYPE_CONFIGS[t].color, fontWeight: 800 }}>{counts[t] ?? 0}</span>{" "}
@@ -76,8 +91,8 @@ export default function KnowledgeBaseShell() {
           <div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: COLORS.text, margin: 0 }}>Regulatory Knowledge Graph</h1>
             <p style={{ color: COLORS.dim, fontSize: 13, margin: "4px 0 0" }}>
-              Puerto Rico business permits & licenses — edit requirements, ingest regulations, review
-              proposed changes, and publish versioned updates.
+              Puerto Rico business requirements and government opportunities — edit structured rules,
+              ingest official sources, review proposed changes, and publish versioned updates.
             </p>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8 }}>
               {stat("municipality")}
@@ -86,6 +101,11 @@ export default function KnowledgeBaseShell() {
               {stat("document", "documents & permits")}
               {stat("rule", "rules")}
               {stat("agency", "agencies")}
+              <span style={{ color: COLORS.dim, fontSize: 12, whiteSpace: "nowrap" }}>
+                <span style={{ color: NODE_TYPE_CONFIGS.incentive.color, fontWeight: 800 }}>{incentiveCount}</span>{" "}
+                incentive programs
+              </span>
+              {stat("eligibility_criterion", "eligibility criteria")}
             </div>
           </div>
 
@@ -155,8 +175,8 @@ export default function KnowledgeBaseShell() {
                 <StatusBadge status="superseded" />
                 <StatusBadge status="archived" />
                 <span style={{ color: COLORS.faint, fontSize: 12 }}>
-                  Relationships: business type → belongs to industry · asks questions; rule → requires
-                  document · applies to business type/question; document → issued by agency.
+                  Relationships connect business facts, requirements, evidence, agencies, sources,
+                  eligibility criteria, benefits, and incentive programs.
                 </span>
               </div>
             </div>
@@ -167,6 +187,23 @@ export default function KnowledgeBaseShell() {
         )}
 
         {tab === "requirements" && <RequirementsTab graph={graph} onSaved={saved} />}
+        {tab === "incentives" && (
+          <RequirementsTab
+            graph={graph}
+            onSaved={saved}
+            initialType="incentive"
+            allowedTypes={INCENTIVE_ADMIN_TYPES}
+            intro={(
+              <div style={{ marginBottom: 14, padding: 14, border: `1px solid ${COLORS.border}`, borderRadius: 10, background: COLORS.panel }}>
+                <div style={{ color: COLORS.text, fontWeight: 750, fontSize: 14 }}>Reviewed incentive publication workflow</div>
+                <div style={{ color: COLORS.dim, fontSize: 12.5, lineHeight: 1.55, marginTop: 4 }}>
+                  Public source → AI-extracted candidate → structured criteria and benefits → human/legal validation → publication batch → live eligibility matching.
+                  Drafts and proposals never affect customer results. Active programs missing complete source, version, agency, criterion, or benefit links are rejected by the runtime catalog.
+                </div>
+              </div>
+            )}
+          />
+        )}
         {tab === "forms" && <FormsTab enabled={graph.enabled} />}
         {tab === "sources" && <SourcesTab enabled={graph.enabled} onProposals={() => setTab("proposals")} />}
         {tab === "proposals" && <ProposalsTab enabled={graph.enabled} onChanged={() => graph.refresh()} />}

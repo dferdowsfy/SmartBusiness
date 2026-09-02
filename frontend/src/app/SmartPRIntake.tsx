@@ -51,6 +51,8 @@ import {
   type FilingStage,
   type SmartPRLiveData,
 } from './components/filing/FilingWorkflowShell';
+import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
+import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
 import { jsPDF } from 'jspdf';
@@ -68,6 +70,7 @@ type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 interface BusinessProfile {
   name: string;
+  business_stage: 'new' | 'existing';
   municipality: string;
   industry: string;
   business_type: string;
@@ -1021,6 +1024,7 @@ export default function SmartPRIntake() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [profile, setProfile] = useState<BusinessProfile>({
     name: '',
+    business_stage: 'new',
     municipality: '',
     industry: '',
     business_type: '',
@@ -1105,6 +1109,10 @@ export default function SmartPRIntake() {
   const [advisory, setAdvisory] = useState<AdvisoryInsights | null>(null);
   // User decisions on flag-derived "Potentially Required" items.
   const [potentialDecisions, setPotentialDecisions] = useState<Record<string, PotentialDecision>>({});
+  // Program-specific facts are collected adaptively only when a published
+  // incentive criterion says they could materially change eligibility.
+  const [incentiveFacts, setIncentiveFacts] = useState<Record<string, ProjectFactValue>>({});
+  const [incentiveAssessmentHistory, setIncentiveAssessmentHistory] = useState<IncentiveAssessment[]>([]);
 
   const sampleFormsStorageKey = useMemo(() => {
     const business = (profile.name || 'business').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -1217,7 +1225,7 @@ export default function SmartPRIntake() {
     // out whatever the previous business left behind. Otherwise the intake
     // step and the SmartPR Live panel keep showing that business's answers,
     // rule-engine results, and identified agencies as if they applied here.
-    setProfile((current) => ({ ...current, name: '', municipality: '', industry: '', business_type: '', location_type: '', business_structure: 'llc',
+    setProfile((current) => ({ ...current, name: '', business_stage: 'new', municipality: '', industry: '', business_type: '', location_type: '', business_structure: 'llc',
       number_of_employees: null, number_of_vehicles: null, number_of_rental_units: null, customers_visit: null, food_prepared_or_sold: null,
       alcohol_sold: null, professional_licenses_required: null, healthcare_services: null, hazardous_materials: null, employees_hired: null,
       physical_location: null, products_manufactured: null, vehicles_used: null, commercial_signage: null, outdoor_seating: null,
@@ -1225,6 +1233,8 @@ export default function SmartPRIntake() {
     setDiscoveryAnswers({});
     setRequirements([]);
     setPotentialDecisions({});
+    setIncentiveFacts({});
+    setIncentiveAssessmentHistory([]);
     setFindings([]);
     setReadinessScore(null);
     setCanonicalOverride(null);
@@ -1299,6 +1309,8 @@ export default function SmartPRIntake() {
           if (st.discoveryAnswers) setDiscoveryAnswers(st.discoveryAnswers);
           if (Array.isArray(st.requirements) && st.requirements.length) setRequirements(st.requirements);
           if (st.potentialDecisions) setPotentialDecisions(st.potentialDecisions);
+          if (st.incentiveFacts) setIncentiveFacts(st.incentiveFacts);
+          if (Array.isArray(st.incentiveAssessmentHistory)) setIncentiveAssessmentHistory(st.incentiveAssessmentHistory);
           if (st.sampleFormDrafts) setSampleFormDrafts(st.sampleFormDrafts);
           if (st.preparedSampleApplications) setPreparedSampleApplications(st.preparedSampleApplications);
           // Government-form engine state (canonical profile + drafts + prepared
@@ -1412,6 +1424,9 @@ export default function SmartPRIntake() {
     if (draft.profile) setProfile((prev) => ({ ...prev, ...(draft.profile as Partial<BusinessProfile>) }));
     if (draft.discoveryAnswers) setDiscoveryAnswers(draft.discoveryAnswers);
     if (draft.potentialDecisions) setPotentialDecisions(draft.potentialDecisions as Record<string, PotentialDecision>);
+    if (Array.isArray(draft.requirements)) setRequirements(draft.requirements as Requirement[]);
+    if (draft.incentiveFacts) setIncentiveFacts(draft.incentiveFacts as Record<string, ProjectFactValue>);
+    if (Array.isArray(draft.incentiveAssessmentHistory)) setIncentiveAssessmentHistory(draft.incentiveAssessmentHistory as IncentiveAssessment[]);
     if (draft.currentStep) setCurrentStep(draft.currentStep as Step);
     if (draft.language === 'es' || draft.language === 'en') setLanguage(draft.language);
   }, [me]);
@@ -1427,12 +1442,15 @@ export default function SmartPRIntake() {
         profile: profile as unknown as Record<string, unknown>,
         discoveryAnswers,
         potentialDecisions,
+        requirements,
+        incentiveFacts,
+        incentiveAssessmentHistory,
         currentStep,
         language,
       });
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [me, profile, discoveryAnswers, potentialDecisions, currentStep, language]);
+  }, [me, profile, discoveryAnswers, potentialDecisions, requirements, incentiveFacts, incentiveAssessmentHistory, currentStep, language]);
 
   // Hidden debug mode for the rules engine (enable with ?debug=1 in the URL).
   const [debugMode, setDebugMode] = useState(false);
@@ -1726,6 +1744,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       business_type: profile.business_type,
       business_structure: profile.business_structure,
       number_of_employees: profile.number_of_employees,
+      // Keep the per-question answers recorded by the guided flow. These IDs
+      // are what allow a restored guest draft to remain complete instead of
+      // asking the same questions again after a refresh.
+      ...discoveryAnswers,
     };
 
     // Discovery + requirements are computed entirely client-side.
@@ -1839,6 +1861,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             state: {
               profile, discoveryAnswers,
               requirements, potentialDecisions,
+              incentiveFacts,
+              incentiveAssessmentHistory,
               sampleFormDrafts, preparedSampleApplications,
               govFormDrafts, preparedGovApplications,
               canonicalApplication: canonicalOverride,
@@ -1902,7 +1926,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // filing state below is the source of truth for when an autosave is due.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    me, businessId, profile, discoveryAnswers, requirements, potentialDecisions,
+    me, businessId, profile, discoveryAnswers, requirements, potentialDecisions, incentiveFacts, incentiveAssessmentHistory,
     sampleFormDrafts, preparedSampleApplications, govFormDrafts,
     preparedGovApplications, canonicalOverride, currentStep, readinessScore,
   ]);
@@ -3507,6 +3531,21 @@ const loadExample = (example: Partial<BusinessProfile>) => {
   };
 
   const zipReadyDocs = uploadedDocs.filter(d => d.fileBlob);
+  const verifiedIncentiveEvidenceTypeIds = useMemo(
+    () => uploadedDocs.flatMap((document) =>
+      typeof document.evidence_type_id === 'string' ? [document.evidence_type_id] : []
+    ),
+    [uploadedDocs]
+  );
+  const recordIncentiveAssessment = React.useCallback((assessment: IncentiveAssessment) => {
+    setIncentiveAssessmentHistory((current) => {
+      const previous = current.at(-1);
+      if (previous?.catalogVersion === assessment.catalogVersion) {
+        return [...current.slice(0, -1), assessment];
+      }
+      return [...current, assessment].slice(-10);
+    });
+  }, []);
   const preparedSampleList = Object.values(preparedSampleApplications);
   const preparedGovList = Object.values(preparedGovApplications);
   const packageAssetCount = zipReadyDocs.length + preparedSampleList.length + preparedGovList.length;
@@ -4004,6 +4043,19 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
 
           </div>
+
+          {/* Parallel assessment output: obligation rules remain authoritative
+              for Requirements; the separate incentive engine evaluates only
+              published, source-backed opportunity nodes. */}
+          <OpportunitiesPanel
+            profile={profile}
+            facts={incentiveFacts}
+            language={language}
+            verifiedEvidenceTypeIds={verifiedIncentiveEvidenceTypeIds}
+            initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
+            onAssessmentChange={recordIncentiveAssessment}
+            onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
+          />
 
           {/* Municipal notices */}
           {municipalNotices.length > 0 && (
