@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Check, HeartPulse, Landmark, Receipt, ShieldCheck } from "lucide-react";
+import { Building, Building2, Check, HeartPulse, Landmark, Receipt, ShieldCheck } from "lucide-react";
 import styles from "./filingPath.module.css";
 
 type Language = "EN" | "ES";
 
-const STEP_ICONS: Array<typeof Building2> = [Building2, Receipt, Landmark, ShieldCheck, HeartPulse, Check];
+const STEP_ICONS: Array<typeof Building2> = [
+  Building2, // entity registration
+  Receipt, // federal tax registration
+  Landmark, // Puerto Rico tax registration (Hacienda)
+  Building, // municipal registration
+  ShieldCheck, // permits & use requirements
+  HeartPulse, // health & fire requirements
+  Check, // review & submission
+];
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -59,7 +67,7 @@ function tokenize(sentence: string, marks: string[]): Token[] {
 const copy = {
   EN: {
     mapped: "Your filing path, mapped.",
-    summary: "6 agencies · 8 filings",
+    summary: "7 agencies · 7 filings",
     sentence: "I want to open a restaurant in Bayamón with 10 employees and outdoor seating.",
     marks: ["restaurant", "Bayamón", "10 employees", "outdoor seating"],
     chips: ["Restaurant", "Bayamón", "10 employees", "Outdoor seating"],
@@ -67,19 +75,28 @@ const copy = {
     parseDetails: (n: number) => `${n} details identified`,
     parseAgencies: (n: number) => `${n} agencies apply`,
     parseMapped: "Filing sequence mapped",
-    agencies: ["Department of State", "Hacienda", "Municipio de Bayamón", "OGPe", "Department of Health", "Fire"],
+    agencies: [
+      "Department of State",
+      "IRS",
+      "Hacienda",
+      "Municipio de Bayamón",
+      "OGPe",
+      "Department of Health",
+      "Fire Bureau",
+    ],
     path: [
-      { title: "Entity registration", detail: "Department of State · Certificate of Incorporation" },
-      { title: "Tax registration", detail: "Hacienda · Employer Identification Number (SS-4)" },
-      { title: "Municipal registration", detail: "Municipio de Bayamón · Municipal patent application" },
-      { title: "Permits & use requirements", detail: "OGPe · Permiso Único" },
-      { title: "Health / fire requirements", detail: "Department of Health · Fire" },
+      { title: "Entity registration", detail: "Department of State · Corporation or LLC registration" },
+      { title: "Federal tax registration", detail: "IRS · Employer Identification Number (EIN)" },
+      { title: "Puerto Rico tax registration", detail: "Hacienda · SURI registration and applicable tax accounts" },
+      { title: "Municipal registration", detail: "Municipio de Bayamón · Municipal patent / applicable local registration" },
+      { title: "Permits & use requirements", detail: "OGPe · Permiso Único and applicable use requirements" },
+      { title: "Health & fire requirements", detail: "Department of Health · Fire Bureau / applicable inspections" },
       { title: "Review & submission", detail: "SmartPR review before you submit" },
     ],
   },
   ES: {
     mapped: "Su ruta de radicación, trazada.",
-    summary: "6 agencias · 8 trámites",
+    summary: "7 agencias · 7 trámites",
     sentence: "Quiero abrir un restaurante en Bayamón con 10 empleados y asientos al aire libre.",
     marks: ["restaurante", "Bayamón", "10 empleados", "asientos al aire libre"],
     chips: ["Restaurante", "Bayamón", "10 empleados", "Asientos al aire libre"],
@@ -87,13 +104,22 @@ const copy = {
     parseDetails: (n: number) => `${n} detalles identificados`,
     parseAgencies: (n: number) => `${n} agencias aplican`,
     parseMapped: "Ruta de radicación trazada",
-    agencies: ["Departamento de Estado", "Hacienda", "Municipio de Bayamón", "OGPe", "Departamento de Salud", "Bomberos"],
+    agencies: [
+      "Departamento de Estado",
+      "IRS",
+      "Hacienda",
+      "Municipio de Bayamón",
+      "OGPe",
+      "Departamento de Salud",
+      "Negociado de Bomberos",
+    ],
     path: [
-      { title: "Registro de entidad", detail: "Departamento de Estado · Certificado de incorporación" },
-      { title: "Registro contributivo", detail: "Hacienda · Número de identificación patronal (SS-4)" },
-      { title: "Registro municipal", detail: "Municipio de Bayamón · Solicitud de patente municipal" },
-      { title: "Permisos y requisitos de uso", detail: "OGPe · Permiso Único" },
-      { title: "Requisitos de salud y bomberos", detail: "Departamento de Salud · Bomberos" },
+      { title: "Registro de entidad", detail: "Departamento de Estado · Registro de corporación o LLC" },
+      { title: "Registro contributivo federal", detail: "IRS · Número de identificación patronal (EIN)" },
+      { title: "Registro contributivo de Puerto Rico", detail: "Hacienda · Registro en SURI y cuentas contributivas aplicables" },
+      { title: "Registro municipal", detail: "Municipio de Bayamón · Patente municipal / registro local aplicable" },
+      { title: "Permisos y requisitos de uso", detail: "OGPe · Permiso Único y requisitos de uso aplicables" },
+      { title: "Requisitos de salud y bomberos", detail: "Departamento de Salud · Negociado de Bomberos / inspecciones aplicables" },
       { title: "Revisión y radicación", detail: "Revisión de SmartPR antes de presentar" },
     ],
   },
