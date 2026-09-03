@@ -103,11 +103,33 @@ export interface ResolvedValue {
 }
 
 /**
+ * Hard backstop: an "USO OFICIAL" / signature / notary field is never written
+ * by SmartPR, full stop — regardless of what `canonicalField`/`constantValue`
+ * a mapping mistake might otherwise carry. This is checked independently of
+ * `directAcroValues` too (population.ts's acroform branch below never calls
+ * directAcroValues for a field this function has already excluded).
+ */
+export function ownershipBlocksWrite(mapping: FieldMapping): UnansweredFieldRecord["reason"] | null {
+  switch (mapping.ownership) {
+    case "government_only":
+      return "government_only";
+    case "signature":
+      return "signature_required";
+    case "notary":
+      return "notary_required";
+    default:
+      return null;
+  }
+}
+
+/**
  * Resolve what SmartPR would write into one government field. Pure — used both
  * by the PDF writers and by the readiness view that counts answered fields
  * without generating a document.
  */
 export function resolveMappedValue(mapping: FieldMapping, profile: CanonicalApplicationData): ResolvedValue {
+  const blocked = ownershipBlocksWrite(mapping);
+  if (blocked) return { value: "", reason: blocked };
   if (mapping.sensitive) return { value: "", reason: "requires_user_entry" };
   if (mapping.canonicalField === null && mapping.constantValue === undefined) {
     return { value: "", reason: "no_canonical_mapping" };
@@ -247,13 +269,22 @@ export async function populateArtifact(
     // how SS-4 lines that are not part of the reusable business profile — such
     // as line 7b and the line 9 federal classification — reach the official
     // artifact without being stored in SmartPR's durable snapshot.
+    //
+    // Same hard backstop as the mapping loop above: a pdfField this form's own
+    // mapping marks government_only/signature/notary is never written here
+    // either, even if directAcroValues() names it by mistake.
+    const blockedPdfFields = new Set(
+      doc.fields.filter((mapping) => ownershipBlocksWrite(mapping)).map((mapping) => mapping.pdfField)
+    );
     for (const direct of directAcroValues(doc.formCode, formData)) {
+      if (blockedPdfFields.has(direct.pdfField)) continue;
       try {
         if (direct.type === "checkbox") {
           const box = form.getCheckBox(direct.pdfField);
           if (direct.value) box.check();
           else box.uncheck();
         }
+        else if (direct.type === "radio") form.getRadioGroup(direct.pdfField).select(direct.value);
         else form.getTextField(direct.pdfField).setText(direct.value);
 
         const prior = populated.findIndex((entry) => entry.pdfField === direct.pdfField);

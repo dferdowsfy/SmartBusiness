@@ -2,7 +2,7 @@ import type { CanonicalAddress, FormData } from "../engine/types.ts";
 
 export interface DirectAcroValue {
   pdfField: string;
-  type: "text" | "checkbox";
+  type: "text" | "checkbox" | "radio";
   value: string;
   /** Prevent the raw value from being copied into population metadata. */
   sensitive?: boolean;
@@ -47,13 +47,55 @@ function setChoice(values: DirectAcroValue[], pdfField: string, selected: boolea
   values.push({ pdfField, type: "checkbox", value: selected ? "Yes" : "" });
 }
 
+const PA02_TIPO_NEGOCIO: Record<string, string> = {
+  individual: "Individuo",
+  partnership: "Sociedad",
+  corporation: "Corporación",
+};
+
+/**
+ * PA02 (Solicitud de Patente Provisional) fields answered on the form itself
+ * rather than derived from the shared canonical profile: the two radio groups
+ * (Tipo de Patente, Tipo de Negocio), the exemption percentage, and the
+ * filing-year fields the taxpayer confirms for this specific filing.
+ */
+function pa02Values(data: FormData): DirectAcroValue[] {
+  const values: DirectAcroValue[] = [];
+
+  const patenteType = textValue(data, "patente_type");
+  if (patenteType === "normal" || patenteType === "exenta") {
+    values.push({ pdfField: "Tipo de Patente", type: "radio", value: patenteType === "exenta" ? "Exenta" : "Normal" });
+  }
+  if (patenteType === "exenta") {
+    pushText(values, "Porciento Patente Exenta", textValue(data, "patente_exempt_percent"));
+  }
+
+  const tipoNegocio = PA02_TIPO_NEGOCIO[textValue(data, "business_type_pr")];
+  if (tipoNegocio) values.push({ pdfField: "Tipo de Negocio", type: "radio", value: tipoNegocio });
+
+  const filingYear = textValue(data, "filing_year");
+  pushText(values, "Año Natural", filingYear);
+  pushText(values, "Año", filingYear);
+
+  if (data.uses_fiscal_year === true) {
+    pushText(values, "Mes desde Rango", textValue(data, "fiscal_year_from_month"));
+    pushText(values, "Año desde Rango", textValue(data, "fiscal_year_from_year"));
+    pushText(values, "Mes hasta Rango", textValue(data, "fiscal_year_to_month"));
+    pushText(values, "Año hasta Rango", textValue(data, "fiscal_year_to_year"));
+  }
+
+  return values;
+}
+
 /**
  * Values collected by the schema-driven builder that do not belong in the
  * shared canonical business profile. Only known form codes are accepted; a
  * client cannot name arbitrary PDF fields.
  */
 export function directAcroValues(formCode: string, data: FormData | undefined): DirectAcroValue[] {
-  if (formCode !== "SS4" || !data) return [];
+  if (!data) return [];
+  if (formCode === "PA02") return pa02Values(data);
+  if (formCode !== "SS4") return [];
   const values: DirectAcroValue[] = [];
 
   // Lines 1–7.
