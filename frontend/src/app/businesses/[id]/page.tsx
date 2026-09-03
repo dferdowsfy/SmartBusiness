@@ -13,6 +13,8 @@ import { DUE_DATE_UNKNOWN_MESSAGE, type DueDateSource, type ObligationStatus } f
 interface BusinessRecord {
   id: string; name: string; legal_name: string | null; entity_number: string | null;
   municipality: string | null; business_type: string | null; onboarding_mode: "NEW" | "EXISTING";
+  business_structure: string | null; industry: string | null; physical_address: string | null;
+  notes: string | null; created_at: string | null;
 }
 interface Matter { id: string; matter_type: string; title: string; status: string; readiness_score: number | null; opened_at: string; completed_at: string | null; submission_id: string | null; due_date: string | null; due_date_source: DueDateSource; source_reference: string | null }
 interface Obligation { id: string; name: string; agency: string | null; matter_title: string | null; status: ObligationStatus; due_date: string | null; due_date_source: DueDateSource; source_reference: string | null; next_action: string }
@@ -144,46 +146,75 @@ function CollapsibleRow({ icon, iconBg, title, summary, children, defaultOpen }:
 
 function Empty({ text }: { text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 py-7 text-center text-sm text-slate-400">{text}</div>; }
 
-function ObligationRow({ item, reload }: { item: Obligation; reload: () => void }) {
+function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-[#5a5a5a]">{label}</div>
+      <div className="mt-0.5 truncate text-sm font-medium text-[#161616]" title={value || undefined}>{value || "Not entered"}</div>
+    </div>
+  );
+}
+
+function ObligationRow({ item, reload, onMarkComplete }: { item: Obligation; reload: () => void; onMarkComplete?: (id: string) => void }) {
   const [date, setDate] = useState(item.due_date || "");
   const [source, setSource] = useState<DueDateSource>(item.due_date_source === "UNKNOWN" ? "USER_PROVIDED" : item.due_date_source);
   const [reference, setReference] = useState(item.source_reference || "");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Optimistic flag so the row visibly flips to "completed" the moment the
+  // user clicks, instead of silently vanishing once the list re-sorts.
+  const [justCompleted, setJustCompleted] = useState(false);
+  const completed = item.status === "COMPLETED" || justCompleted;
   const update = async (payload: Record<string, unknown>) => {
     setBusy(true); setMessage(null);
     const response = await fetch(`/api/obligations/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     const result = await response.json().catch(() => ({}));
     setBusy(false);
-    if (!response.ok) { setMessage(result.error || "Could not update."); return; }
+    if (!response.ok) { setMessage(result.error || "Could not update."); setJustCompleted(false); return; }
     reload();
   };
+  const markComplete = () => {
+    setJustCompleted(true);
+    onMarkComplete?.(item.id);
+    void update({ complete: true });
+  };
   return (
-    <div id={`obligation-${item.id}`} className="rounded-xl border border-slate-200 px-4 py-3">
+    <div id={`obligation-${item.id}`} className={`rounded-xl border px-4 py-3 transition-colors ${completed ? "border-emerald-300 bg-emerald-50" : "border-slate-200"}`}>
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
-        <div className="min-w-0">
-          <div className="font-semibold text-[#161616]">{item.name}</div>
-          <div className="text-xs text-slate-500">{item.agency || "Agency not recorded"}{item.matter_title ? ` · ${item.matter_title}` : ""}</div>
+        <div className="flex min-w-0 items-center gap-2">
+          {completed && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
+          <div className="min-w-0">
+            <div className="font-semibold text-[#161616]">{item.name}</div>
+            <div className="text-xs text-slate-500">{item.agency || "Agency not recorded"}{item.matter_title ? ` · ${item.matter_title}` : ""}</div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-right"><div className="text-sm font-semibold text-slate-700">{dateLabel(item.due_date)}</div><div className="text-[10px] uppercase tracking-wide text-slate-400">{item.due_date_source.replaceAll("_", " ")}</div></div>
-          <StatusBadge status={item.status as ObligationStatus} />
+          <StatusBadge status={completed ? "COMPLETED" : (item.status as ObligationStatus)} />
         </div>
       </div>
-      {!item.due_date && <p className="mt-2 text-xs text-slate-500">{DUE_DATE_UNKNOWN_MESSAGE}</p>}
+      {!item.due_date && !completed && <p className="mt-2 text-xs text-slate-500">{DUE_DATE_UNKNOWN_MESSAGE}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
-        <span className="text-xs font-medium text-slate-600">Next: {item.next_action}</span>
-        <details className="ml-auto text-xs">
-          <summary className="cursor-pointer font-semibold text-[#245c5c]">Update date</summary>
-          <div className="mt-2 grid min-w-[270px] gap-2 rounded-xl border border-slate-200 bg-[#f4f1ea] p-3">
-            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5" />
-            <select value={source} onChange={(event) => setSource(event.target.value as DueDateSource)} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5"><option value="USER_PROVIDED">User provided</option><option value="DOCUMENT_EXTRACTED">Document extracted</option><option value="EXTERNALLY_VERIFIED">Externally verified</option><option value="REGULATORY_RULE">Regulatory rule</option></select>
-            <input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Source reference (required for rules)" className="rounded-lg border border-slate-300 bg-white px-2 py-1.5" />
-            <button disabled={busy || !date} onClick={() => update({ due_date: date, due_date_source: source, source_reference: reference || undefined })} className="rounded-lg bg-[#161616] px-3 py-1.5 font-semibold text-white disabled:opacity-50">Save verified date</button>
-            {message && <span className="text-red-600">{message}</span>}
-          </div>
-        </details>
-        {item.status !== "COMPLETED" && <button disabled={busy} onClick={() => update({ complete: true })} className="rounded-full border border-emerald-300 px-3 py-1 text-xs font-semibold text-emerald-700 disabled:opacity-50">Mark renewed / complete</button>}
+        <span className="text-xs font-medium text-slate-600">{completed ? "Marked as complete" : `Next: ${item.next_action}`}</span>
+        {!completed && (
+          <details className="ml-auto text-xs">
+            <summary className="cursor-pointer font-semibold text-[#245c5c]">Update date</summary>
+            <div className="mt-2 grid min-w-[270px] gap-2 rounded-xl border border-slate-200 bg-[#f4f1ea] p-3">
+              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5" />
+              <select value={source} onChange={(event) => setSource(event.target.value as DueDateSource)} className="rounded-lg border border-slate-300 bg-white px-2 py-1.5"><option value="USER_PROVIDED">User provided</option><option value="DOCUMENT_EXTRACTED">Document extracted</option><option value="EXTERNALLY_VERIFIED">Externally verified</option><option value="REGULATORY_RULE">Regulatory rule</option></select>
+              <input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Source reference (required for rules)" className="rounded-lg border border-slate-300 bg-white px-2 py-1.5" />
+              <button disabled={busy || !date} onClick={() => update({ due_date: date, due_date_source: source, source_reference: reference || undefined })} className="rounded-lg bg-[#161616] px-3 py-1.5 font-semibold text-white disabled:opacity-50">Save verified date</button>
+              {message && <span className="text-red-600">{message}</span>}
+            </div>
+          </details>
+        )}
+        {completed ? (
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white">
+            <CheckCircle2 className="h-3.5 w-3.5" />Completed
+          </span>
+        ) : (
+          <button disabled={busy} onClick={markComplete} className="rounded-full border border-emerald-300 px-3 py-1 text-xs font-semibold text-emerald-700 disabled:opacity-50">Mark renewed / complete</button>
+        )}
       </div>
     </div>
   );
@@ -194,6 +225,14 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
   const [data, setData] = useState<Detail | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [showAllRequirements, setShowAllRequirements] = useState(false);
+  const [showBusinessDetails, setShowBusinessDetails] = useState(false);
+  // Requirements the user just marked complete: kept pinned in the
+  // "outstanding" list (rendered with their new completed look) instead of
+  // silently dropping out of view the instant the list re-sorts.
+  const [recentlyCompletedIds, setRecentlyCompletedIds] = useState<Set<string>>(new Set());
+  const markRecentlyCompleted = useCallback((requirementId: string) => {
+    setRecentlyCompletedIds((prev) => new Set(prev).add(requirementId));
+  }, []);
   const load = useCallback(() => fetch(`/api/businesses/${id}`)
     .then((response) => response.json())
     .then((result) => { setData(result); setLoadError(false); })
@@ -256,6 +295,14 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
   const topCalendar = derived.calendar.slice(0, 3);
   const nextBestAction = topMissing[0];
 
+  // Recently-completed items keep their spot in the "All requirements"
+  // outstanding list (pinned to the top) so marking one complete shows an
+  // immediate, visible confirmation instead of the row just disappearing.
+  const allObligations = data.obligations ?? [];
+  const pinnedCompleted = allObligations.filter((item) => recentlyCompletedIds.has(item.id));
+  const outstandingDisplay = [...pinnedCompleted, ...shownMissing.filter((item) => !recentlyCompletedIds.has(item.id))];
+  const otherCompleted = allObligations.filter((item) => (item.status === "COMPLETED" || item.status === "CURRENT") && !recentlyCompletedIds.has(item.id));
+
   return (
     <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="businesses" />
@@ -274,14 +321,35 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
                 <MapPin className="h-3.5 w-3.5" /><span>{business.municipality || "Municipality not entered"}</span>
                 <span>·</span><span>Active</span>
               </div>
-              <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium tracking-tight">{business.legal_name || business.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-[#5a5a5a]">{business.entity_number || "Entity number not entered"} · {business.onboarding_mode === "EXISTING" ? "Existing business reconstruction" : "SmartPR formation workflow"}</p>
+              <h1 className="font-[family-name:var(--font-display)] text-4xl font-medium tracking-tight md:text-5xl">{business.legal_name || business.name}</h1>
+              <p className="mt-2 max-w-2xl text-base text-[#5a5a5a]">{business.entity_number || "Entity number not entered"} · {business.onboarding_mode === "EXISTING" ? "Existing business reconstruction" : "SmartPR formation workflow"}</p>
             </div>
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-              <Link href={`/?entry=new-business&resume=${business.id}`} className="rounded-lg border border-[#161616]/20 bg-white px-4 py-3 text-sm font-medium text-[#161616]">Business details</Link>
+              <button
+                type="button" onClick={() => setShowBusinessDetails((value) => !value)} aria-expanded={showBusinessDetails}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[#161616]/20 bg-white px-4 py-3 text-sm font-medium text-[#161616]"
+              >
+                Business details
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showBusinessDetails ? "rotate-180" : ""}`} />
+              </button>
               <Link href={`/businesses/${id}/matters/new`} className="inline-flex items-center gap-2 rounded-lg bg-[#245c5c] px-5 py-3 text-sm font-medium text-[#f6f3ea]">Start New Filing / Renewal</Link>
             </div>
           </div>
+
+          {showBusinessDetails && (
+            <div className="mt-5 grid gap-4 rounded-xl border border-[#161616]/15 bg-[#f4f1ea] p-4 sm:grid-cols-2 lg:grid-cols-3">
+              <DetailField label="Legal name" value={business.legal_name || business.name} />
+              <DetailField label="Entity number" value={business.entity_number} />
+              <DetailField label="Business structure" value={business.business_structure} />
+              <DetailField label="Business type" value={business.business_type} />
+              <DetailField label="Industry" value={business.industry} />
+              <DetailField label="Municipality" value={business.municipality} />
+              <DetailField label="Physical address" value={business.physical_address} />
+              <DetailField label="Onboarding mode" value={business.onboarding_mode === "EXISTING" ? "Existing business reconstruction" : "SmartPR formation workflow"} />
+              <DetailField label="Entry created" value={fmtDate(business.created_at)} />
+              <div className="sm:col-span-2 lg:col-span-3"><DetailField label="Notes" value={business.notes} /></div>
+            </div>
+          )}
         </header>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -451,11 +519,11 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
               <button type="button" onClick={() => setShowAllRequirements(false)} className="text-sm font-semibold text-[#245c5c] hover:underline">Hide</button>
             </div>
             <div className="space-y-3 p-5">
-              {shownMissing.length ? shownMissing.map((item) => <ObligationRow key={item.id} item={item} reload={load} />) : <Empty text="No outstanding requirements." />}
-              {(data.obligations ?? []).filter((item) => item.status === "COMPLETED" || item.status === "CURRENT").length > 0 && (
+              {outstandingDisplay.length ? outstandingDisplay.map((item) => <ObligationRow key={item.id} item={item} reload={load} onMarkComplete={markRecentlyCompleted} />) : <Empty text="No outstanding requirements." />}
+              {otherCompleted.length > 0 && (
                 <>
                   <div className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Completed</div>
-                  {(data.obligations ?? []).filter((item) => item.status === "COMPLETED" || item.status === "CURRENT").map((item) => <ObligationRow key={item.id} item={item} reload={load} />)}
+                  {otherCompleted.map((item) => <ObligationRow key={item.id} item={item} reload={load} />)}
                 </>
               )}
             </div>
