@@ -169,3 +169,68 @@ BEGIN
     END IF;
   END IF;
 END $$;
+
+-- Deliverables: archived readiness reports / submission packages. Same
+-- per-user-folder isolation model as evidence — the storage path is always
+-- `{user_id}/{deliverable_id}/{filename}`, so a policy scoped to the first
+-- folder segment is sufficient and requires no join back to the app schema.
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    INSERT INTO storage.buckets(id,name,public,file_size_limit)
+      VALUES ('deliverables','deliverables',false,20971520)
+      ON CONFLICT (id) DO UPDATE SET public=false,file_size_limit=20971520;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='SmartPR users manage own deliverables') THEN
+      EXECUTE $policy$
+        CREATE POLICY "SmartPR users manage own deliverables" ON storage.objects
+        FOR ALL TO authenticated
+        USING (bucket_id='deliverables' AND (storage.foldername(name))[1]=auth.uid()::text)
+        WITH CHECK (bucket_id='deliverables' AND (storage.foldername(name))[1]=auth.uid()::text)
+      $policy$;
+    END IF;
+  END IF;
+END $$;
+
+-- Generated filings: populated working copies of official government forms.
+-- Storage path is `{tenant_id}/{business_id}/{form_code}/{instance_id}/...`
+-- where tenant_id is always the uploading user's own auth.uid() (see
+-- forms/artifacts/persistence.ts) — so, as with evidence and deliverables,
+-- scoping the policy to the first folder segment is enough.
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    INSERT INTO storage.buckets(id,name,public,file_size_limit)
+      VALUES ('generated-filings','generated-filings',false,20971520)
+      ON CONFLICT (id) DO UPDATE SET public=false,file_size_limit=20971520;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='SmartPR users manage own generated filings') THEN
+      EXECUTE $policy$
+        CREATE POLICY "SmartPR users manage own generated filings" ON storage.objects
+        FOR ALL TO authenticated
+        USING (bucket_id='generated-filings' AND (storage.foldername(name))[1]=auth.uid()::text)
+        WITH CHECK (bucket_id='generated-filings' AND (storage.foldername(name))[1]=auth.uid()::text)
+      $policy$;
+    END IF;
+  END IF;
+END $$;
+
+-- Official/municipal government form templates: canonical originals shared
+-- across every tenant. These are never written or read by an end-user
+-- request — only the offline `scripts/sync-template-library.ts` admin tool
+-- (using the service-role key, which bypasses RLS entirely) touches them, and
+-- the live app reads its working copies from local disk (see
+-- forms/artifacts/templateLoader.ts). Deliberately no `authenticated` policy
+-- is created here: with none, Storage RLS default-denies every anon/user
+-- request against these buckets, which is the correct posture for a
+-- service-role-only bucket. Create them private so a future accidental
+-- policy addition starts from "nobody but the owner" rather than "public".
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NOT NULL THEN
+    INSERT INTO storage.buckets(id,name,public)
+      VALUES ('official-form-templates','official-form-templates',false)
+      ON CONFLICT (id) DO UPDATE SET public=false;
+    INSERT INTO storage.buckets(id,name,public)
+      VALUES ('municipal-form-templates','municipal-form-templates',false)
+      ON CONFLICT (id) DO UPDATE SET public=false;
+  END IF;
+END $$;

@@ -6,6 +6,8 @@
 import { randomUUID } from "node:crypto";
 
 import { createSupabaseServer, getCurrentUser } from "../../../../../../lib/supabase/server";
+import { getPool } from "../../../../../graph/db";
+import { userCanAccessBusiness } from "../../../../../compliance/server";
 import { ArtifactGenerationError, generateWorkingCopy } from "../../../../../forms/artifacts/library";
 import { recordGeneratedFiling } from "../../../../../forms/artifacts/persistence";
 import { emptyCanonicalData, type CanonicalApplicationData, type FormData } from "../../../../../forms/engine/types";
@@ -38,18 +40,26 @@ export async function POST(request: Request, ctx: { params: Promise<{ formCode: 
   }
 
   const warnings: string[] = [];
+  let archived = false;
   if (body.archive && body.businessId && user) {
-    const outcome = await recordGeneratedFiling({
-      tenantId: user.id,
-      businessId: body.businessId,
-      userId: user.id,
-      instanceId: body.instanceId ?? randomUUID(),
-      formCode,
-      result,
-      profile,
-      storageClient: await createSupabaseServer(),
-    });
-    warnings.push(...outcome.warnings);
+    const pool = getPool();
+    const owns = pool ? await userCanAccessBusiness(pool, user.id, body.businessId) : false;
+    if (!owns) {
+      warnings.push("Not archived: this business does not belong to your account.");
+    } else {
+      const outcome = await recordGeneratedFiling({
+        tenantId: user.id,
+        businessId: body.businessId,
+        userId: user.id,
+        instanceId: body.instanceId ?? randomUUID(),
+        formCode,
+        result,
+        profile,
+        storageClient: await createSupabaseServer(),
+      });
+      warnings.push(...outcome.warnings);
+      archived = outcome.persisted && Boolean(outcome.storagePath);
+    }
   } else if (body.archive && !user) {
     warnings.push("Not archived: sign in to save this filing to your account.");
   }
@@ -62,6 +72,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ formCode: 
       "x-smartpr-populated-fields": String(result.populated.length),
       "x-smartpr-unanswered-fields": String(result.unanswered.length),
       "x-smartpr-template-checksum": result.templateChecksum,
+      ...(body.archive ? { "x-smartpr-archived": String(archived) } : {}),
       ...(warnings.length ? { "x-smartpr-warnings": warnings.join(" | ").slice(0, 400) } : {}),
     },
   });

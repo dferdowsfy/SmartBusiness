@@ -133,6 +133,11 @@ export async function POST(request: Request) {
       const sourceReference = text(item.source_reference) ||
         (dateSource === "DOCUMENT_EXTRACTED" ? `Extracted from ${item.original_filename}`
           : dateSource === "USER_PROVIDED" ? "Entered during existing-business onboarding" : null);
+      // The evidence bucket's RLS policy only ever lets this user read back
+      // objects under their own folder prefix — a path claiming otherwise
+      // can't correspond to anything this call could actually have uploaded.
+      const storagePath = text(item.storage_path);
+      const trustedStoragePath = storagePath && storagePath.startsWith(`${user.id}/`) ? storagePath : null;
       await client.query(
         `INSERT INTO evidence
            (id, user_id, business_id, matter_id, obligation_id, validation_id, original_filename,
@@ -141,7 +146,7 @@ export async function POST(request: Request) {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
                  CASE WHEN $12 = 'VERIFIED' THEN now() ELSE NULL END)`,
         [randomUUID(), user.id, businessId, matterId, linked?.id ?? null, validation.rows[0]?.id ?? null,
-          item.original_filename, item.storage_path ?? null, item.mime_type ?? null, item.size_bytes ?? null, linked?.name ?? null,
+          item.original_filename, trustedStoragePath, item.mime_type ?? null, item.size_bytes ?? null, linked?.name ?? null,
           evidenceState === "VERIFIED" ? "VERIFIED" : evidenceState === "NEEDS_REVIEW" ? "NEEDS_REVIEW" : "REJECTED",
           JSON.stringify(extracted), confidence, issueDate, expirationDate, dateSource, sourceReference]
       );
