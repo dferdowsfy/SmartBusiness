@@ -56,6 +56,9 @@ interface ProfileLike {
 // published knowledge-base snapshot (admin-controlled) can override them, so
 // they live in mutable module state. Static pack values are the fallback.
 const LEGACY_CODE: Record<string, string> = ACTIVE_JURISDICTION.docMappings.legacyCode;
+// Compatibility for snapshots published before structured guidance existed.
+// Explicit null/draft/review content always overrides the bundled concept.
+const BUNDLED_GUIDANCE = new Map(KB.documents.map(d => [d.id, d.requirement_guidance]));
 
 interface KbMeta {
   source: "static" | "snapshot";
@@ -118,7 +121,11 @@ export function applyKbSnapshot(snap: KbSnapshot): boolean {
   KB.municipalities = snap.municipalities as KnowledgeBase["municipalities"];
   KB.businessTypes = snap.businessTypes as KnowledgeBase["businessTypes"];
   KB.questions = snap.questions as KnowledgeBase["questions"];
-  KB.documents = snap.documents as KnowledgeBase["documents"];
+  KB.documents = (snap.documents as KnowledgeBase["documents"]).map(d => ({
+    ...d,
+    requirement_guidance: Object.prototype.hasOwnProperty.call(d, "requirement_guidance")
+      ? d.requirement_guidance : BUNDLED_GUIDANCE.get(d.id),
+  }));
   KB.rules = snap.rules as KnowledgeBase["rules"];
   kbMeta.source = "snapshot";
   kbMeta.version = snap.meta?.version ?? 0;

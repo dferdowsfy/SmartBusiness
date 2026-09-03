@@ -1,261 +1,139 @@
-// ============================================================================
-// Per-requirement guidance content.
-//
-// Replaces a single generated sentence ("Business Type = Restaurant") with a
-// structured, project-specific explanation: why THIS user is seeing this
-// requirement, what it actually is, what to do, and what happens next — plus
-// where the rule comes from. Rendered inside the existing "Why do I need
-// this?" disclosure; this module only decides CONTENT, never layout.
-//
-// Two questions this module deliberately keeps separate:
-//   - triggeredBy   — "why did SmartPR select this for ME?" (a graph fact)
-//   - whyThisApplies — "why does this requirement exist for this activity?"
-//     (a regulatory fact). A trigger is never a substitute for a reason.
-//
-// Jurisdiction packs register a hand-written guidance builder per document id
-// (see jurisdictions/pr/index.ts's `requirementGuidance`) — that is the ONLY
-// place a `whyThisApplies`/`purpose`/`consequenceOrNextStep` may be authored.
-// A document with no registered builder gets the honest NEEDS_REVIEW fallback
-// below, never invented prose — see buildRequirementGuidance().
-// ============================================================================
-
+// Content only: resolve existing deterministic requirements. Never match obligations.
 import { ACTIVE_JURISDICTION } from "./jurisdictions/index.ts";
+import { runRulesEngine, type EngineInput, type KnowledgeBase } from "./rulesEngine.ts";
+import { isHomeBasedLocation, isOnlineOnlyLocation } from "./locationTypes.ts";
+import { duplicateGuidanceIds, validateGuidanceConcept, type GuidanceConcept, type GuidanceFactKey, type GuidanceSource } from "./guidance/model.ts";
 import type { LangCode } from "./jurisdictions/types";
-import type { KBRule, KnowledgeBase } from "./rulesEngine";
 
-export interface RequirementSource {
-  agency: string;
-  /** Law / regulation / form citation, e.g. "Act 272-2003 (Room Tax)". */
-  citation: string;
-  url?: string;
+export interface TriggerFact {
+  key: GuidanceFactKey;
+  value: string | boolean;
+  label: string;
+  ruleIds: string[];
+  conditionPath: string;
 }
-
-/**
- * A rate/figure that regulators can change — modeled explicitly so it is
- * never silently hardcoded into prose. `supersededBy` names a proposed or
- * enacted change; a PROPOSED bill is never applied here until it is actually
- * enacted and in effect (a source citation is what tells you which).
- */
-export interface RateFact {
-  rate: string;
-  basis: string;
-  source: string;
-  effectiveDate: string | null;
-  lastVerified: string;
-  supersededBy: string | null;
-}
-
 export interface RequirementGuidance {
-  /** Short label-free sentence, used only if a caller wants a one-liner. */
+  requirementId: string;
+  status: "VALIDATED" | "GUIDANCE_NEEDS_REVIEW";
+  reviewReasons: string[];
+  triggerFacts: TriggerFact[];
+  regulatoryReason: string;
+  purpose: string;
+  nextAction: string;
+  consequenceOrNextStep: string;
+  dependencies: string[];
+  sources: GuidanceSource[];
+  sourceVersion: string | null;
+  // Existing renderer contract — unchanged UI.
   summary: string;
   whyThisApplies: string;
   whatThisIs: string;
   whatYouNeedToDo: string;
   whatHappensNext: string;
-  /** Human-readable facts that produced this requirement, e.g. "Selling alcohol". Never a raw graph id/concatenation. */
   triggeredBy: string[];
-  /** What completing this unlocks or blocks, e.g. "Needed before Room Tax filing can start". */
   satisfiesOrUnlocks: string[];
-  sourceReferences: RequirementSource[];
-  /** e.g. "September 2026" — null when not independently verified. */
+  sourceReferences: GuidanceSource[];
   lastVerified: string | null;
-  /**
-   * True when this came from the generic fallback rather than a hand-written,
-   * source-grounded builder — i.e. GUIDANCE_NEEDS_REVIEW. The UI shows the
-   * honest "not yet validated" copy in this case rather than invented prose.
-   */
-  needsReview: boolean;
 }
-
 export interface GuidanceContext {
   language: LangCode;
   municipality?: string | null;
-  /** Display name of the resolved business type, e.g. "Airbnb". */
   businessTypeName?: string | null;
-  /** Raw discovery answers (wizard keys), for fact-driven personalization. */
   discoveryAnswers: Record<string, unknown>;
-  /** Selected legal structure, e.g. "limited_liability_company" — needed for entity-formation guidance. */
-  entityType?: string | null;
-  /** The full KB, so the fallback can look up which rule actually fired (see describeTriggerRule). Optional so tests can omit it. */
+  profile?: Record<string, unknown>;
+  entityType?: string;
+  /** User-edited core application fact; never inferred from location type. */
+  occupancyType?: "owned" | "leased" | "other";
   kb?: KnowledgeBase;
+  /** Exact normalized input used by the deterministic matcher. */
+  engineInput?: EngineInput;
 }
-
 export interface GuidanceRequirement {
   document_id?: string;
   code: string;
   name: string;
   agency: string;
   reason: string;
-  /** Id of the rule that matched (ClassifiedRequirement.source_rule_id), used to derive honest, relevance-filtered trigger tags when no hand-written builder exists. */
-  sourceRuleId?: string;
+  applicability?: string;
+  triggerFacts?: string[];
+}
+const yes = (v: unknown) => v === true || v === "true" || v === "yes" || v === "Yes";
+const no = (v: unknown) => v === false || v === "false" || v === "no" || v === "No";
+
+/** Engine defaults (physical location => assumed lease) are not confirmed facts. */
+function factValue(key: GuidanceFactKey, ctx: GuidanceContext): string | boolean | undefined {
+  const p = ctx.profile ?? {}, a = ctx.discoveryAnswers;
+  if (key === "entityType") return ctx.entityType;
+  if (key === "municipality") return ctx.municipality || undefined;
+  if (key === "businessType") return ctx.businessTypeName || undefined;
+  const aliases: Partial<Record<GuidanceFactKey, string[]>> = {
+    Q_ALCOHOL_SOLD: ["alcohol_sold"], Q_EMPLOYEES_HIRED: ["employees_hired", "employees_work_on_site"],
+    Q_EXISTING_LEASE: ["existing_lease"], Q_PHYSICAL_LOCATION: ["physical_location"],
+  };
+  const values = [a[key], p[key], ...(aliases[key] ?? []).flatMap(k => [a[k], p[k]])].filter(v => v !== undefined && v !== null);
+  if (values.some(no)) return false;
+  if (key === "Q_EXISTING_LEASE") {
+    if (ctx.occupancyType === "owned" || ctx.occupancyType === "other" || yes(a.owns_property) || yes(p.owns_property) || yes(a.Q_OWNS_PROPERTY)) return false;
+    if (ctx.occupancyType === "leased") return true;
+  }
+  if (key === "Q_PHYSICAL_LOCATION") {
+    const location = typeof p.location_type === "string" ? p.location_type.trim() : "";
+    if (!location || isOnlineOnlyLocation(location) || isHomeBasedLocation(location) || /mobile|mixed use/i.test(location)) return undefined;
+    return true;
+  }
+  if (values.some(yes)) return true;
+  if (key === "Q_EMPLOYEES_HIRED" && Number(p.number_of_employees) > 0) return true;
+  return undefined;
 }
 
-// Hand-written builders never set `needsReview` themselves — it's true only
-// for the generic fallback, and buildRequirementGuidance() injects `false`
-// for every registered builder's result (see below).
-type GuidanceBuilder = (req: GuidanceRequirement, ctx: GuidanceContext) => Omit<RequirementGuidance, "needsReview">;
-
-/** Registered per document id by a jurisdiction pack (see PR pack). */
-export type RequirementGuidanceMap = Record<string, GuidanceBuilder>;
-
-const NEEDS_REVIEW_EN = "SmartPR has identified this requirement, but the regulatory rationale has not yet been fully validated.";
-const NEEDS_REVIEW_ES = "SmartPR identificó este requisito, pero la justificación regulatoria aún no ha sido validada completamente.";
-
-/**
- * Look at the rule that actually fired and describe it in relevance-filtered,
- * human terms — a business-type match yields the business type only, a
- * question trigger yields a cleaned-up version of the question that was
- * answered, a municipality/flag match yields the municipality. This is the
- * ONLY place trigger tags come from when no hand-written builder exists, so
- * a fallback requirement never shows a raw graph value.
- */
-function describeTriggerRule(rule: KBRule | undefined, kb: KnowledgeBase, ctx: GuidanceContext): string[] {
-  if (!rule) return [];
-  if (rule.rule_type === "business_type") {
-    const bt = kb.businessTypes.find((b) => b.id === rule.business_type_id);
-    return bt ? [bt.name] : [];
-  }
-  if (rule.rule_type === "question_trigger") {
-    const q = kb.questions.find((item) => item.id === rule.question_id);
-    if (!q) return [];
-    // "Will alcohol be sold?" -> "Alcohol be sold" -> best-effort humanized tag.
-    const cleaned = q.question.replace(/^will\s+/i, "").replace(/\?$/, "").trim();
-    return [cleaned.charAt(0).toUpperCase() + cleaned.slice(1)];
-  }
-  if (rule.rule_type === "municipality_flag") {
-    const flag = rule.municipality_flag;
-    const label = flag ? ACTIVE_JURISDICTION.flagAdvisories.byFlag[flag]?.flagLabel : null;
-    return [label || ctx.municipality, ctx.municipality && rule.business_type_id ? ctx.businessTypeName : null]
-      .filter((v): v is string => Boolean(v));
-  }
-  if (rule.rule_type === "municipality") {
-    // The universal per-municipality baseline (EIN, Patente, Merchant Reg,
-    // Certificate of Incorporation) — municipality is genuinely the trigger.
-    return ctx.municipality ? [ctx.municipality] : [];
-  }
-  return [];
-}
-
-function genericGuidance(req: GuidanceRequirement, ctx: GuidanceContext): RequirementGuidance {
+function review(req: GuidanceRequirement, ctx: GuidanceContext, reasons: string[]): RequirementGuidance {
   const es = ctx.language === "es";
-  const msg = es ? NEEDS_REVIEW_ES : NEEDS_REVIEW_EN;
-  const rule = ctx.kb && req.sourceRuleId ? ctx.kb.rules.find((r) => r.id === req.sourceRuleId) : undefined;
-  const triggeredBy = ctx.kb ? describeTriggerRule(rule, ctx.kb, ctx) : [];
+  const why = es ? "SmartPR ha identificado este requisito, pero su fundamento regulatorio aún no se ha validado por completo." : "SmartPR has identified this requirement, but the regulatory rationale has not yet been fully validated.";
   return {
-    summary: msg,
-    whyThisApplies: msg,
-    whatThisIs: es
-      ? "SmartPR aún no ha documentado el propósito específico de este requisito — consulta la fuente oficial abajo."
-      : "SmartPR hasn't documented what this specific requirement covers yet — check the official source below.",
-    whatYouNeedToDo: es
-      ? "Consulta la fuente oficial mientras SmartPR completa esta guía."
-      : "Check the official source while SmartPR finishes documenting this requirement.",
-    whatHappensNext: es
-      ? "SmartPR actualizará esta explicación en cuanto se valide con una fuente regulatoria."
-      : "SmartPR will update this explanation once it's grounded in a verified regulatory source.",
-    triggeredBy,
-    satisfiesOrUnlocks: [],
-    sourceReferences: [{ agency: req.agency, citation: es ? "Fuente por confirmar" : "Source to be confirmed" }],
-    lastVerified: null,
-    needsReview: true,
+    requirementId: req.document_id ?? req.code, status: "GUIDANCE_NEEDS_REVIEW", reviewReasons: reasons,
+    triggerFacts: [], regulatoryReason: "", purpose: "", nextAction: "", consequenceOrNextStep: "", dependencies: [], sources: [], sourceVersion: null,
+    summary: why, whyThisApplies: why,
+    whatThisIs: es ? "La finalidad específica está pendiente de validación." : "The specific purpose is awaiting validation.",
+    whatYouNeedToDo: es ? "Confirma el fundamento y la aplicabilidad antes de actuar sobre este requisito." : "Confirm the rationale and applicability before acting on this requirement.",
+    whatHappensNext: es ? "No se ha validado qué autoriza o acredita su cumplimiento." : "What completion authorizes or establishes has not been validated.",
+    triggeredBy: [], satisfiesOrUnlocks: [], sourceReferences: [], lastVerified: null,
   };
 }
 
-/**
- * Resolve the guidance for one requirement. Looks up a hand-written builder
- * registered for this document id in the active jurisdiction pack; falls
- * back to the honest NEEDS_REVIEW explanation otherwise — never invented
- * regulatory prose.
- */
 export function buildRequirementGuidance(req: GuidanceRequirement, ctx: GuidanceContext): RequirementGuidance {
-  const builder = req.document_id ? ACTIVE_JURISDICTION.requirementGuidance?.[req.document_id] : undefined;
-  if (builder) return { needsReview: false, ...builder(req, ctx) };
-  return genericGuidance(req, ctx);
-}
-
-// ---------------------------------------------------------------------------
-// Quality validation — catches guidance that has regressed into the generic
-// template pattern this module exists to eliminate. Used by the test suite
-// (requirementGuidance.test.ts), not on the render path.
-// ---------------------------------------------------------------------------
-
-export const BANNED_PHRASES: string[] = [
-  "this applies based on what smartpr knows about your project",
-  "is issued or required by",
-  "this helps keep you compliant",
-  "this keeps your compliance profile current",
-  "smartpr will guide you through the exact steps",
-  "this is needed to comply with local regulations",
-  "completing this requirement allows your business to remain compliant",
-  "prepare this document and keep it on file",
-  "prepare",
-  "and keep it on file",
-];
-
-// A handful of the phrases above (e.g. "prepare", "and keep it on file") are
-// only meaningful as a substring check paired with the others — check the
-// full banned sentence fragments, not single common words in isolation.
-const BANNED_SENTENCE_FRAGMENTS = BANNED_PHRASES.filter((p) => p.split(" ").length > 2);
-
-export interface GuidanceViolation {
-  field: keyof RequirementGuidance | "cross_field";
-  message: string;
-}
-
-/**
- * Structural + banned-phrase checks for one requirement's guidance. Does NOT
- * check cross-requirement distinctiveness (two different requirements
- * producing near-identical text) — that needs a set of requirements to
- * compare against, and lives in the test suite instead.
- */
-export function validateRequirementGuidance(guidance: RequirementGuidance, req: GuidanceRequirement): GuidanceViolation[] {
-  const violations: GuidanceViolation[] = [];
-  const fields: (keyof RequirementGuidance)[] = ["whyThisApplies", "whatThisIs", "whatYouNeedToDo", "whatHappensNext"];
-
-  if (guidance.needsReview) {
-    // The fallback is exempt from the "must be specific" checks below — its
-    // entire point is to admit it isn't specific yet, honestly.
-    return violations;
-  }
-
-  for (const field of fields) {
-    const text = guidance[field] as string;
-    if (!text || !text.trim()) {
-      violations.push({ field, message: `${field} is empty` });
-      continue;
-    }
-    const lower = text.toLowerCase();
-    for (const phrase of BANNED_SENTENCE_FRAGMENTS) {
-      if (lower.includes(phrase)) {
-        violations.push({ field, message: `${field} contains banned generic phrase: "${phrase}"` });
-      }
-    }
-  }
-
-  // whatThisIs must not merely restate "<name> is issued/required by <agency>".
-  const nameAgencyOnly = new RegExp(`^${escapeRegExp(req.name)}.*(issued|required).*${escapeRegExp(req.agency)}\\.?$`, "i");
-  if (nameAgencyOnly.test(guidance.whatThisIs.trim())) {
-    violations.push({ field: "whatThisIs", message: "whatThisIs merely repeats the requirement name and agency" });
-  }
-
-  // A regulatory reason must be backed by at least one source.
-  if (guidance.sourceReferences.length === 0) {
-    violations.push({ field: "sourceReferences", message: "whyThisApplies asserts a regulatory reason with no source reference" });
-  }
-
-  // triggeredBy must never contain a raw concatenated graph value (no
-  // internal-cap-splice like "BarBayamón" — a simple heuristic: no tag mixing
-  // an uppercase letter directly after a lowercase letter mid-string, which
-  // legitimate multi-word tags like "Selling alcohol" never do).
-  for (const tag of guidance.triggeredBy) {
-    if (/[a-z][A-Z]/.test(tag)) {
-      violations.push({ field: "triggeredBy", message: `triggeredBy tag looks like a raw concatenated graph value: "${tag}"` });
-    }
-  }
-
-  return violations;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const kb = ctx.kb ?? ACTIVE_JURISDICTION.kb;
+  const raw = kb.documents.find(d => d.id === req.document_id)?.requirement_guidance;
+  const problems = validateGuidanceConcept(raw, req.document_id);
+  if (problems.length) return review(req, ctx, problems);
+  const concept = raw as GuidanceConcept;
+  if (["conditional", "not_applicable", "recommended"].includes(req.applicability ?? "")) return review(req, ctx, ["APPLICABILITY_NOT_CONFIRMED"]);
+  const concepts = kb.documents.map(d => d.requirement_guidance).filter((c): c is GuidanceConcept => validateGuidanceConcept(c).length === 0);
+  if (duplicateGuidanceIds(concepts).has(concept.requirementId)) return review(req, ctx, ["DUPLICATE_EXPLANATION"]);
+  const matches = ctx.engineInput ? runRulesEngine(kb, ctx.engineInput).debug.rulesMatched.filter(r => r.document_id === req.document_id) : [];
+  const entityTrace = req.triggerFacts?.includes(`entityType:${ctx.entityType}`) && concept.conditions.some(g => g.some(t => t.key === "entityType" && t.equals === ctx.entityType));
+  if (!matches.length && !entityTrace) return review(req, ctx, ["MATCH_TRACE_MISSING"]);
+  const group = concept.conditions.find(g => g.every(t => {
+    const value = factValue(t.key, ctx);
+    return t.equals === undefined ? typeof value === "string" && value.length > 0 : value === t.equals;
+  }));
+  if (!group) return review(req, ctx, ["TRIGGER_UNCONFIRMED_OR_CONTRADICTED"]);
+  const lang = ctx.language;
+  const triggerFacts: TriggerFact[] = group.map(t => {
+    const value = factValue(t.key, ctx)!;
+    const ruleIds = matches.map(m => m.rule_id);
+    return { key: t.key, value, label: t.equals === undefined || t.key === "municipality" ? `${t.label[lang]}: ${value}` : t.label[lang], ruleIds: entityTrace ? [...ruleIds, "entity_formation_exclusivity"] : ruleIds, conditionPath: `${concept.requirementId}.requirement_guidance.conditions.${concept.conditions.indexOf(group)}.${group.indexOf(t)}` };
+  });
+  const render = (value: string) => value.replace(/\{municipality\}/g, String(triggerFacts.find(f => f.key === "municipality")?.value ?? ""));
+  const regulatoryReason = render(concept.regulatoryReason[lang]), purpose = render(concept.purpose[lang]);
+  const nextAction = render(concept.nextAction[lang]), consequenceOrNextStep = render(concept.consequenceOrNextStep[lang]);
+  const why = `${lang === "es" ? "Confirmaste" : "You confirmed"}: ${triggerFacts.map(f => f.label).join("; ")}. ${regulatoryReason}`;
+  return {
+    requirementId: concept.requirementId, status: "VALIDATED", reviewReasons: [], triggerFacts,
+    regulatoryReason, purpose, nextAction, consequenceOrNextStep,
+    dependencies: [...new Set([...concept.dependencies, ...(concept.conditionalDependencies ?? []).filter(d => d.entityType === ctx.entityType).map(d => d.documentId)])],
+    sources: concept.sources, sourceVersion: concept.version,
+    summary: why, whyThisApplies: why, whatThisIs: purpose, whatYouNeedToDo: nextAction, whatHappensNext: consequenceOrNextStep,
+    triggeredBy: triggerFacts.map(f => f.label), satisfiesOrUnlocks: [consequenceOrNextStep], sourceReferences: concept.sources,
+    lastVerified: concept.sources.map(s => s.lastVerified).sort()[0],
+  };
 }

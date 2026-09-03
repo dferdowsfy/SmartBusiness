@@ -9,6 +9,7 @@
 // ============================================================================
 
 import type { CompiledKb, NodeType } from "./types";
+import { duplicateGuidanceIds, validateGuidanceConcept, type GuidanceConcept } from "../guidance/model";
 
 export interface CompileNode {
   entityId: string;
@@ -37,6 +38,23 @@ export function compileKb(
   }
 
   const documents = pick("document");
+  const sourceNodes = new Map(pick("regulatory_source").map(n => [n.entityId, n.data]));
+  for (const document of documents) {
+    const guidance = document.data.requirement_guidance as GuidanceConcept | undefined;
+    if (!guidance || guidance.validationStatus !== "validated") continue;
+    const issues = validateGuidanceConcept(guidance, document.entityId);
+    if (issues.length) throw new Error(`GUIDANCE_NEEDS_REVIEW: ${document.entityId}: ${issues.join(", ")}`);
+    for (const reference of guidance.sources) {
+      const source = sourceNodes.get(reference.id);
+      if (!source || !["effective", "amended"].includes(String(source.legal_status)) || source.url !== reference.url || source.source_version !== reference.sourceVersion
+        || !Array.isArray(source.supports_document_ids) || !source.supports_document_ids.includes(document.entityId)) {
+        throw new Error(`GUIDANCE_NEEDS_REVIEW: ${document.entityId} requires an active, version-matched supporting source ${reference.id}`);
+      }
+    }
+  }
+  const duplicateGuidance = duplicateGuidanceIds(documents.map(d => d.data.requirement_guidance)
+    .filter((g): g is GuidanceConcept => validateGuidanceConcept(g).length === 0));
+  if (duplicateGuidance.size) throw new Error(`GUIDANCE_NEEDS_REVIEW: duplicated regulatory explanations on ${[...duplicateGuidance].join(", ")}`);
   const recommended: string[] = [];
   const weights: Record<string, number> = {};
   const legacyCode: Record<string, string> = {};

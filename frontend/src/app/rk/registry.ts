@@ -9,10 +9,12 @@
 // ============================================================================
 
 import type { EdgeType, NodeType } from "./types";
+import { validateGuidanceConcept, type GuidanceConcept } from "../guidance/model";
 
 export type FieldKind =
   | "text"
   | "textarea"
+  | "json"
   | "number"
   | "boolean"
   | "select"
@@ -306,6 +308,7 @@ export const NODE_TYPE_CONFIGS: Record<NodeType, NodeTypeConfig> = {
       { key: "depends_on_document_ids", label: "Prerequisite documents", kind: "entity_ref_list", refType: "document", help: "Documents that must be obtained before this one." },
       { key: "guidance", label: "User guidance", kind: "textarea" },
       { key: "citation", label: "Regulatory citation", kind: "text" },
+      { key: "requirement_guidance", label: "Structured regulatory guidance", kind: "json", help: "Versioned EN/ES concept, conditions, dependencies and cited sources. Only validated guidance is shown as a regulatory explanation. Null disables bundled guidance." },
       { key: "notes", label: "Internal notes", kind: "textarea" },
     ],
     edgesOf: (d) => {
@@ -313,6 +316,15 @@ export const NODE_TYPE_CONFIGS: Record<NodeType, NodeTypeConfig> = {
       pushRef(out, "issued_by", d.agency_id);
       for (const dep of list(d.depends_on_document_ids)) out.push({ edgeType: "depends_on", toEntity: dep });
       for (const ev of list(d.evidence_type_ids)) out.push({ edgeType: "requires", toEntity: ev });
+      const guidance = d.requirement_guidance as GuidanceConcept | undefined;
+      if (guidance && typeof guidance === "object") {
+        for (const src of Array.isArray(guidance.sources) ? guidance.sources : []) if (src?.id) out.push({ edgeType: "derived_from", toEntity: src.id });
+        for (const dep of Array.isArray(guidance.dependencies) ? guidance.dependencies : []) out.push({ edgeType: "depends_on", toEntity: dep });
+        for (const dep of Array.isArray(guidance.conditionalDependencies) ? guidance.conditionalDependencies : []) if (dep?.documentId) out.push({ edgeType: "depends_on", toEntity: dep.documentId });
+        for (const condition of Array.isArray(guidance.conditions) ? guidance.conditions.flat().filter(Boolean) : []) {
+          if (condition.key?.startsWith("Q_")) out.push({ edgeType: "evaluated_against", toEntity: condition.key });
+        }
+      }
       return out;
     },
   },
@@ -549,8 +561,9 @@ export const NODE_TYPE_CONFIGS: Record<NodeType, NodeTypeConfig> = {
       { key: "last_verified_at", label: "Last verified at", kind: "text", required: true },
       { key: "source_version", label: "Source version", kind: "text", required: true },
       { key: "supports_incentive_ids", label: "Supports incentives", kind: "entity_ref_list", refTypes: INCENTIVE_NODE_TYPES },
+      { key: "supports_document_ids", label: "Supports requirement guidance", kind: "entity_ref_list", refType: "document" },
     ],
-    edgesOf: (d) => list(d.supports_incentive_ids).map((id) => ({ edgeType: "supports" as EdgeType, toEntity: id })),
+    edgesOf: (d) => [...list(d.supports_incentive_ids), ...list(d.supports_document_ids)].map((id) => ({ edgeType: "supports" as EdgeType, toEntity: id })),
   },
 };
 
@@ -584,6 +597,9 @@ export const EDGE_RULES: { from: NodeType; edge: EdgeType; to: NodeType }[] = [
   { from: "rule", edge: "applies_to", to: "business_type" },
   { from: "rule", edge: "applies_to", to: "intake_question" },
   { from: "document", edge: "issued_by", to: "agency" },
+  { from: "document", edge: "derived_from", to: "regulatory_source" },
+  { from: "document", edge: "evaluated_against", to: "intake_question" },
+  { from: "regulatory_source", edge: "supports", to: "document" },
   { from: "document", edge: "depends_on", to: "document" },
   { from: "document", edge: "requires", to: "evidence_type" },
   { from: "exemption", edge: "exempts", to: "rule" },
@@ -610,6 +626,11 @@ export function validateNodeData(nodeType: NodeType, data: Record<string, unknow
   const cfg = NODE_TYPE_CONFIGS[nodeType];
   if (!cfg) return [`Unknown node type: ${nodeType}`];
   const problems: string[] = [];
+  if (nodeType === "document" && data.requirement_guidance !== undefined && data.requirement_guidance !== null) {
+    // Draft content can be retained for review, but is never served as validated.
+    const guidance = data.requirement_guidance as GuidanceConcept;
+    problems.push(...validateGuidanceConcept(guidance, String(data.id)).filter(p => p !== "GUIDANCE_NOT_VALIDATED"));
+  }
   for (const f of cfg.fields) {
     if (!f.required) continue;
     const v = data[f.key];

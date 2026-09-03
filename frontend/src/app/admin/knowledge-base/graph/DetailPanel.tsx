@@ -44,6 +44,13 @@ function FieldInput({
   }, [spec.refType, spec.refTypes, graph.graph]);
 
   switch (spec.kind) {
+    case "json":
+      return <textarea
+        value={typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2)}
+        onChange={(e) => { try { onChange(JSON.parse(e.target.value)); } catch { onChange(e.target.value); } }}
+        rows={14}
+        style={{ ...inputStyle, resize: "vertical" }}
+      />;
     case "textarea":
       return (
         <textarea
