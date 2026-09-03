@@ -35,7 +35,7 @@ const PATTERNS: NamePattern[] = [
   },
   {
     test: /\bein\b|employer identification/i,
-    icon: "blue",
+    icon: "green",
     primaryStart: "Complete EIN form",
     secondary: { prompt: "Already have your EIN?", label: "Upload EIN confirmation", helper: "Accepted: PDF, JPG, PNG" },
   },

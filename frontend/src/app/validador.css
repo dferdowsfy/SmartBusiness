@@ -676,23 +676,22 @@ button { font-family: inherit; }
 .rq-badge-blue { background: #EEF2FF; color: var(--brand); }
 .rq-badge-gray { background: var(--bg-tint); color: var(--muted-2); }
 
-.rq-card-center .tag.agency { margin-top: 7px; display: inline-block; }
-.rq-card-desc { margin: 8px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; max-width: 62ch; }
+.rq-card-desc { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; max-width: 62ch; }
 
-.rq-why { margin-top: 7px; }
+.rq-why { margin-top: 6px; }
 .rq-why summary {
   cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 4px;
   color: var(--brand); font-size: 12.5px; font-weight: 550;
 }
 .rq-why summary::-webkit-details-marker { display: none; }
 .rq-why-chevron { transition: transform .15s ease; }
-.rq-why[open] .rq-why-chevron { transform: rotate(90deg); }
+.rq-why[open] .rq-why-chevron { transform: rotate(180deg); }
 .rq-why-body {
   margin-top: 8px; padding: 12px 14px; border-radius: 10px;
   background: var(--bg-tint); color: var(--ink-2); font-size: 13px; line-height: 1.55; max-width: 70ch;
 }
 
-.rq-card-right { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; width: 220px; }
+.rq-card-right { flex: none; display: flex; flex-direction: column; align-items: stretch; gap: 4px; width: 240px; }
 
 .rq-cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
@@ -700,15 +699,10 @@ button { font-family: inherit; }
   font-size: 13.5px; font-weight: 600; font-family: inherit; cursor: pointer;
   text-decoration: none; white-space: nowrap; border: 1px solid transparent;
 }
-.rq-cta-upload { background: var(--accent); color: white; }
-.rq-cta-upload:hover { background: #1c4a4a; }
-.rq-cta-form {
-  background: linear-gradient(180deg, #1E3A8A 0%, #1E2F6F 100%);
-  color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
-}
-.rq-cta-form:hover { background: linear-gradient(180deg, #2347A8 0%, #1E3A8A 100%); }
+.rq-cta-upload, .rq-cta-form { background: var(--accent); color: white; }
+.rq-cta-upload:hover, .rq-cta-form:hover { background: #1c4a4a; }
 
-.rq-cta-helper { color: var(--muted); font-size: 11.5px; line-height: 1.4; text-align: right; max-width: 220px; }
+.rq-cta-helper { color: var(--muted); font-size: 11.5px; line-height: 1.4; text-align: right; }
 
 .rq-completed {
   display: inline-flex; align-items: center; gap: 6px;
@@ -719,17 +713,20 @@ button { font-family: inherit; }
   color: var(--muted); font-size: 13px; font-weight: 550;
 }
 
-/* "Already have this?" secondary upload option — a deliberately quiet text
-   control underneath the primary SmartPR action, never a second big button. */
-.rq-secondary { margin-top: 8px; text-align: right; max-width: 220px; }
-.rq-secondary-prompt { display: block; color: var(--muted); font-size: 11.5px; }
-.rq-secondary-link {
-  border: 0; background: transparent; padding: 0; margin-top: 2px;
-  color: var(--brand); font-size: 12.5px; font-weight: 600;
-  text-decoration: underline; text-underline-offset: 2px;
-  cursor: pointer; font-family: inherit;
+/* Primary SmartPR action / secondary "already have this" upload, joined by a
+   small muted "OR" — the upload path is always available, but visually
+   secondary to SmartPR completing the requirement for the user. */
+.rq-or {
+  align-self: center; margin: 2px 0;
+  color: var(--muted); font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em;
 }
-.rq-secondary-link:hover { color: var(--accent); }
+.rq-secondary-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; padding: 9px 16px; border-radius: 8px;
+  font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--brand); color: var(--brand);
+}
+.rq-secondary-btn:hover { background: var(--accent-soft); }
 
 .rq-card-extra { grid-column: 1 / -1; margin-top: 12px; }
 
@@ -743,63 +740,84 @@ button { font-family: inherit; }
 .rq-show-more svg { transition: transform .15s ease; }
 .rq-show-more.expanded svg { transform: rotate(180deg); }
 
-/* ---- Sidebar ---- */
-.rq-sidebar { display: flex; flex-direction: column; gap: 14px; }
-.rq-side-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 18px;
+/* ---- Compact readiness control (replaces the old persistent sidebar) ---- */
+.rq-readiness-control { position: sticky; top: 14px; z-index: 40; flex: 0 0 auto; margin-left: auto; }
+.rq-readiness-summary {
+  display: inline-flex; align-items: center; gap: 8px;
+  max-width: 300px; padding: 7px 12px;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface); cursor: pointer; font-family: inherit;
 }
-.rq-side-head {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 10px;
+.rq-readiness-summary strong { font-size: 15px; font-weight: 700; color: var(--ink); }
+.rq-readiness-word { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.rq-readiness-bar {
+  width: 46px; height: 5px; border-radius: 999px; background: var(--bg-tint);
+  overflow: hidden; flex: none;
 }
-.rq-side-head svg { color: var(--muted); }
-.rq-readiness-pct { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: var(--ink); }
-.rq-readiness-sub { margin-top: 4px; color: var(--muted); font-size: 12.5px; }
-.rq-progress-track {
-  margin-top: 12px; height: 7px; border-radius: 999px; background: var(--bg-tint); overflow: hidden;
+.rq-readiness-bar span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.rq-readiness-chevron {
+  display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--bg-tint); color: var(--ink-2); flex: none; transition: transform .15s ease;
 }
-.rq-progress-track span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
-.rq-readiness-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
-.rq-readiness-metrics div {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 8px 4px; border: 1px solid var(--border); border-radius: 9px;
+.rq-readiness-summary[aria-expanded="true"] .rq-readiness-chevron { transform: rotate(180deg); }
+.rq-readiness-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; width: 200px;
+  padding: 12px; border-radius: 12px; background: var(--surface);
+  border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; z-index: 50;
 }
-.rq-readiness-metrics strong { font-size: 16px; font-weight: 700; color: var(--ink); }
-.rq-readiness-metrics span { font-size: 10.5px; color: var(--muted); text-align: center; }
+.rq-readiness-pop div { display: flex; flex-direction: column; gap: 2px; }
+.rq-readiness-pop strong { font-size: 15px; font-weight: 700; color: var(--ink); }
+.rq-readiness-pop span { font-size: 10.5px; color: var(--muted); }
 
-.rq-side-title { margin: 0 0 12px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
-.rq-where-row, .rq-help-row {
-  display: flex; align-items: flex-start; gap: 10px; text-align: left;
-  border: 0; background: transparent; padding: 0; font-family: inherit; cursor: default; width: 100%;
+/* ---- Critical path count pill + subtext ---- */
+.rq-critical-count {
+  padding: 1px 8px; border-radius: 999px; background: var(--bg-tint);
+  color: var(--ink-2); font-size: 11px; font-weight: 700;
 }
-.rq-help-row { cursor: pointer; }
-.rq-where-row + .rq-where-row, .rq-help-row + .rq-help-row { margin-top: 12px; }
-.rq-where-icon, .rq-help-icon {
-  width: 30px; height: 30px; border-radius: 8px; flex: none;
-  display: grid; place-items: center;
-}
-.rq-where-green { background: var(--accent-soft); color: var(--accent); }
-.rq-where-amber { background: var(--warn-soft); color: var(--warn); }
-.rq-help-icon { background: var(--bg-tint); color: var(--muted-2); }
-.rq-where-row strong, .rq-help-row strong { display: block; font-size: 13px; font-weight: 600; color: var(--ink); }
-.rq-where-row p, .rq-help-row p { margin: 2px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.rq-critical-sub { margin: 0 0 14px; color: var(--muted); font-size: 12.5px; }
 
-.rq-security { display: flex; align-items: flex-start; gap: 10px; }
-.rq-security-icon {
-  width: 30px; height: 30px; border-radius: 8px; flex: none;
-  display: grid; place-items: center; background: var(--accent-soft); color: var(--accent);
+/* ---- "Other requirements" collapsed row ---- */
+.rq-other-toggle {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  margin-top: 10px; padding: 14px 0; border: 0; background: transparent;
+  color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: 0.08em;
+  text-transform: uppercase; cursor: pointer; font-family: inherit;
 }
-.rq-security strong { display: block; font-size: 13px; font-weight: 600; color: var(--accent); }
-.rq-security p { margin: 2px 0 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.rq-other-toggle::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.rq-other-toggle svg { flex: none; transition: transform .15s ease; }
+.rq-other-toggle.expanded svg { transform: rotate(180deg); }
+
+/* ---- Compact Recommendations panel ---- */
+.rq-recommendations {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin-top: 16px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.rq-recommendations-icon { flex: none; margin-top: 2px; color: var(--accent); }
+.rq-recommendations strong { display: block; font-size: 13.5px; font-weight: 650; color: var(--ink); }
+.rq-recommendations p { margin: 3px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+
+/* ---- Floating help ---- */
+.rq-floating-help {
+  position: fixed; right: 24px; bottom: 24px; z-index: 70;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent); color: white; border: 0;
+  display: grid; place-items: center; cursor: pointer; box-shadow: var(--shadow-lg);
+}
+.rq-floating-help:hover { background: #1c4a4a; }
 
 @media (max-width: 860px) {
   .rq-card-row { flex-wrap: wrap; }
   .rq-card-left { order: 0; }
   .rq-card-center { order: 1; flex-basis: 100%; }
   .rq-card-right { order: 2; flex-basis: 100%; width: auto; align-items: stretch; margin-top: 4px; }
-  .rq-cta-helper { text-align: left; max-width: none; }
-  .rq-secondary { text-align: left; max-width: none; }
+  .rq-cta-helper { text-align: left; }
+}
+@media (max-width: 640px) {
+  .rq-readiness-control { position: static; width: 100%; margin-left: 0; margin-top: 10px; }
+  .rq-readiness-summary { max-width: none; width: 100%; justify-content: space-between; }
+  .rq-tabs { flex-wrap: wrap; row-gap: 8px; overflow-x: visible; gap: 14px; }
 }
 .issued-document-guidance {
   display: flex; align-items: flex-start; gap: 7px;
@@ -1695,6 +1713,14 @@ button { font-family: inherit; }
   position: relative;
   top: auto;
 }
+/* Non-sticky header variant: the same chrome, but it scrolls away with the
+   page instead of collapsing into a pinned bar. Used by pages (like
+   Requirements) that pin only a small standalone control on scroll rather
+   than the whole header. */
+.spr-filing-static {
+  position: relative;
+  background: #f4f1ea;
+}
 /* Collapsing regions of the sticky header use the CSS grid-rows technique
    (1fr <-> 0fr) rather than animating max-height against an unknown content
    height — animating toward a guessed max-height snaps abruptly once the
@@ -1759,10 +1785,6 @@ button { font-family: inherit; }
   margin: 0 auto;
   padding: 0 32px 12px;
 }
-.spr-stepper-bar .spr-matter-actions {
-  flex: 0 0 auto;
-  padding-bottom: 4px;
-}
 .spr-stepper-bar .spr-workflow-stepper {
   flex: 1;
   max-width: none;
@@ -1774,13 +1796,6 @@ button { font-family: inherit; }
 }
 .spr-filing-sticky.compact .spr-stepper-bar .spr-workflow-stepper {
   padding-bottom: 12px;
-}
-.spr-filing-sticky.compact .spr-stepper-bar .spr-matter-actions {
-  flex: 0 0 auto;
-  padding-bottom: 10px;
-}
-.spr-filing-sticky.compact .spr-business-profile-link {
-  display: none;
 }
 .spr-matter-identity,
 .spr-matter-actions,
@@ -1921,6 +1936,14 @@ button { font-family: inherit; }
   grid-template-columns: minmax(0, 1fr) minmax(300px, 350px);
   align-items: start;
   gap: 24px;
+}
+/* No sidebar — let the main content use nearly the full viewport instead of
+   the two-column max-width, per the Requirements page's own layout. */
+.spr-workflow-grid.single {
+  width: min(1800px, 100%);
+  grid-template-columns: 1fr;
+  padding-left: 56px;
+  padding-right: 56px;
 }
 .spr-main-workarea { min-width: 0; }
 .spr-guest-note {
@@ -2087,26 +2110,16 @@ button { font-family: inherit; }
 }
 
 @media (max-width: 640px) {
-  .spr-matter-header { min-height: 0; padding: 15px 14px 12px; }
+  .spr-matter-header { min-height: 0; padding: 15px 14px 12px; flex-wrap: wrap; }
   .spr-stepper-bar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
+    flex-wrap: wrap;
     padding: 0 14px 12px;
   }
   .spr-stepper-bar .spr-workflow-stepper {
-    grid-row: 1;
     width: 100%;
     min-width: 0;
     padding: 0 0 8px;
   }
-  .spr-stepper-bar .spr-matter-actions {
-    grid-row: 2;
-    width: 100%;
-    justify-content: flex-end;
-    padding-bottom: 0;
-  }
-  .spr-filing-sticky.compact .spr-stepper-bar .spr-context-language { display: none; }
   .spr-matter-icon { width: 34px; height: 34px; }
   .spr-matter-name-row { align-items: flex-start; flex-direction: column; gap: 4px; }
   .spr-matter-name-row h1 { max-width: calc(100vw - 82px); font-size: 17px; }
