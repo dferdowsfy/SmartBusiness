@@ -7,7 +7,7 @@
 // ============================================================================
 
 import type { JurisdictionPack } from "./types";
-import { puertoRicoPack } from "./pr";
+import { puertoRicoPack } from "./pr/index.ts";
 
 export type { JurisdictionPack, FlagAdvisory, ExtractionHint, LangCode } from "./types";
 

@@ -3446,8 +3446,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // structured fallback (see requirementGuidance.ts). Rendered inside the
     // SAME "Why do I need this?" disclosure — no new panel/modal/drawer.
     const guidance = buildRequirementGuidance(
-      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req) },
-      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers }
+      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req), sourceRuleId: req.source_rule },
+      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers, entityType: entityTypeFromLegacyStructure(profile.business_structure), kb: KB }
     );
     const why = (
       <div className="rq-guidance">

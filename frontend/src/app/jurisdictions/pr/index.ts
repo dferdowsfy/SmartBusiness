@@ -17,11 +17,11 @@ import type {
 import type { JurisdictionPack } from "../types";
 import type { RateFact, RequirementGuidanceMap } from "../../requirementGuidance";
 
-import municipalitiesJson from "../../../kb/municipalities.json";
-import businessTypesJson from "../../../kb/business_types.json";
-import questionsJson from "../../../kb/questions.json";
-import documentsJson from "../../../kb/documents.json";
-import rulesJson from "../../../kb/rules.json";
+import municipalitiesJson from "../../../kb/municipalities.json" with { type: "json" };
+import businessTypesJson from "../../../kb/business_types.json" with { type: "json" };
+import questionsJson from "../../../kb/questions.json" with { type: "json" };
+import documentsJson from "../../../kb/documents.json" with { type: "json" };
+import rulesJson from "../../../kb/rules.json" with { type: "json" };
 
 const kb: KnowledgeBase = {
   municipalities: municipalitiesJson as KBMunicipality[],
@@ -170,6 +170,227 @@ const requirementGuidance: RequirementGuidanceMap = {
       satisfiesOrUnlocks: [],
       sourceReferences: [{ agency: es ? "Reglamento de tu condominio / asociación" : "Your condo / HOA's own governing rules", citation: es ? "Ley de Condominios de Puerto Rico" : "Puerto Rico Condominium Act" }],
       lastVerified: null,
+    };
+  },
+
+  // The following documents apply broadly (not just to STR) and are common
+  // enough across business types that generic fallback copy was the single
+  // biggest source of "sounds the same for every requirement" complaints —
+  // each explanation below is grounded in what the specific document
+  // actually does, not just its name/agency/business-type/municipality.
+  DOC_ALCOHOL_LICENSE: (req, ctx) => {
+    const es = ctx.language === "es";
+    const sellsAlcohol = [ctx.discoveryAnswers.alcohol_sold, ctx.discoveryAnswers.alcohol_served, ctx.discoveryAnswers.Q_ALCOHOL_SOLD, ctx.discoveryAnswers.Q_ALCOHOL_SERVED]
+      .some((v) => v === true);
+    const isBarLike = /\bbar\b|nightclub/i.test(ctx.businessTypeName || "");
+    const triggeredBy = [
+      isBarLike ? ctx.businessTypeName : null,
+      sellsAlcohol ? (es ? "Venta de alcohol" : "Selling alcohol") : null,
+    ].filter((v): v is string => Boolean(v));
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Nos dijiste que este negocio venderá bebidas alcohólicas. Puerto Rico otorga licencias por separado a los negocios que venden alcohol, así que tus registros comerciales y permisos municipales habituales no autorizan por sí solos la venta de alcohol."
+        : "You told us this business will sell alcoholic beverages. Puerto Rico separately licenses businesses that sell alcohol, so your normal business registrations and municipal permits do not by themselves authorize alcohol sales.",
+      whatThisIs: es
+        ? "Esta es la licencia de Hacienda que autoriza a tu negocio a vender bebidas alcohólicas bajo la categoría de licencia correspondiente."
+        : "This is the Hacienda license that authorizes your business to sell alcoholic beverages under the applicable license category.",
+      whatYouNeedToDo: es
+        ? "Completa la solicitud de licencia de alcohol. SmartPR prellenará la información de tu negocio, entidad y ubicación, y te indicará qué documentos de respaldo faltan."
+        : "Complete the alcohol-license application. SmartPR will prefill your business, entity and location information and tell you which supporting documents are still missing.",
+      whatHappensNext: es
+        ? "Una vez emitida la licencia, el negocio puede realizar legalmente las ventas de alcohol cubiertas por esa licencia. Hasta entonces, abrir el negocio no autoriza automáticamente la venta de alcohol."
+        : "Once the license is issued, the business can legally conduct the alcohol sales covered by that license. Until then, opening the business does not automatically mean alcohol sales are authorized.",
+      triggeredBy: triggeredBy.length ? triggeredBy : (es ? ["Venta de alcohol"] : ["Selling alcohol"]),
+      satisfiesOrUnlocks: [],
+      sourceReferences: [{ agency: "Departamento de Hacienda", citation: es ? "Reglamento de Bebidas Alcohólicas de Puerto Rico" : "Puerto Rico Alcoholic Beverages Act and regulations" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_EIN: (req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Tu negocio se está constituyendo como una entidad separada y necesita un número de identificación fiscal federal. El EIN es el identificador que se usa para declaraciones federales de impuestos, reportes de empleador y muchos registros posteriores."
+        : "Your business is being set up as a separate entity and needs a federal tax identification number. The EIN is the identifier used for federal tax filings, employer reporting and many downstream registrations.",
+      whatThisIs: es
+        ? "La Carta de Confirmación del EIN del IRS es la evidencia oficial que muestra el EIN asignado a tu negocio."
+        : "The IRS EIN Confirmation is the official evidence showing the EIN assigned to your business.",
+      whatYouNeedToDo: es
+        ? "Completa la solicitud de EIN a través de SmartPR, o sube la confirmación del IRS si ya la tienes."
+        : "Complete the EIN application through SmartPR, or upload the IRS confirmation if you already have one.",
+      whatHappensNext: es
+        ? "SmartPR podrá reutilizar el EIN en formularios posteriores de impuestos, municipales y de licencias de Puerto Rico en lugar de pedírtelo de nuevo."
+        : "SmartPR can reuse the EIN on later Puerto Rico tax, municipal and licensing forms instead of asking you for it repeatedly.",
+      triggeredBy: [es ? "Formación de una entidad de negocio" : "Forming a business entity"],
+      satisfiesOrUnlocks: [es ? "Habilita el Registro de Comerciante y otras declaraciones federales" : "Unlocks Merchant Registration and other federal filings"],
+      sourceReferences: [{ agency: "IRS", citation: "IRS Form SS-4 — Application for Employer Identification Number" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_PATENTE_MUNICIPAL: (req, ctx) => {
+    const es = ctx.language === "es";
+    const municipality = ctx.municipality || (es ? "tu municipio" : "your municipality");
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? `Vas a operar un negocio con fines de lucro en ${municipality}. El municipio requiere que los negocios que realizan actividad comercial tributable allí se registren en el proceso de patente municipal.`
+        : `You're operating a for-profit business in ${municipality}. The municipality requires businesses conducting taxable commercial activity there to register for the municipal patent process.`,
+      whatThisIs: es
+        ? `La patente municipal es el registro de impuesto comercial de ${municipality}, vinculado a la actividad del negocio y su volumen de negocio.`
+        : `The municipal patent is ${municipality}'s business-tax registration tied to the business activity and its volume of business.`,
+      whatYouNeedToDo: es
+        ? "Para una operación nueva, SmartPR preparará la solicitud de patente municipal correspondiente usando la información de tu negocio, ubicación, entidad y empleo."
+        : "For a new operation, SmartPR will prepare the applicable municipal patent filing using your business, location, entity and employment information.",
+      whatHappensNext: es
+        ? "Esto establece el registro de impuesto municipal que se usa para las obligaciones de patente del negocio y las futuras declaraciones de volumen de negocio."
+        : "This establishes the municipal business-tax record used for the business's patent obligations and later volume-of-business filings.",
+      triggeredBy: [municipality, es ? "Actividad comercial" : "Commercial activity"],
+      satisfiesOrUnlocks: [],
+      sourceReferences: [{ agency: es ? `Gobierno Municipal de ${municipality}` : `${municipality} Municipal Government`, citation: "Ley de Patentes Municipales de Puerto Rico (Ley 107-2020)" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_MERCHANT_REGISTRATION: (req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Estás iniciando un negocio que realizará actividad comercial tributable en Puerto Rico. Hacienda necesita que el negocio esté registrado como comerciante para poder identificar y administrar su actividad tributaria en Puerto Rico."
+        : "You're starting a business that will conduct taxable commercial activity in Puerto Rico. Hacienda needs the business registered as a merchant so its Puerto Rico tax activity can be identified and administered.",
+      whatThisIs: es
+        ? "El Certificado de Registro de Comerciante establece el registro de comerciante del negocio ante Hacienda."
+        : "The Merchant Registration Certificate establishes the business's merchant record with Hacienda.",
+      whatYouNeedToDo: es
+        ? "SmartPR usará la información de negocio e impuestos que ya proporcionaste para preparar la información de registro y luego almacenar el certificado emitido."
+        : "SmartPR will use the business and tax information you've already provided to prepare the registration information and then store the issued certificate.",
+      whatHappensNext: es
+        ? "Tu registro de comerciante se convierte en una credencial tributaria reutilizable para otras declaraciones y procesos de licencia en Puerto Rico."
+        : "Your merchant registration becomes a reusable tax credential for other Puerto Rico filings and licensing processes.",
+      triggeredBy: es ? ["Actividad comercial tributable"] : ["Taxable commercial activity"],
+      satisfiesOrUnlocks: es ? ["Se reutiliza en otras declaraciones y licencias"] : ["Reused across other filings and licenses"],
+      sourceReferences: [{ agency: "Departamento de Hacienda", citation: "Código de Rentas Internas de Puerto Rico — Registro de Comerciantes" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_PERMISO_UNICO: (req, ctx) => {
+    const es = ctx.language === "es";
+    const municipality = ctx.municipality || (es ? "tu municipio" : "your municipality");
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? `Nos dijiste que el negocio operará desde una ubicación física en ${municipality}. El gobierno necesita determinar que la actividad comercial propuesta está autorizada en esa ubicación y que se han atendido los endosos operativos aplicables.`
+        : `You told us the business will operate from a physical location in ${municipality}. The government needs to determine that the proposed commercial activity is authorized at that location and that the applicable operating endorsements have been addressed.`,
+      whatThisIs: es
+        ? "El Permiso Único es el proceso de permiso operativo que reúne las aprobaciones aplicables para operar el negocio desde esa ubicación."
+        : "Permiso Único is the operating-permit process that brings together the approvals applicable to operating the business from that location.",
+      whatYouNeedToDo: es
+        ? "SmartPR preparará la información de la solicitud e identificará la propiedad y la evidencia de respaldo necesarias para el paquete del permiso."
+        : "SmartPR will prepare the application information and identify the property and supporting evidence needed for the permit package.",
+      whatHappensNext: es
+        ? "Una vez emitido, el permiso establece que la actividad de negocio aprobada puede operar desde esa ubicación, sujeta a sus condiciones."
+        : "Once issued, the permit establishes that the approved business activity can operate from that location subject to its conditions.",
+      triggeredBy: [es ? "Ubicación física del negocio" : "Physical business location", municipality],
+      satisfiesOrUnlocks: [],
+      sourceReferences: [{ agency: "OGPe", citation: "Ley para la Reforma del Proceso de Permisos de Puerto Rico (Ley 161-2009)" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_LEASE_AGREEMENT: (req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Nos dijiste que el negocio operará desde un espacio comercial arrendado. El proceso de permisos necesita evidencia de que el negocio tiene derecho a usar esa propiedad."
+        : "You told us the business will operate from leased commercial space. The permit process needs evidence that the business has the right to use that property.",
+      whatThisIs: es
+        ? "Tu contrato de arrendamiento es la evidencia que conecta tu negocio con la ubicación donde planea operar."
+        : "Your lease is the evidence connecting your business to the location where it plans to operate.",
+      whatYouNeedToDo: es
+        ? "Sube el contrato de arrendamiento firmado. SmartPR usará la dirección de la propiedad y la información de ocupación para respaldar los requisitos basados en la ubicación."
+        : "Upload the signed lease. SmartPR will use the property address and occupancy information from it to support location-based requirements.",
+      whatHappensNext: es
+        ? "Una vez validado, SmartPR podrá reutilizar el contrato como evidencia de control de propiedad en lugar de pedir la misma información en varios requisitos."
+        : "Once validated, SmartPR can reuse the lease as property-control evidence instead of asking for the same information in multiple requirements.",
+      triggeredBy: [es ? "Ubicación arrendada" : "Leased location"],
+      satisfiesOrUnlocks: [es ? "Respalda el Permiso Único y otros requisitos basados en la ubicación" : "Supports Permiso Único and other location-based requirements"],
+      sourceReferences: [{ agency: es ? "Propietario" : "Property Owner", citation: es ? "Documento privado — no es un formulario gubernamental" : "Private document — not a government-issued form" }],
+      lastVerified: null,
+    };
+  },
+
+  DOC_ARTICLES_ORGANIZATION: (req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Elegiste operar el negocio como una LLC de Puerto Rico. Una LLC no existe legalmente solo porque seleccionaste esa estructura — primero debe constituirse ante el Departamento de Estado."
+        : "You chose to operate the business as a Puerto Rico LLC. An LLC does not legally exist simply because you selected the structure — it must first be formed with the Department of State.",
+      whatThisIs: es
+        ? "El Certificado de Organización es el documento de constitución que establece la LLC y registra información clave de la compañía."
+        : "The Certificate of Organization is the formation document that establishes the LLC and records key information about the company.",
+      whatYouNeedToDo: es
+        ? "Completa el Certificado de Organización a través de SmartPR. Prellenaremos el nombre de tu compañía, dirección, agente residente y demás información ya recopilada."
+        : "Complete the Certificate of Organization through SmartPR. We'll prefill your company name, address, resident agent and other information already collected.",
+      whatHappensNext: es
+        ? "Después de la constitución, SmartPR podrá usar la información de la entidad legal en las declaraciones de EIN, Hacienda, municipales y de licencias."
+        : "After formation, SmartPR can use the legal entity information across EIN, Hacienda, municipal and licensing filings.",
+      triggeredBy: [es ? "Estructura legal: LLC" : "Legal structure: LLC"],
+      satisfiesOrUnlocks: [es ? "Habilita el EIN y los registros posteriores como entidad legal" : "Unlocks the EIN and downstream registrations as a legal entity"],
+      sourceReferences: [{ agency: "Departamento de Estado", citation: "Ley General de Corporaciones de Puerto Rico (Ley 164-2009) — Compañías de Responsabilidad Limitada" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_CERT_INCORPORATION: (req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Elegiste operar el negocio como una corporación de Puerto Rico. Una corporación no existe legalmente solo porque seleccionaste esa estructura — primero debe constituirse ante el Departamento de Estado."
+        : "You chose to operate the business as a Puerto Rico corporation. A corporation does not legally exist simply because you selected the structure — it must first be incorporated with the Department of State.",
+      whatThisIs: es
+        ? "El Certificado de Incorporación es el documento de constitución que establece la corporación y registra su información clave."
+        : "The Certificate of Incorporation is the formation document that establishes the corporation and records its key information.",
+      whatYouNeedToDo: es
+        ? "Completa el Certificado de Incorporación a través de SmartPR. Prellenaremos el nombre de tu compañía, dirección, agente residente y demás información ya recopilada."
+        : "Complete the Certificate of Incorporation through SmartPR. We'll prefill your company name, address, resident agent and other information already collected.",
+      whatHappensNext: es
+        ? "Después de la constitución, SmartPR podrá usar la información de la entidad legal en las declaraciones de EIN, Hacienda, municipales y de licencias."
+        : "After formation, SmartPR can use the legal entity information across EIN, Hacienda, municipal and licensing filings.",
+      triggeredBy: [es ? "Estructura legal: Corporación" : "Legal structure: Corporation"],
+      satisfiesOrUnlocks: [es ? "Habilita el EIN y los registros posteriores como entidad legal" : "Unlocks the EIN and downstream registrations as a legal entity"],
+      sourceReferences: [{ agency: "Departamento de Estado", citation: "Ley General de Corporaciones de Puerto Rico (Ley 164-2009)" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_WORKERS_COMP: (req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? "Nos dijiste que el negocio contratará empleados. Los empleadores de Puerto Rico generalmente necesitan cobertura de compensación por accidentes del trabajo para sus empleados, así que este requisito se agregó porque tu negocio tendrá personal."
+        : "You told us the business will hire employees. Puerto Rico employers generally need workers' compensation coverage for employees, so this requirement was added because your business will have a workforce.",
+      whatThisIs: es
+        ? "La cobertura del CFSE provee el marco de seguro de compensación por accidentes del trabajo requerido para lesiones laborales cubiertas."
+        : "CFSE coverage provides the required workers' compensation insurance framework for covered workplace injuries.",
+      whatYouNeedToDo: es
+        ? "Completa la inscripción correspondiente en el CFSE y sube la prueba de cobertura emitida cuando esté disponible."
+        : "Complete the applicable CFSE setup and upload the issued proof of coverage when available.",
+      whatHappensNext: es
+        ? "SmartPR tratará la evidencia de cobertura emitida como parte de tus requisitos de preparación como empleador."
+        : "SmartPR will treat the issued coverage evidence as part of your employer-readiness requirements.",
+      triggeredBy: [es ? "Contratará empleados" : "Will hire employees"],
+      satisfiesOrUnlocks: [],
+      sourceReferences: [{ agency: "Corporación del Fondo del Seguro del Estado", citation: "Ley de Compensaciones por Accidentes del Trabajo de Puerto Rico" }],
+      lastVerified: "September 2026",
     };
   },
 };
