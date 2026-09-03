@@ -2,7 +2,10 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Archive, Bell, CalendarDays, CheckCircle2, FileClock, FileText, FolderOpen, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle, ArrowRight, Bell, Building2, CalendarDays, CheckCircle2,
+  ChevronDown, FileText, FolderOpen, MapPin, ShieldAlert,
+} from "lucide-react";
 import { TopNav, ScorePill, fmtDate, fmtDateTime } from "../../history/ui";
 import { StatusBadge } from "../../components/compliance/StatusBadge";
 import { DUE_DATE_UNKNOWN_MESSAGE, type DueDateSource, type ObligationStatus } from "../../compliance/types";
@@ -30,21 +33,116 @@ interface Detail {
   error?: string;
 }
 
-function Section({ title, icon, children, count }: { title: string; icon: React.ReactNode; children: React.ReactNode; count?: number }) {
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02]">
-      <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 font-bold text-[#161616]">
-        {icon}{title}{count != null && <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{count}</span>}
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
+// Requirements not yet satisfied, ranked worst-first so the dashboard's top
+// three rows are always the ones that most need the user's attention.
+const MISSING_PRIORITY: Record<string, number> = {
+  OVERDUE: 0, MISSING: 1, NEEDS_ATTENTION: 2, UNKNOWN: 3, DUE_SOON: 4, IN_PROGRESS: 5, UPCOMING: 6,
+};
+
+function actionLabelForStatus(status: ObligationStatus, hasMatter: boolean): string {
+  switch (status) {
+    case "MISSING": case "OVERDUE": case "UNKNOWN": return hasMatter ? "Continue" : "Start";
+    case "NEEDS_ATTENTION": return "Review";
+    case "DUE_SOON": case "UPCOMING": return hasMatter ? "Continue" : "Review";
+    case "IN_PROGRESS": return "Continue";
+    default: return "Review";
+  }
+}
+
+function requirementStatusText(status: ObligationStatus): string {
+  switch (status) {
+    case "MISSING": return "Not started";
+    case "OVERDUE": return "Overdue";
+    case "NEEDS_ATTENTION": return "Missing information";
+    case "UNKNOWN": return "Needs information";
+    case "IN_PROGRESS": return "In progress";
+    case "DUE_SOON": return "Due soon";
+    case "UPCOMING": return "Upcoming";
+    default: return status.replaceAll("_", " ");
+  }
 }
 
 function dateLabel(value?: string | null) {
   if (!value) return "Unknown";
   return new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+
+// Days-remaining chip for the compliance calendar — same semantic colors as
+// StatusBadge (soft red = urgent, gold/amber = approaching, green = fine).
+function TimeBadge({ dueDate, completed }: { dueDate: string | null; completed: boolean }) {
+  if (completed) return <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold tracking-wide text-emerald-700">DONE</span>;
+  if (!dueDate) return <span className="inline-flex whitespace-nowrap rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[11px] font-bold tracking-wide text-slate-600">UNKNOWN</span>;
+  const days = Math.ceil((new Date(`${dueDate}T00:00:00`).getTime() - new Date(new Date().toDateString()).getTime()) / 86400000);
+  let text: string; let cls: string;
+  if (days < 0) { text = "Overdue"; cls = "border-red-300 bg-red-50 text-red-700"; }
+  else if (days === 0) { text = "Due today"; cls = "border-red-300 bg-red-50 text-red-700"; }
+  else if (days <= 14) { text = `${days} day${days === 1 ? "" : "s"}`; cls = "border-rose-200 bg-rose-50 text-rose-700"; }
+  else if (days <= 60) { text = `${days} days`; cls = "border-amber-200 bg-amber-50 text-amber-800"; }
+  else { text = "Upcoming"; cls = "border-sky-200 bg-sky-50 text-sky-700"; }
+  return <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide ${cls}`}>{text}</span>;
+}
+
+// Dark-teal progress ring, drawn with plain SVG so no charting dependency is
+// needed for a single stat.
+function ReadinessRing({ percent }: { percent: number | null }) {
+  const size = 96, stroke = 10, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const pct = percent == null ? 0 : Math.max(0, Math.min(100, percent));
+  return (
+    <div className="relative h-24 w-24 shrink-0">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e7e2d6" strokeWidth={stroke} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#245c5c" strokeWidth={stroke}
+          strokeDasharray={c} strokeDashoffset={c - (c * pct) / 100} strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-xl font-semibold text-[#161616]">
+        {percent == null ? "—" : `${percent}%`}
+      </div>
+    </div>
+  );
+}
+
+function readinessLabel(percent: number | null): { text: string; cls: string } {
+  if (percent == null) return { text: "Not started", cls: "bg-slate-100 text-slate-600" };
+  if (percent >= 90) return { text: "On track", cls: "bg-emerald-50 text-emerald-700" };
+  if (percent >= 50) return { text: "In progress", cls: "bg-amber-50 text-amber-800" };
+  return { text: "Needs attention", cls: "bg-rose-50 text-rose-700" };
+}
+
+function StatTile({ icon, iconBg, value, label }: { icon: React.ReactNode; iconBg: string; value: number; label: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center gap-2 px-4 py-2 text-center">
+      <span className={`flex h-11 w-11 items-center justify-center rounded-full ${iconBg}`}>{icon}</span>
+      <div className="text-2xl font-semibold text-[#161616]">{value}</div>
+      <div className="text-xs font-medium text-slate-500">{label}</div>
+    </div>
+  );
+}
+
+function CollapsibleRow({ icon, iconBg, title, summary, children, defaultOpen }: {
+  icon: React.ReactNode; iconBg: string; title: string; summary: string; children: React.ReactNode; defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(Boolean(defaultOpen));
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02]">
+      <button
+        type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#245c5c]"
+      >
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${iconBg}`}>{icon}</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-bold text-[#161616]">{title}</div>
+          <div className="text-xs text-slate-500">{summary}</div>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="border-t border-slate-100 px-5 py-4">{children}</div>}
+    </section>
+  );
+}
+
+function Empty({ text }: { text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 py-7 text-center text-sm text-slate-400">{text}</div>; }
 
 function ObligationRow({ item, reload }: { item: Obligation; reload: () => void }) {
   const [date, setDate] = useState(item.due_date || "");
@@ -64,7 +162,7 @@ function ObligationRow({ item, reload }: { item: Obligation; reload: () => void 
     <div id={`obligation-${item.id}`} className="rounded-xl border border-slate-200 px-4 py-3">
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div className="min-w-0">
-              <div className="font-semibold text-[#161616]">{item.name}</div>
+          <div className="font-semibold text-[#161616]">{item.name}</div>
           <div className="text-xs text-slate-500">{item.agency || "Agency not recorded"}{item.matter_title ? ` · ${item.matter_title}` : ""}</div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -91,13 +189,17 @@ function ObligationRow({ item, reload }: { item: Obligation; reload: () => void 
   );
 }
 
-function Empty({ text }: { text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 py-7 text-center text-sm text-slate-400">{text}</div>; }
-
 export default function BusinessDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [data, setData] = useState<Detail | null>(null);
-  const load = useCallback(() => fetch(`/api/businesses/${id}`).then((response) => response.json()).then(setData), [id]);
+  const [loadError, setLoadError] = useState(false);
+  const [showAllRequirements, setShowAllRequirements] = useState(false);
+  const load = useCallback(() => fetch(`/api/businesses/${id}`)
+    .then((response) => response.json())
+    .then((result) => { setData(result); setLoadError(false); })
+    .catch(() => setLoadError(true)), [id]);
   useEffect(() => { void load(); }, [load]);
+
   const completeMatter = async (matterId: string) => {
     const response = await fetch(`/api/matters/${matterId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -105,59 +207,260 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
     });
     if (response.ok) await load();
   };
-  const groups = useMemo(() => {
+
+  // Every number on this page — the ring, the tiles, the "N of M complete"
+  // line and the status pill — is derived from this one pass over the
+  // fetched obligations/matters so they can never drift apart.
+  const derived = useMemo(() => {
     const obligations = data?.obligations ?? [];
-    const matterCalendar: Obligation[] = (data?.matters ?? []).filter((matter) => matter.due_date && matter.status !== "COMPLETED").map((matter) => ({
+    const matters = data?.matters ?? [];
+    const activeMatters = matters.filter((matter) => !["COMPLETED", "ARCHIVED"].includes(matter.status));
+
+    const totalApplicable = obligations.length;
+    const completed = obligations.filter((item) => item.status === "COMPLETED" || item.status === "CURRENT");
+    const readiness = totalApplicable ? Math.round((completed.length / totalApplicable) * 100) : null;
+
+    const missing = obligations
+      .filter((item) => item.status !== "COMPLETED" && item.status !== "CURRENT")
+      .slice()
+      .sort((a, b) => (MISSING_PRIORITY[a.status] ?? 9) - (MISSING_PRIORITY[b.status] ?? 9));
+
+    const matterCalendar: Obligation[] = matters.filter((matter) => matter.due_date && matter.status !== "COMPLETED").map((matter) => ({
       id: `matter-${matter.id}`, name: matter.title, agency: "Filing matter", matter_title: matter.title,
       status: matter.status === "NEEDS_ATTENTION" ? "NEEDS_ATTENTION" : "IN_PROGRESS",
       due_date: matter.due_date, due_date_source: matter.due_date_source,
       source_reference: matter.source_reference, next_action: "Continue filing",
     }));
-    return {
-      current: obligations.filter((item) => ["CURRENT", "COMPLETED"].includes(item.status)),
-      upcoming: obligations.filter((item) => ["UPCOMING", "DUE_SOON", "OVERDUE"].includes(item.status)),
-      missing: obligations.filter((item) => ["MISSING", "NEEDS_ATTENTION", "UNKNOWN"].includes(item.status)),
-      calendar: [...obligations.filter((item) => item.due_date && item.status !== "COMPLETED"), ...matterCalendar].sort((a, b) => (a.due_date || "").localeCompare(b.due_date || "")),
-    };
+    const calendar = [...obligations.filter((item) => item.due_date && item.status !== "COMPLETED"), ...matterCalendar]
+      .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+
+    const history = matters.filter((matter) => matter.status === "COMPLETED");
+
+    return { totalApplicable, completed: completed.length, readiness, missing, calendar, activeMatters, history };
   }, [data]);
 
+  if (loadError) return <div className="min-h-screen bg-[#f4f1ea]"><TopNav active="businesses" /><div className="p-12 text-center text-sm text-rose-700">Couldn&apos;t load this business right now. <button type="button" onClick={() => void load()} className="font-semibold underline">Try again</button></div></div>;
   if (!data) return <div className="min-h-screen bg-[#f4f1ea]"><TopNav active="businesses" /><div className="p-12 text-center text-slate-500">Loading compliance profile…</div></div>;
   if (data.error || !data.business) return <div className="min-h-screen bg-[#f4f1ea]"><TopNav active="businesses" /><div className="p-12 text-center text-slate-500">Business not found.</div></div>;
+
   const business = data.business;
-  const activeMatters = (data.matters ?? []).filter((matter) => !["COMPLETED", "ARCHIVED"].includes(matter.status));
-  const history = (data.matters ?? []).filter((matter) => matter.status === "COMPLETED");
+  const evidence = data.evidence ?? [];
+  const submissions = data.submissions ?? [];
+  const notifications = data.notifications ?? [];
+  const deliverables = data.deliverables ?? [];
+  const unreadNotifications = notifications.filter((item) => item.status === "PENDING" || item.status === "DELIVERED").length;
+
+  const readinessInfo = readinessLabel(derived.readiness);
+  const topMissing = derived.missing.slice(0, 3);
+  const shownMissing = showAllRequirements ? derived.missing : topMissing;
+  const topCalendar = derived.calendar.slice(0, 3);
+  const nextBestAction = topMissing[0];
 
   return (
     <div className="min-h-screen bg-[#f4f1ea]">
       <TopNav active="businesses" />
       <main className="mx-auto max-w-7xl px-5 py-8">
-        <Link href="/businesses" className="text-sm font-semibold text-[#245c5c]">← Businesses</Link>
+        <div className="flex items-center justify-between">
+          <Link href="/businesses" className="text-sm font-semibold text-[#245c5c]">← Back</Link>
+          <Link href="/businesses" className="rounded-lg bg-[#161616] px-4 py-2 text-sm font-medium text-white">My Businesses</Link>
+        </div>
+
         <header className="mt-3 rounded-2xl border border-[#161616]/15 bg-[#fbf8f2] p-6 text-[#161616]">
           <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
             <div>
-              <div className="mb-2 flex flex-wrap gap-2 text-xs text-[#5a5a5a]"><span>{business.entity_number || "Entity number not entered"}</span><span>·</span><span>{business.municipality || "Municipality not entered"}</span><span>·</span><span>{business.business_type || "Business type not entered"}</span></div>
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[#5a5a5a]">
+                <Building2 className="h-3.5 w-3.5" /><span>{business.business_type || "Business type not entered"}</span>
+                <span>·</span>
+                <MapPin className="h-3.5 w-3.5" /><span>{business.municipality || "Municipality not entered"}</span>
+                <span>·</span><span>Active</span>
+              </div>
               <h1 className="font-[family-name:var(--font-display)] text-3xl font-medium tracking-tight">{business.legal_name || business.name}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-[#5a5a5a]">Persistent profile · {business.onboarding_mode === "EXISTING" ? "Existing business reconstruction" : "SmartPR formation workflow"}</p>
+              <p className="mt-2 max-w-2xl text-sm text-[#5a5a5a]">{business.entity_number || "Entity number not entered"} · {business.onboarding_mode === "EXISTING" ? "Existing business reconstruction" : "SmartPR formation workflow"}</p>
             </div>
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-              <div className="rounded-xl border border-[#161616]/15 bg-[#f4f1ea] px-4 py-3"><div className="text-[10px] font-medium uppercase tracking-wider text-[#5a5a5a]">Overall readiness</div><div className="text-2xl font-medium">{data.overall_readiness == null ? "—" : `${data.overall_readiness}%`}</div></div>
+              <Link href={`/?entry=new-business&resume=${business.id}`} className="rounded-lg border border-[#161616]/20 bg-white px-4 py-3 text-sm font-medium text-[#161616]">Business details</Link>
               <Link href={`/businesses/${id}/matters/new`} className="inline-flex items-center gap-2 rounded-lg bg-[#245c5c] px-5 py-3 text-sm font-medium text-[#f6f3ea]">Start New Filing / Renewal</Link>
             </div>
           </div>
         </header>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <Section title="Current Obligations" icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />} count={groups.current.length}>{groups.current.length ? <div className="space-y-3">{groups.current.map((item) => <ObligationRow key={item.id} item={item} reload={load} />)}</div> : <Empty text="No obligations are currently verified." />}</Section>
-          <Section title="Upcoming Renewals" icon={<CalendarDays className="h-4 w-4 text-sky-600" />} count={groups.upcoming.length}>{groups.upcoming.length ? <div className="space-y-3">{groups.upcoming.map((item) => <ObligationRow key={item.id} item={item} reload={load} />)}</div> : <Empty text="No known renewals are approaching." />}</Section>
-              <Section title="Active Filings / Matters" icon={<FolderOpen className="h-4 w-4 text-blue-600" />} count={activeMatters.length}>{activeMatters.length ? <div className="space-y-2">{activeMatters.map((matter) => <div key={matter.id} className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center"><div><div className="font-semibold text-[#161616]">{matter.title}</div><div className="text-xs text-slate-500">{matter.matter_type.replaceAll("_", " ")} · Opened {fmtDate(matter.opened_at)}</div></div><div className="flex flex-wrap items-center gap-3"><StatusBadge status={matter.status === "READY" ? "CURRENT" : matter.status === "DRAFT" ? "IN_PROGRESS" : matter.status as ObligationStatus} /><ScorePill score={matter.readiness_score} />{matter.submission_id && <Link href={`/?entry=new-business&resume=${matter.submission_id}`} className="text-xs font-semibold text-[#245c5c]">Resume →</Link>}<button onClick={() => void completeMatter(matter.id)} className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600">Mark filing complete</button></div></div>)}</div> : <Empty text="No active filings." />}</Section>
-          <Section title="Missing Requirements" icon={<ShieldAlert className="h-4 w-4 text-rose-600" />} count={groups.missing.length}>{groups.missing.length ? <div className="space-y-3">{groups.missing.map((item) => <ObligationRow key={item.id} item={item} reload={load} />)}</div> : <Empty text="No missing requirements are recorded." />}</Section>
-          <Section title="Documents / Evidence" icon={<FileText className="h-4 w-4 text-slate-600" />} count={(data.evidence ?? []).length}>{(data.evidence ?? []).length ? <div className="space-y-2">{data.evidence!.map((item) => <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"><div><div className="font-semibold text-[#161616]">{item.original_filename}</div><div className="text-xs text-slate-500">{item.obligation_name || "Unmatched evidence"} · Added {fmtDateTime(item.created_at)}</div></div><StatusBadge status={item.review_status === "VERIFIED" ? "CURRENT" : item.review_status === "NEEDS_REVIEW" ? "NEEDS_ATTENTION" : "UNKNOWN"} /></div>)}</div> : <Empty text="No uploaded evidence is associated with this business." />}</Section>
-          <Section title="Filing History" icon={<FileClock className="h-4 w-4 text-slate-600" />} count={history.length + (data.submissions ?? []).length}>{history.length || (data.submissions ?? []).length ? <div className="space-y-2">{history.map((matter) => <div key={matter.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="font-semibold text-[#161616]">{matter.title}</div><div className="text-xs text-slate-500">Completed {fmtDate(matter.completed_at)}</div></div>)}{data.submissions!.map((submission) => <Link key={submission.id} href={`/history/${submission.id}`} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"><div><div className="font-semibold text-[#161616]">Rules evaluation · {fmtDate(submission.created_at)}</div><div className="text-xs text-slate-500">{submission.business_type || "Business profile"} · {submission.municipality || "—"}</div></div><ScorePill score={submission.readiness_score} /></Link>)}</div> : <Empty text="No filing history yet." />}</Section>
-          <Section title="Compliance Calendar" icon={<CalendarDays className="h-4 w-4 text-[#245c5c]" />} count={groups.calendar.length}>{groups.calendar.length ? <div className="space-y-2">{groups.calendar.slice(0, 8).map((item) => <Link key={item.id} href={`#obligation-${item.id}`} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3"><div><div className="font-semibold text-[#161616]">{item.name}</div><div className="text-xs text-slate-500">{item.agency || "—"}</div></div><div className="text-right"><div className="font-semibold text-slate-700">{dateLabel(item.due_date)}</div><StatusBadge status={item.status} /></div></Link>)}</div> : <Empty text={DUE_DATE_UNKNOWN_MESSAGE} />}</Section>
-          <Section title="Notifications" icon={<Bell className="h-4 w-4 text-amber-600" />} count={(data.notifications ?? []).length}>{(data.notifications ?? []).length ? <div className="space-y-2">{data.notifications!.slice(0, 10).map((item) => <div key={item.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="text-sm font-semibold text-[#161616]">{item.message}</div><div className="text-xs text-slate-500">Scheduled {fmtDateTime(item.scheduled_for)} · {item.status}</div></div>)}</div> : <Empty text="No reminders have been scheduled." />}</Section>
+          <section className="flex items-center gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-950/[0.02]">
+            <ReadinessRing percent={derived.readiness} />
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Overall readiness</div>
+              <span className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${readinessInfo.cls}`}>{readinessInfo.text}</span>
+              <p className="mt-2 text-sm text-slate-600">{derived.totalApplicable ? `${derived.completed} of ${derived.totalApplicable} requirements complete.` : "No applicable requirements recorded yet."}</p>
+              <button type="button" onClick={() => setShowAllRequirements(true)} className="mt-1 text-sm font-semibold text-[#245c5c] hover:underline">View all requirements</button>
+            </div>
+          </section>
+
+          <section className="flex items-stretch divide-x divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02]">
+            <StatTile icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />} iconBg="bg-emerald-50" value={derived.completed} label="Complete" />
+            <StatTile icon={<AlertTriangle className="h-5 w-5 text-rose-600" />} iconBg="bg-rose-50" value={Math.max(derived.totalApplicable - derived.completed, 0)} label="Need attention" />
+            <StatTile icon={<FileText className="h-5 w-5 text-amber-600" />} iconBg="bg-amber-50" value={derived.activeMatters.length} label="Active filing" />
+          </section>
         </div>
 
-        {(data.deliverables ?? []).length > 0 && <div className="mt-6"><Section title="Deliverable Library" icon={<Archive className="h-4 w-4 text-slate-600" />} count={data.deliverables!.length}><div className="grid gap-2 md:grid-cols-2">{data.deliverables!.map((item) => <div key={item.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="font-semibold text-[#161616]">{item.filename}</div><div className="text-xs text-slate-500">{item.kind} · {fmtDateTime(item.generated_at)}</div></div>)}</div></Section></div>}
+        {nextBestAction && (
+          <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm shadow-slate-950/[0.02] sm:flex-row sm:items-center">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#245c5c]"><ArrowRight className="h-4 w-4 text-white" /></span>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-medium text-slate-500">Next best action</div>
+              <div className="font-bold text-[#161616]">{nextBestAction.name}</div>
+            </div>
+            <a href={`#obligation-${nextBestAction.id}`} onClick={() => setShowAllRequirements(true)} className="inline-flex items-center justify-center rounded-lg bg-[#245c5c] px-5 py-2.5 text-sm font-medium text-[#f6f3ea]">Continue</a>
+          </div>
+        )}
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02]">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 font-bold text-[#161616]">
+              <ShieldAlert className="h-4 w-4 text-rose-600" />Missing Requirements
+              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{derived.missing.length}</span>
+            </div>
+            <div className="p-5">
+              {topMissing.length ? (
+                <div className="space-y-2">
+                  {topMissing.map((item, index) => (
+                    <div key={item.id} className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500">{index + 1}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold text-[#161616]">{item.name}</div>
+                      </div>
+                      <span className="hidden sm:inline-flex whitespace-nowrap rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold tracking-wide text-rose-700">{requirementStatusText(item.status).toUpperCase()}</span>
+                      <a href={`#obligation-${item.id}`} onClick={() => setShowAllRequirements(true)} className="shrink-0 rounded-lg bg-[#245c5c] px-3.5 py-1.5 text-xs font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#245c5c]">{actionLabelForStatus(item.status, Boolean(item.matter_title))}</a>
+                    </div>
+                  ))}
+                </div>
+              ) : <Empty text="No missing requirements are recorded." />}
+              <button type="button" onClick={() => setShowAllRequirements(true)} className="mt-3 text-sm font-semibold text-[#245c5c] hover:underline">View all requirements</button>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02]">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 font-bold text-[#161616]">
+              <CalendarDays className="h-4 w-4 text-emerald-600" />Compliance Calendar
+              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{derived.calendar.length}</span>
+            </div>
+            <div className="p-5">
+              {topCalendar.length ? (
+                <div className="space-y-2">
+                  {topCalendar.map((item) => (
+                    <a key={item.id} href={`#obligation-${item.id}`} onClick={() => setShowAllRequirements(true)} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-slate-500">{dateLabel(item.due_date)}</div>
+                        <div className="truncate font-semibold text-[#161616]">{item.name}</div>
+                      </div>
+                      <TimeBadge dueDate={item.due_date} completed={false} />
+                    </a>
+                  ))}
+                </div>
+              ) : <Empty text={DUE_DATE_UNKNOWN_MESSAGE} />}
+              <Link href={`/calendar?business=${id}`} className="mt-3 inline-block text-sm font-semibold text-[#245c5c] hover:underline">View full calendar</Link>
+            </div>
+          </section>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          <CollapsibleRow
+            icon={<FolderOpen className="h-4 w-4 text-blue-600" />} iconBg="bg-blue-50"
+            title="Filings & Documents"
+            summary={`${derived.activeMatters.length} active filing${derived.activeMatters.length === 1 ? "" : "s"} · ${evidence.length} document${evidence.length === 1 ? "" : "s"}`}
+          >
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Active filings</div>
+                {derived.activeMatters.length ? (
+                  <div className="space-y-2">
+                    {derived.activeMatters.map((matter) => (
+                      <div key={matter.id} className="flex flex-col justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center">
+                        <div><div className="font-semibold text-[#161616]">{matter.title}</div><div className="text-xs text-slate-500">{matter.matter_type.replaceAll("_", " ")} · Opened {fmtDate(matter.opened_at)}</div></div>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <StatusBadge status={matter.status === "READY" ? "CURRENT" : matter.status === "DRAFT" ? "IN_PROGRESS" : matter.status as ObligationStatus} />
+                          <ScorePill score={matter.readiness_score} />
+                          {matter.submission_id && <Link href={`/?entry=new-business&resume=${matter.submission_id}`} className="text-xs font-semibold text-[#245c5c]">Resume →</Link>}
+                          <button onClick={() => void completeMatter(matter.id)} className="rounded-full border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600">Mark filing complete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <Empty text="No active filings." />}
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Documents</div>
+                {evidence.length ? (
+                  <div className="space-y-2">
+                    {evidence.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+                        <div><div className="font-semibold text-[#161616]">{item.original_filename}</div><div className="text-xs text-slate-500">{item.obligation_name || "Unmatched evidence"} · Added {fmtDateTime(item.created_at)}</div></div>
+                        <StatusBadge status={item.review_status === "VERIFIED" ? "CURRENT" : item.review_status === "NEEDS_REVIEW" ? "NEEDS_ATTENTION" : "UNKNOWN"} />
+                      </div>
+                    ))}
+                  </div>
+                ) : <Empty text="No uploaded evidence is associated with this business." />}
+              </div>
+              {deliverables.length > 0 && (
+                <div>
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Deliverable library</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {deliverables.map((item) => <div key={item.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="font-semibold text-[#161616]">{item.filename}</div><div className="text-xs text-slate-500">{item.kind} · {fmtDateTime(item.generated_at)}</div></div>)}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CollapsibleRow>
+
+          <CollapsibleRow
+            icon={<Bell className="h-4 w-4 text-amber-600" />} iconBg="bg-amber-50"
+            title="History & Notifications"
+            summary={`${derived.history.length + submissions.length} past filing${derived.history.length + submissions.length === 1 ? "" : "s"} · ${unreadNotifications} unread`}
+          >
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Filing history</div>
+                {derived.history.length || submissions.length ? (
+                  <div className="space-y-2">
+                    {derived.history.map((matter) => <div key={matter.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="font-semibold text-[#161616]">{matter.title}</div><div className="text-xs text-slate-500">Completed {fmtDate(matter.completed_at)}</div></div>)}
+                    {submissions.map((submission) => (
+                      <Link key={submission.id} href={`/history/${submission.id}`} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+                        <div><div className="font-semibold text-[#161616]">Rules evaluation · {fmtDate(submission.created_at)}</div><div className="text-xs text-slate-500">{submission.business_type || "Business profile"} · {submission.municipality || "—"}</div></div>
+                        <ScorePill score={submission.readiness_score} />
+                      </Link>
+                    ))}
+                  </div>
+                ) : <Empty text="No filing history yet." />}
+              </div>
+              <div>
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Notifications</div>
+                {notifications.length ? (
+                  <div className="space-y-2">
+                    {notifications.slice(0, 10).map((item) => <div key={item.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="text-sm font-semibold text-[#161616]">{item.message}</div><div className="text-xs text-slate-500">Scheduled {fmtDateTime(item.scheduled_for)} · {item.status}</div></div>)}
+                  </div>
+                ) : <Empty text="No reminders have been scheduled." />}
+              </div>
+            </div>
+          </CollapsibleRow>
+        </div>
+
+        {showAllRequirements && (
+          <section id="all-requirements" className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm shadow-slate-950/[0.02]">
+            <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4 font-bold text-[#161616]">
+              All requirements
+              <span className="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{derived.totalApplicable}</span>
+              <button type="button" onClick={() => setShowAllRequirements(false)} className="text-sm font-semibold text-[#245c5c] hover:underline">Hide</button>
+            </div>
+            <div className="space-y-3 p-5">
+              {shownMissing.length ? shownMissing.map((item) => <ObligationRow key={item.id} item={item} reload={load} />) : <Empty text="No outstanding requirements." />}
+              {(data.obligations ?? []).filter((item) => item.status === "COMPLETED" || item.status === "CURRENT").length > 0 && (
+                <>
+                  <div className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Completed</div>
+                  {(data.obligations ?? []).filter((item) => item.status === "COMPLETED" || item.status === "CURRENT").map((item) => <ObligationRow key={item.id} item={item} reload={load} />)}
+                </>
+              )}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );
