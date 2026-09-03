@@ -4,7 +4,7 @@ import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle, ArrowRight, Bell, Building2, CalendarDays, CheckCircle2,
-  ChevronDown, FileText, FolderOpen, MapPin, ShieldAlert,
+  ChevronDown, Download, FileText, FolderOpen, MapPin, ShieldAlert,
 } from "lucide-react";
 import { TopNav, ScorePill, fmtDate, fmtDateTime } from "../../history/ui";
 import { StatusBadge } from "../../components/compliance/StatusBadge";
@@ -145,6 +145,34 @@ function CollapsibleRow({ icon, iconBg, title, summary, children, defaultOpen }:
 }
 
 function Empty({ text }: { text: string }) { return <div className="rounded-xl border border-dashed border-slate-200 py-7 text-center text-sm text-slate-400">{text}</div>; }
+
+// Fetches a short-lived signed URL from an ownership-checked API route, then
+// opens it directly — the file's bytes never pass through our own server.
+function DownloadButton({ kind, id }: { kind: "evidence" | "deliverables"; id: string }) {
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const download = async () => {
+    setBusy(true); setFailed(false);
+    try {
+      const response = await fetch(`/api/${kind}/${id}/download`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.url) { setFailed(true); return; }
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <button
+      type="button" onClick={() => void download()} disabled={busy}
+      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-50"
+    >
+      <Download className="h-3.5 w-3.5" />{failed ? "Try again" : "Download"}
+    </button>
+  );
+}
 
 function DetailField({ label, value }: { label: string; value: string | null | undefined }) {
   return (
@@ -460,9 +488,12 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
                 {evidence.length ? (
                   <div className="space-y-2">
                     {evidence.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
-                        <div><div className="font-semibold text-[#161616]">{item.original_filename}</div><div className="text-xs text-slate-500">{item.obligation_name || "Unmatched evidence"} · Added {fmtDateTime(item.created_at)}</div></div>
-                        <StatusBadge status={item.review_status === "VERIFIED" ? "CURRENT" : item.review_status === "NEEDS_REVIEW" ? "NEEDS_ATTENTION" : "UNKNOWN"} />
+                      <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                        <div className="min-w-0"><div className="truncate font-semibold text-[#161616]">{item.original_filename}</div><div className="text-xs text-slate-500">{item.obligation_name || "Unmatched evidence"} · Added {fmtDateTime(item.created_at)}</div></div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <StatusBadge status={item.review_status === "VERIFIED" ? "CURRENT" : item.review_status === "NEEDS_REVIEW" ? "NEEDS_ATTENTION" : "UNKNOWN"} />
+                          <DownloadButton kind="evidence" id={item.id} />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -472,7 +503,12 @@ export default function BusinessDetail({ params }: { params: Promise<{ id: strin
                 <div>
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Deliverable library</div>
                   <div className="grid gap-2 sm:grid-cols-2">
-                    {deliverables.map((item) => <div key={item.id} className="rounded-xl border border-slate-200 px-4 py-3"><div className="font-semibold text-[#161616]">{item.filename}</div><div className="text-xs text-slate-500">{item.kind} · {fmtDateTime(item.generated_at)}</div></div>)}
+                    {deliverables.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+                        <div className="min-w-0"><div className="truncate font-semibold text-[#161616]">{item.filename}</div><div className="text-xs text-slate-500">{item.kind} · {fmtDateTime(item.generated_at)}</div></div>
+                        <DownloadButton kind="deliverables" id={item.id} />
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

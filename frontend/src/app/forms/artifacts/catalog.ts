@@ -22,6 +22,8 @@ export const REAL_FORMS_DIR = "RealForms";
 export const OFFICIAL_TEMPLATE_BUCKET = "official-form-templates";
 export const MUNICIPAL_TEMPLATE_BUCKET = "municipal-form-templates";
 export const GENERATED_FILINGS_BUCKET = "generated-filings";
+/** Archived readiness reports / submission packages, private, per-user. */
+export const DELIVERABLES_BUCKET = "deliverables";
 
 const GENERIC_MUNICIPAL_NOTES = [
   "Layout originated from a Municipio de Bayamón form; municipality-specific wording was removed locally.",

@@ -12,6 +12,7 @@
 // ============================================================================
 
 import {
+  DELIVERABLES_BUCKET,
   GENERATED_FILINGS_BUCKET,
   MUNICIPAL_TEMPLATE_BUCKET,
   OFFICIAL_TEMPLATE_BUCKET,
@@ -60,6 +61,20 @@ export function generatedFilingRef(key: GeneratedFilingKey): StorageRef {
   return {
     bucket: GENERATED_FILINGS_BUCKET,
     objectPath: `${key.tenantId}/${key.businessId}/${key.formCode}/${key.instanceId}/${fileName}`,
+  };
+}
+
+export interface DeliverableKey {
+  userId: string;
+  deliverableId: string;
+  fileName: string;
+}
+
+/** deliverables/{user_id}/{deliverable_id}/{file_name} */
+export function deliverableStorageRef(key: DeliverableKey): StorageRef {
+  return {
+    bucket: DELIVERABLES_BUCKET,
+    objectPath: `${key.userId}/${key.deliverableId}/${key.fileName}`,
   };
 }
 
@@ -139,6 +154,12 @@ export async function uploadGeneratedFiling(
   return ref;
 }
 
+/**
+ * Sign a short-lived download URL for any stored object this module knows the
+ * path for. Callers MUST verify the requesting user actually owns the record
+ * that points at `ref` before calling this — the storage layer trusts the
+ * caller to have already done that authorization check.
+ */
 export async function signedFilingUrl(
   client: StorageCapableClient,
   ref: StorageRef,
@@ -147,4 +168,19 @@ export async function signedFilingUrl(
   const { data, error } = await client.storage.from(ref.bucket).createSignedUrl(ref.objectPath, expiresInSeconds);
   if (error || !data) throw new Error(`Could not sign ${ref.bucket}/${ref.objectPath}: ${error?.message ?? "unknown"}`);
   return data.signedUrl;
+}
+
+/** Store an archived deliverable (readiness report / submission package). */
+export async function uploadDeliverable(
+  client: StorageCapableClient,
+  key: DeliverableKey,
+  bytes: ArrayBuffer | Uint8Array | Blob,
+  contentType: string
+): Promise<StorageRef> {
+  const ref = deliverableStorageRef(key);
+  const { error } = await client.storage
+    .from(ref.bucket)
+    .upload(ref.objectPath, bytes, { contentType, upsert: false });
+  if (error) throw new Error(`Deliverable upload failed for ${key.deliverableId}: ${error.message}`);
+  return ref;
 }
