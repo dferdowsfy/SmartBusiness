@@ -184,6 +184,32 @@ export interface WriteCondition {
   equalsAny: string[];
 }
 
+/**
+ * Who is responsible for a field's value — and, just as importantly, whether
+ * SmartPR is ever allowed to write one in.
+ *
+ *   applicant        — the filer's own answer (may be prefilled, stays editable).
+ *   smartpr_derived  — computed by SmartPR from other answers (e.g. a split date part).
+ *   calculated       — a deterministic result of a formula defined on the form itself.
+ *   government_only  — an "USO OFICIAL" / agency-processing box. Never written by
+ *                       SmartPR under any circumstance, even if a mapping exists.
+ *   signature        — the filer's own wet/e-signature line. Never written.
+ *   notary           — an oath/affidavit/notarization block completed by a notary
+ *                       or administering official at the moment of signing. Never
+ *                       written; SmartPR must not misrepresent this as done.
+ *
+ * `government_only` / `signature` / `notary` are a hard backstop enforced in
+ * population.ts regardless of what `canonicalField`/`constantValue` say — a
+ * mapping mistake here must never leak a value onto an official-use box.
+ */
+export type FieldOwnership =
+  | "applicant"
+  | "smartpr_derived"
+  | "calculated"
+  | "government_only"
+  | "signature"
+  | "notary";
+
 export interface FieldMapping {
   /**
    * Native AcroForm field name, or — for overlay forms, which have no native
@@ -210,6 +236,9 @@ export interface FieldMapping {
   placement?: OverlayPlacement;
   /** Never auto-populated; the user must supply it in the artifact itself. */
   sensitive?: boolean;
+  /** Who owns this value. Omitted only on mappings predating this field — see
+   * population.ts's `resolveOwnership` for the inferred default in that case. */
+  ownership?: FieldOwnership;
 }
 
 /** The persisted `form-mappings/<FORM_CODE>.json` document. */
@@ -243,7 +272,16 @@ export interface UnansweredFieldRecord {
   pdfField: string;
   canonicalField: string | null;
   page?: number;
-  reason: "no_canonical_mapping" | "no_value_in_profile" | "requires_user_entry";
+  reason:
+    | "no_canonical_mapping"
+    | "no_value_in_profile"
+    | "requires_user_entry"
+    /** ownership: "government_only" — an agency-processing box; never SmartPR's to fill. */
+    | "government_only"
+    /** ownership: "signature" — the filer's own signature line. */
+    | "signature_required"
+    /** ownership: "notary" — an oath/affidavit block completed at signing. */
+    | "notary_required";
   label?: string;
 }
 
