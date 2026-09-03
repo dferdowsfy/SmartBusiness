@@ -286,6 +286,13 @@ export function FilingWorkflowShell({
   const stickyClass = stickyHeader ? `spr-filing-sticky${compact ? " compact" : ""}` : "spr-filing-static";
   const collapseInert = stickyHeader && compact;
 
+  const stepperBar = (
+    <div className="spr-stepper-bar">
+      <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
+      {stepperRight}
+    </div>
+  );
+
   return (
     <div className="spr-product-shell">
       <div className={stickyClass}>
@@ -310,12 +317,15 @@ export function FilingWorkflowShell({
               {actions}
             </header>
           </div>
-          <div className="spr-stepper-bar">
-            <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
-            {stepperRight}
-          </div>
+          {/* When the header is sticky as a whole, the stepper bar lives
+              inside it as before. When it isn't (Requirements), the stepper
+              bar is hoisted out below so it can stick on its own — a sticky
+              element can only stay pinned within its own parent's box, and
+              this short header box isn't tall enough to cover the page. */}
+          {stickyHeader && stepperBar}
         </div>
       </div>
+      {!stickyHeader && <div className="spr-stepper-bar-sticky">{stepperBar}</div>}
 
       <div className={`spr-workflow-grid${showSidebar ? "" : " single"}`}>
         <section className="spr-main-workarea">{children}</section>

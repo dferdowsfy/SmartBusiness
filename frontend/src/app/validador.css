@@ -741,7 +741,7 @@ button { font-family: inherit; }
 .rq-show-more.expanded svg { transform: rotate(180deg); }
 
 /* ---- Compact readiness control (replaces the old persistent sidebar) ---- */
-.rq-readiness-control { position: sticky; top: 14px; z-index: 40; flex: 0 0 auto; margin-left: auto; }
+.rq-readiness-control { position: relative; flex: 0 0 auto; margin-left: auto; }
 .rq-readiness-summary {
   display: inline-flex; align-items: center; gap: 8px;
   max-width: 300px; padding: 7px 12px;
@@ -815,7 +815,7 @@ button { font-family: inherit; }
   .rq-cta-helper { text-align: left; }
 }
 @media (max-width: 640px) {
-  .rq-readiness-control { position: static; width: 100%; margin-left: 0; margin-top: 10px; }
+  .rq-readiness-control { width: 100%; margin-left: 0; margin-top: 10px; }
   .rq-readiness-summary { max-width: none; width: 100%; justify-content: space-between; }
   .rq-tabs { flex-wrap: wrap; row-gap: 8px; overflow-x: visible; gap: 14px; }
 }
@@ -1796,6 +1796,23 @@ button { font-family: inherit; }
 }
 .spr-filing-sticky.compact .spr-stepper-bar .spr-workflow-stepper {
   padding-bottom: 12px;
+}
+/* On pages with a non-sticky header (Requirements), the nav and business row
+   scroll away normally, but the workflow stepper + readiness control freeze
+   at the top together as their own pinned bar. Hoisted out to be a direct
+   child of .spr-product-shell (see FilingWorkflowShell) so it has a tall
+   enough containing block to stay pinned through the whole page scroll —
+   a sticky element can't outlive its own parent's box. */
+.spr-stepper-bar-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 55;
+  background: color-mix(in oklab, #f4f1ea 94%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid color-mix(in oklab, #161616 12%, transparent);
+}
+.spr-stepper-bar-sticky .spr-stepper-bar {
+  padding-top: 12px;
 }
 .spr-matter-identity,
 .spr-matter-actions,
