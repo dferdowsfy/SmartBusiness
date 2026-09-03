@@ -64,6 +64,48 @@ test("Airbnb requires tourism registration and patente municipal", () => {
   assert.ok(has(docs, "DOC_TOURISM_REGISTRATION", "DOC_PATENTE_MUNICIPAL"));
 });
 
+// Ordinary short-term rentals have a residential kitchen, not a commercial
+// one — Fire Cert / Health Permit must never be manufactured from the
+// business type alone (they were previously attached unconditionally; see
+// requirementGuidance.ts / jurisdictions/pr/index.ts for the corrected copy).
+test("Airbnb does NOT get Fire Cert or Health Permit from business type alone", () => {
+  const docs = run("Airbnb / Short-Term Rental");
+  assert.ok(lacks(docs, "DOC_FIRE_CERT", "DOC_HEALTH_PERMIT"));
+});
+
+test("Airbnb + confirmed short-term rental adds the recurring Room Tax return", () => {
+  const docs = run("Airbnb / Short-Term Rental", { Q_SHORT_TERM_RENTAL: true });
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION", "DOC_ROOM_TAX_RETURN"));
+});
+
+test("Room Tax return is NOT asked of unrelated business types", () => {
+  const docs = run("Software Company");
+  assert.ok(lacks(docs, "DOC_ROOM_TAX_RETURN", "DOC_TOURISM_REGISTRATION"));
+});
+
+test("HOA/condo authorization only appears when the user confirms it applies", () => {
+  const withHoa = run("Airbnb / Short-Term Rental", { Q_HOA_CONDO: true });
+  const withoutHoa = run("Airbnb / Short-Term Rental", { Q_HOA_CONDO: false });
+  assert.ok(has(withHoa, "DOC_HOA_AUTHORIZATION"));
+  assert.ok(lacks(withoutHoa, "DOC_HOA_AUTHORIZATION"));
+});
+
+// Acceptance fixture: Airbnb apartment in Bayamón, stays under 90 days,
+// condo/HOA property, no employees — matches the product's own STR fixture.
+// SmartPR must generate the STR-specific regulatory domains (Tourism/Room
+// Tax, HOA authorization, municipal Patente) and must NEVER manufacture
+// restaurant-only requirements (Fire Cert, Health Permit, CFPM, Alcohol
+// License, Outdoor Seating) — none of which were triggered by any answer.
+test("Bayamón Airbnb apartment acceptance fixture", () => {
+  const docs = run("Airbnb / Short-Term Rental", { Q_SHORT_TERM_RENTAL: true, Q_HOA_CONDO: true }, "Bayamón");
+  assert.ok(has(docs, "DOC_TOURISM_REGISTRATION", "DOC_ROOM_TAX_RETURN", "DOC_HOA_AUTHORIZATION", "DOC_PATENTE_MUNICIPAL"));
+  assert.ok(has(docs, ...UNIVERSAL));
+  assert.ok(
+    lacks(docs, "DOC_FIRE_CERT", "DOC_HEALTH_PERMIT", "DOC_CFPM", "DOC_ALCOHOL_LICENSE", "DOC_OUTDOOR_SEATING_AUTH"),
+    "restaurant-only requirements leaked onto an STR fixture: " + docs.join(",")
+  );
+});
+
 test("Contractor requires contractor license + workers comp", () => {
   const docs = run("General Contractor");
   assert.ok(has(docs, "DOC_CONTRACTOR_LICENSE", "DOC_WORKERS_COMP"));

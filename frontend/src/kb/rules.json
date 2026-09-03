@@ -147,8 +147,6 @@
 {"id": "RULE_0146", "rule_type": "business_type", "business_type_id": "BT_GUEST_HOUSE", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_FIRE_CERT"},
 {"id": "RULE_0147", "rule_type": "business_type", "business_type_id": "BT_GUEST_HOUSE", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_HEALTH_PERMIT"},
 {"id": "RULE_0148", "rule_type": "business_type", "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_TOURISM_REGISTRATION"},
-{"id": "RULE_0149", "rule_type": "business_type", "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_FIRE_CERT"},
-{"id": "RULE_0150", "rule_type": "business_type", "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_HEALTH_PERMIT"},
 {"id": "RULE_0151", "rule_type": "business_type", "business_type_id": "BT_TOUR_OPERATOR", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_TOURISM_REGISTRATION"},
 {"id": "RULE_0152", "rule_type": "business_type", "business_type_id": "BT_EXCURSION_COMPANY", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_TOURISM_REGISTRATION"},
 {"id": "RULE_0153", "rule_type": "business_type", "business_type_id": "BT_CAR_RENTAL_BUSINESS", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_TOURISM_REGISTRATION"},
@@ -596,5 +594,8 @@
 {"id": "RULE_0596", "rule_type": "municipality_flag", "business_type_id": "BT_CAR_RENTAL_BUSINESS", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_AIRPORT_CONCESSION"},
 {"id": "RULE_0597", "rule_type": "municipality_flag", "business_type_id": "BT_COURIER_SERVICE", "question_id": null, "expected_answer": null, "municipality_flag": "airport_host", "requires_document_id": "DOC_TSA_KNOWN_SHIPPER"},
 {"id": "RULE_0598", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_ENTITY_FOREIGN_CORP", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_FOREIGN_CORPORATION_AUTHORIZATION"},
-{"id": "RULE_0599", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_ENTITY_LLP", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_LLP_REGISTRATION"}
+{"id": "RULE_0599", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_ENTITY_LLP", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_LLP_REGISTRATION"},
+{"id": "RULE_0600", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_HOA_CONDO", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_HOA_AUTHORIZATION"},
+{"id": "RULE_0601", "rule_type": "business_type", "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL", "question_id": null, "expected_answer": null, "municipality_flag": null, "requires_document_id": "DOC_ROOM_TAX_RETURN"},
+{"id": "RULE_0602", "rule_type": "question_trigger", "business_type_id": null, "question_id": "Q_SHORT_TERM_RENTAL", "expected_answer": "true", "municipality_flag": null, "requires_document_id": "DOC_ROOM_TAX_RETURN"}
 ]

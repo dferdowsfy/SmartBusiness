@@ -2917,31 +2917,11 @@
   },
   {
     "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
-    "question_id": "Q_GUESTS_OVERNIGHT"
-  },
-  {
-    "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
-    "question_id": "Q_FOOD_SERVED"
-  },
-  {
-    "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
-    "question_id": "Q_ALCOHOL_SERVED"
-  },
-  {
-    "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
-    "question_id": "Q_WATER_ACTIVITIES"
-  },
-  {
-    "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
     "question_id": "Q_SHORT_TERM_RENTAL"
   },
   {
     "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
-    "question_id": "Q_EXCURSIONS"
-  },
-  {
-    "business_type_id": "BT_AIRBNB_SHORT_TERM_RENTAL",
-    "question_id": "Q_CUSTOMERS_VISIT"
+    "question_id": "Q_HOA_CONDO"
   },
   {
     "business_type_id": "BT_TOUR_OPERATOR",

@@ -15,6 +15,7 @@ import type {
   KBRule,
 } from "../../rulesEngine";
 import type { JurisdictionPack } from "../types";
+import type { RateFact, RequirementGuidanceMap } from "../../requirementGuidance";
 
 import municipalitiesJson from "../../../kb/municipalities.json";
 import businessTypesJson from "../../../kb/business_types.json";
@@ -28,6 +29,149 @@ const kb: KnowledgeBase = {
   questions: questionsJson as KBQuestion[],
   documents: documentsJson as KBDocument[],
   rules: rulesJson as KBRule[],
+  extensions: {
+    // DOC_ROOM_TAX_RETURN is a RECURRING obligation, distinct from the
+    // one-time DOC_TOURISM_REGISTRATION (Innkeeper) registration that
+    // unlocks it — see requirementGuidance below and compliance/server.ts's
+    // renewal lookup, which reads this array.
+    renewals: [
+      { document_id: "DOC_ROOM_TAX_RETURN", frequency_months: 1, citation: "Act 272-2003 (Room Occupancy Tax), 13 L.P.R.A. § 10001 et seq." },
+    ],
+  },
+};
+
+// The room-tax RATE is a fact that can change by legislation — modeled
+// explicitly (never hardcoded into a sentence) so a future change is one
+// edit here, with its own source/effective-date/supersededBy trail. Do not
+// apply a proposed bill's rate until it is actually enacted and in effect.
+const ROOM_TAX_RATE: RateFact = {
+  rate: "7%",
+  basis: "of the room rate charged per night",
+  source: "Puerto Rico Tourism Company — Room Tax Division public guidance",
+  effectiveDate: null,
+  lastVerified: "September 2026",
+  supersededBy: null,
+};
+
+const strPropertyTypeLabel = (value: unknown, es: boolean): string => {
+  if (value === "apartment") return es ? "apartamento" : "apartment";
+  if (value === "house") return es ? "casa" : "house";
+  return es ? "propiedad" : "property";
+};
+
+// Hand-written, fact-interpolated explanations for the requirements this
+// product currently gives full-depth treatment: the Short-Term Rental /
+// Airbnb archetype. Every other document falls back to the generic,
+// still-structured explanation in requirementGuidance.ts.
+const requirementGuidance: RequirementGuidanceMap = {
+  DOC_TOURISM_REGISTRATION: (req, ctx) => {
+    const es = ctx.language === "es";
+    const isSTR = ctx.discoveryAnswers.short_term_rental === true
+      || /airbnb|short.?term rental|vacation rental|vrbo/i.test(ctx.businessTypeName || "");
+    if (!isSTR) {
+      return {
+        summary: req.reason,
+        whyThisApplies: es
+          ? `Tu negocio en ${ctx.municipality || "este municipio"} atiende a turistas o visitantes, por lo que Puerto Rico requiere registro con la Compañía de Turismo.`
+          : `Your business in ${ctx.municipality || "this municipality"} serves tourists or visitors, so Puerto Rico requires registration with the Tourism Company.`,
+        whatThisIs: es
+          ? "Este registro identifica tu negocio ante la Compañía de Turismo de Puerto Rico."
+          : "This registration identifies your business with the Puerto Rico Tourism Company.",
+        whatYouNeedToDo: es
+          ? "Completa el registro de turismo. SmartPR usará la información de tu negocio que ya tenemos."
+          : "Complete the tourism registration. SmartPR will use the business information we already have.",
+        whatHappensNext: es
+          ? "Una vez registrado, tu número de registro pasa a formar parte de tu expediente de cumplimiento."
+          : "Once registered, your registration number becomes part of your compliance record.",
+        triggeredBy: [ctx.businessTypeName, ctx.municipality].filter((v): v is string => Boolean(v)),
+        satisfiesOrUnlocks: [],
+        sourceReferences: [{ agency: "Compañía de Turismo de Puerto Rico", citation: "Ley de la Compañía de Turismo de Puerto Rico" }],
+        lastVerified: "September 2026",
+      };
+    }
+    const property = strPropertyTypeLabel(ctx.discoveryAnswers.str_property_type, es);
+    const municipality = ctx.municipality || (es ? "tu municipio" : "your municipality");
+    const hasExisting = ctx.discoveryAnswers.str_existing_innkeeper_id === "yes";
+    const triggeredBy = [
+      es ? "Alquiler a corto plazo" : "Short-term rental",
+      es ? "Estadías ≤ 90 días" : "Stays ≤ 90 days",
+      ctx.municipality,
+    ].filter((v): v is string => Boolean(v));
+
+    return {
+      summary: req.reason,
+      whyThisApplies: es
+        ? `Vas a alquilar tu propiedad tipo ${property} en ${municipality} a huéspedes por estadías de 90 días o menos. Puerto Rico clasifica esto como alquiler a corto plazo, lo que requiere registro con la División de Impuesto de Habitación de la Compañía de Turismo.`
+        : `You're renting ${/^[aeiou]/i.test(property) ? "an" : "a"} ${property} in ${municipality} to guests for stays of less than 90 days. Puerto Rico classifies this as a short-term rental, which requires registration with the Puerto Rico Tourism Company's Room Tax Division.`,
+      whatThisIs: hasExisting
+        ? (es
+          ? "Ya nos dijiste que tienes un número de Innkeeper de la Compañía de Turismo para esta propiedad — solo confirmaremos que sigue vigente, no se inicia un registro nuevo."
+          : "You told us you already have a Tourism Company Innkeeper ID for this property — SmartPR will confirm it rather than starting a new registration.")
+        : (es
+          ? "Tu Innkeeper ID (también llamado Registro de Turismo) te identifica como operador de hospedaje a corto plazo ante la Compañía de Turismo, para fines del Impuesto de Habitación."
+          : "Your Innkeeper ID (also shown on this form as your Tourism Registration) identifies you as a short-term lodging operator with the Tourism Company, for Room Tax purposes."),
+      whatYouNeedToDo: hasExisting
+        ? (es ? "Confirma tu número de Innkeeper existente — SmartPR no te pedirá registrarte de nuevo." : "Confirm your existing Innkeeper number — SmartPR won't ask you to register again.")
+        : (es
+          ? "Completa el Registro de Innkeeper. SmartPR usará la información de la propiedad y del operador que ya nos diste."
+          : "Complete your Innkeeper Registration. SmartPR will use the property and operator information you've already provided."),
+      whatHappensNext: es
+        ? "Una vez registrado, tu Innkeeper ID pasa a formar parte de tu expediente y SmartPR comenzará a rastrear tu declaración mensual del Impuesto de Habitación."
+        : "Once registered, your Innkeeper ID becomes part of your operating record, and SmartPR will start tracking your recurring monthly Room Tax filing.",
+      triggeredBy,
+      satisfiesOrUnlocks: [es ? "Necesario antes de la declaración mensual del Impuesto de Habitación" : "Needed before the monthly Room Tax return can start"],
+      sourceReferences: [{ agency: "Puerto Rico Tourism Company", citation: "Act 272-2003 (Room Tax) — Room Tax Division" }],
+      lastVerified: "September 2026",
+    };
+  },
+
+  DOC_ROOM_TAX_RETURN: (_req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: es ? "Declaración mensual del Impuesto de Habitación." : "Monthly Room Tax return.",
+      whyThisApplies: es
+        ? `Tu alquiler a corto plazo en ${ctx.municipality || "Puerto Rico"} genera ingresos de hospedaje sujetos al Impuesto de Habitación de Puerto Rico.`
+        : `Your short-term rental in ${ctx.municipality || "Puerto Rico"} earns lodging income subject to Puerto Rico's room occupancy tax.`,
+      whatThisIs: es
+        ? `Puerto Rico requiere que los alquileres a corto plazo cobren un impuesto de habitación equivalente al ${ROOM_TAX_RATE.rate} de la tarifa por noche y presenten una declaración mensual, a más tardar el día 10 del mes siguiente.`
+        : `Puerto Rico requires short-term rentals to collect a room occupancy tax equal to ${ROOM_TAX_RATE.rate} of the nightly room rate and submit a monthly return, due by the 10th day of the following month.`,
+      whatYouNeedToDo: es
+        ? "Esto es cumplimiento recurrente, no una preparación única — aparecerá en tu calendario de cumplimiento una vez que tu Innkeeper ID esté activo."
+        : "This is recurring compliance, not a one-time setup step — it will appear on your compliance calendar once your Innkeeper ID is active.",
+      whatHappensNext: es
+        ? "SmartPR te recordará cada ciclo mensual conforme se acerque la fecha límite."
+        : "SmartPR will remind you each monthly cycle as the deadline approaches.",
+      triggeredBy: [es ? "Alquiler a corto plazo" : "Short-term rental", ctx.municipality].filter((v): v is string => Boolean(v)),
+      satisfiesOrUnlocks: [],
+      sourceReferences: [
+        { agency: "Puerto Rico Tourism Company", citation: `Act 272-2003 (Room Tax) — current rate ${ROOM_TAX_RATE.rate} ${ROOM_TAX_RATE.basis}, per ${ROOM_TAX_RATE.source}` },
+      ],
+      lastVerified: ROOM_TAX_RATE.lastVerified,
+    };
+  },
+
+  DOC_HOA_AUTHORIZATION: (_req, ctx) => {
+    const es = ctx.language === "es";
+    return {
+      summary: es ? "Autorización de condominio / asociación de residentes." : "Condo / HOA authorization.",
+      whyThisApplies: es
+        ? "Nos dijiste que la propiedad es parte de un condominio o asociación de residentes. Algunas asociaciones restringen o prohíben el alquiler a corto plazo, así que SmartPR necesita evidencia de que está permitido en tu caso."
+        : "You told us the property is part of a condominium or residential association. Some associations restrict or prohibit short-term rentals, so SmartPR needs evidence that it's permitted here.",
+      whatThisIs: es
+        ? "No es un formulario gubernamental — es prueba (reglamento del condominio, estatutos o una carta de autorización) de que la operación cumple con las reglas de tu comunidad residencial."
+        : "This isn't a government form — it's evidence (your condo/HOA rules, bylaws, or an authorization letter) that your operation complies with the rules governing your residential complex.",
+      whatYouNeedToDo: es
+        ? "Sube el reglamento de tu condominio/asociación o una carta de autorización. SmartPR lo revisará por restricciones de alquiler a corto plazo."
+        : "Upload your condo/HOA rules or an authorization letter. SmartPR will review the document for short-term-rental restrictions.",
+      whatHappensNext: es
+        ? "Esto queda como evidencia de respaldo junto a tu registro de Turismo — no bloquea el registro, pero forma parte de tu expediente de cumplimiento."
+        : "This is kept as supporting evidence alongside your Tourism registration — it doesn't block registration, but it's part of your compliance record.",
+      triggeredBy: [es ? "Propiedad en condominio / HOA" : "Condominium / HOA property", es ? "Alquiler a corto plazo" : "Short-term rental"],
+      satisfiesOrUnlocks: [],
+      sourceReferences: [{ agency: es ? "Reglamento de tu condominio / asociación" : "Your condo / HOA's own governing rules", citation: es ? "Ley de Condominios de Puerto Rico" : "Puerto Rico Condominium Act" }],
+      lastVerified: null,
+    };
+  },
 };
 
 export const puertoRicoPack: JurisdictionPack = {
@@ -74,6 +218,8 @@ export const puertoRicoPack: JurisdictionPack = {
       DOC_ENTERTAINMENT_PERMIT: "entertainment_permit",
       DOC_IMPORT_EXPORT_REG: "import_export_reg",
       DOC_HOME_DECLARATION: "home_declaration",
+      DOC_HOA_AUTHORIZATION: "hoa_authorization",
+      DOC_ROOM_TAX_RETURN: "room_tax_return",
     },
     recommended: [
       "DOC_INSURANCE",
@@ -102,6 +248,8 @@ export const puertoRicoPack: JurisdictionPack = {
       "DOC_PROFESSIONAL_LICENSE",
       "DOC_CONTRACTOR_LICENSE",
       "DOC_TOURISM_REGISTRATION",
+      "DOC_HOA_AUTHORIZATION",
+      "DOC_ROOM_TAX_RETURN",
     ],
   },
 
@@ -323,4 +471,6 @@ export const puertoRicoPack: JurisdictionPack = {
       },
     ],
   },
+
+  requirementGuidance,
 };
