@@ -18,7 +18,7 @@ export type Flag = "tourism" | "coastal" | "historic" | "metro" | "island";
 export interface KBMunicipality { id: string; name: string; flags: Flag[]; patente_rate?: number | null }
 export interface KBBusinessType { id: string; industry_id: string; name: string; description: string }
 export interface KBQuestion { id: string; question: string; type: string; options?: string[] }
-export interface KBDocument { id: string; name: string; agency: string; category: string }
+export interface KBDocument { id: string; name: string; agency: string; category: string; requirement_guidance?: unknown }
 export interface KBRule {
   id: string;
   rule_type: "business_type" | "question_trigger" | "municipality" | "municipality_flag";

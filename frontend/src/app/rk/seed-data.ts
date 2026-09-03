@@ -9,6 +9,7 @@
 import { ACTIVE_JURISDICTION } from "../jurisdictions";
 import { labelForNode } from "./registry";
 import type { NodeType } from "./types";
+import type { GuidanceConcept } from "../guidance/model";
 
 import businessTypeQuestionsJson from "../../kb/business_type_questions.json";
 import industriesJson from "../../kb/industries.json";
@@ -87,7 +88,14 @@ export function buildSeedNodes(): SeedNode[] {
 
   const recommendedSet = new Set(recommended);
   const seenAgencies = new Map<string, string>(); // display name -> entity id
+  const guidanceSources = new Map<string, { source: GuidanceConcept["sources"][number]; documents: string[] }>();
   for (const d of kb.documents) {
+    const guidance = d.requirement_guidance as GuidanceConcept | undefined;
+    for (const source of guidance?.sources ?? []) {
+      const entry = guidanceSources.get(source.id) ?? { source, documents: [] };
+      entry.documents.push(d.id);
+      guidanceSources.set(source.id, entry);
+    }
     if (d.agency && !seenAgencies.has(d.agency)) {
       seenAgencies.set(d.agency, slugAgency(d.agency));
     }
@@ -103,6 +111,12 @@ export function buildSeedNodes(): SeedNode[] {
 
   for (const [name, id] of seenAgencies) {
     push("agency", { id, name, level: guessAgencyLevel(name) });
+  }
+  for (const [id, { source, documents }] of guidanceSources) {
+    push("regulatory_source", { id, name: source.citation, source_type: "guidance", legal_status: "effective",
+      jurisdiction: source.agency === "Internal Revenue Service" ? "Federal" : source.agency === "Municipio de Bayamón" ? "Municipal" : "Puerto Rico",
+      citation: source.citation, url: source.url, last_verified_at: source.lastVerified, source_version: source.sourceVersion,
+      supports_document_ids: documents, supported_proposition: source.supports });
   }
 
   for (const r of kb.rules) push("rule", { ...r });

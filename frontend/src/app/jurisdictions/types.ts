@@ -11,7 +11,6 @@
 // ============================================================================
 
 import type { KnowledgeBase } from "../rulesEngine";
-import type { RequirementGuidanceMap } from "../requirementGuidance";
 
 export type LangCode = "en" | "es";
 
@@ -85,10 +84,4 @@ export interface JurisdictionPack {
     profileStageQuestionIds: string[];
   };
 
-  // Hand-written, fact-interpolated explanations for specific documents,
-  // keyed by KB document id. A document with no entry falls back to a
-  // generic-but-still-structured explanation (see requirementGuidance.ts) —
-  // this is where jurisdiction-specific, product-owner-verified regulatory
-  // copy lives, same spirit as flagAdvisories.
-  requirementGuidance?: RequirementGuidanceMap;
 }

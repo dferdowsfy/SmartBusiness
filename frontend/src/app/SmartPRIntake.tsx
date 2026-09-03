@@ -3461,14 +3461,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // breakdown (factor weights, "Question = Answer" pairs, or unrelated
     // municipality context). That backend reasoning stays backend-only.
     //
-    // guidance is project-specific (why THIS user is seeing THIS
-    // requirement), sourced from the active jurisdiction pack's hand-written
-    // content when registered for this document, else a generic-but-still-
-    // structured fallback (see requirementGuidance.ts). Rendered inside the
+    // Guidance resolves cited document-node concepts against the same engine
+    // input and confirmed facts; unsupported rationale fails closed. Inside the
     // SAME "Why do I need this?" disclosure — no new panel/modal/drawer.
     const guidance = buildRequirementGuidance(
-      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req), sourceRuleId: req.source_rule },
-      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers, entityType: entityTypeFromLegacyStructure(profile.business_structure), kb: KB }
+      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req), applicability: req.applicability, triggerFacts: req.triggerFacts },
+      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers,
+        profile: profile as unknown as Record<string, unknown>, entityType: entityTypeFromLegacyStructure(profile.business_structure), occupancyType: canonicalApplication.property.occupancyType, kb: KB,
+        engineInput: buildEngineInput({ ...profile, number_of_employees: profile.number_of_employees ?? undefined }, discoveryAnswers, resolveFactsFor(profile, discoveryAnswers).questionValues) }
     );
     const why = (
       <div className="rq-guidance">

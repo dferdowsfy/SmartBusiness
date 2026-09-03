@@ -190,6 +190,10 @@ Return STRICT JSON: {"changes": [{
   "confidence": 0.0-1.0,
   "explanation": "plain-language why, citing the provision"
 }]}
+Do not mark extracted requirement guidance as validated. Its regulatoryReason,
+purpose, nextAction and consequenceOrNextStep must be requirement-specific and
+traceable to the source; otherwise retain a needs_review candidate. Never invent
+trigger facts or infer that a prepared application is issued evidence.
 Field shapes: document {name, agency, category, doc_kind, guidance, citation};
 rule {requirement_name, rule_type: "business_type"|"question_trigger"|"municipality"|"municipality_flag",
 requires_document_id, business_type_id?, question_id?, expected_answer?, municipality_flag?,
@@ -233,6 +237,10 @@ in "explanation". Answer with JSON only.`;
       const nodeType = c.node_type as NodeType;
       if (!EXTRACTABLE_TYPES.includes(nodeType)) continue;
       if (!c.data || typeof c.data !== "object") continue;
+      if (nodeType === "document" && c.data.requirement_guidance && typeof c.data.requirement_guidance === "object") {
+        // Enforcement, not just a prompt: AI cannot self-certify legal guidance.
+        c.data.requirement_guidance.validationStatus = "needs_review";
+      }
       const classification = VALID_CLASSIFICATIONS.includes(c.classification)
         ? (c.classification as ProposalClassification)
         : "needs_legal_review";
