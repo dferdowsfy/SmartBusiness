@@ -35,6 +35,18 @@ export interface KnowledgeBase {
   questions: KBQuestion[];
   documents: KBDocument[];
   rules: KBRule[];
+  /**
+   * Optional bundled-pack extensions beyond the core rules-engine tables.
+   * `renewals` marks a document as a RECURRING obligation distinct from the
+   * one-time filing that unlocks it (e.g. a monthly Room Tax return vs. the
+   * one-time Tourism/Innkeeper registration) — read by
+   * compliance/server.ts's renewal lookup, which also accepts the same shape
+   * from an admin-published snapshot, so this stays a loose record rather
+   * than a stricter type both call sites would have to agree on.
+   */
+  extensions?: {
+    renewals?: Record<string, unknown>[];
+  };
 }
 
 // Engine inputs. `answers` maps KB question id -> answer value (boolean or string).

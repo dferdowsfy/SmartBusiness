@@ -5,6 +5,7 @@ import JSZip from 'jszip';
 import { L } from './i18n';
 import { computeRequirementsFromKB, runRulesEngineForProfile, buildEngineInput, KB, initKbFromServer, discoveryQuestionsForBusinessType, readinessWeightFor } from './kb';
 import { ACTIVE_JURISDICTION } from './jurisdictions';
+import { buildRequirementGuidance } from './requirementGuidance';
 import { captureEvent, newSubmissionId } from './graph/client';
 import type { CapturedAnswer, CapturedRequirement } from './graph/types';
 import {
@@ -338,14 +339,77 @@ const BUSINESS_TYPES: Record<string, string[]> = {
 // Snapshot-first: when a published knowledge-base snapshot defines discovery
 // questions for this business type, they win; the hardcoded lists below are
 // the fallback (and the only source until the first snapshot is published).
-function getQuestionsForBusinessType(businessType: string): { id: string; text: string }[] {
+function getQuestionsForBusinessType(businessType: string): DiscoveryQuestion[] {
   const fromSnapshot = discoveryQuestionsForBusinessType(businessType);
   if (fromSnapshot) return fromSnapshot;
   return hardcodedQuestionsForBusinessType(businessType);
 }
 
-function hardcodedQuestionsForBusinessType(businessType: string): { id: string; text: string }[] {
+function hardcodedQuestionsForBusinessType(businessType: string): DiscoveryQuestion[] {
   const bt = businessType.toLowerCase().trim();
+
+  // Short-Term Rental / Airbnb is its own archetype — property, ownership,
+  // HOA, and Innkeeper-ID facts, never the restaurant/tour-operator
+  // questions (food, alcohol, water activities) an ordinary residential
+  // rental has no bearing on.
+  if ([
+    "airbnb", "short-term rental", "short term rental", "vacation rental manager",
+    "short-term rental operator", "vacation rental", "vrbo", "guest rental",
+    "tourist apartment", "vacation home rental",
+  ].some(k => bt.includes(k))) {
+    return [
+      {
+        id: "short_term_rental",
+        text: "Will you rent this property to guests for stays of 90 days or less?",
+        whyWeAsk: "Puerto Rico's short-term-rental rules apply specifically to lodging rented for 90 days or less — your answer determines whether this is treated as a short-term rental at all.",
+      },
+      {
+        id: "str_property_type",
+        text: "What type of property will you rent?",
+        whyWeAsk: "This helps SmartPR describe your requirements in your own terms and flag rules specific to attached or shared residences.",
+        options: [
+          { value: "house", label: "House" },
+          { value: "apartment", label: "Apartment / Condo" },
+          { value: "other", label: "Other" },
+        ],
+      },
+      {
+        id: "str_ownership",
+        text: "What is your relationship to the property?",
+        whyWeAsk: "This determines what evidence SmartPR asks for: owners need proof of title, tenants need a lease, and managers need the owner's authorization.",
+        options: [
+          { value: "own", label: "I own it" },
+          { value: "lease", label: "I lease it" },
+          { value: "manage", label: "I manage it for the owner" },
+        ],
+      },
+      {
+        id: "str_hoa_condo",
+        text: "Is the property part of a condominium, HOA, or other residential association?",
+        whyWeAsk: "Some residential associations restrict or prohibit short-term rentals. If yours does, SmartPR needs evidence that short-term rentals are permitted.",
+        options: [
+          { value: "yes", label: "Yes" },
+          { value: "no", label: "No" },
+          { value: "not_sure", label: "Not sure" },
+        ],
+      },
+      {
+        id: "str_existing_innkeeper_id",
+        text: "Do you already have a Puerto Rico Tourism Company Innkeeper ID for this property?",
+        whyWeAsk: "If you're already registered, SmartPR won't ask you to start a new registration — just confirm the existing one.",
+        options: [
+          { value: "yes", label: "Yes" },
+          { value: "no", label: "No" },
+          { value: "not_sure", label: "Not sure" },
+        ],
+      },
+      {
+        id: "employees_hired",
+        text: "Will you directly employ anyone to operate or maintain the rental?",
+        whyWeAsk: "This is about people you employ directly — not independent cleaners or property managers you hire as contractors. It determines whether employer registration and payroll obligations apply.",
+      },
+    ];
+  }
 
   if (["restaurant", "fast food restaurant", "bakery", "cafe", "coffee shop", "bar", "nightclub", "food truck", "catering business", "commercial kitchen", "ice cream shop", "juice bar", "grocery store", "supermarket", "liquor store"].some(k => bt.includes(k))) {
     return [
@@ -408,7 +472,7 @@ function hardcodedQuestionsForBusinessType(businessType: string): { id: string; 
     ];
   }
 
-  if (["hotel", "resort", "guest house", "airbnb", "short-term rental", "vacation rental manager", "tour operator", "excursion company", "car rental business", "water sports company", "marina", "travel agency"].some(k => bt.includes(k))) {
+  if (["hotel", "resort", "guest house", "tour operator", "excursion company", "car rental business", "water sports company", "marina", "travel agency"].some(k => bt.includes(k))) {
     return [
       { id: "guests_stay_overnight", text: "Will guests stay overnight?" },
       { id: "food_served", text: "Will food be served?" },
@@ -571,7 +635,17 @@ const HOME_BASED_NOT_APPLICABLE = new Set<string>([
   "patients_visit",
 ]);
 
-interface DiscoveryQuestion { id: string; text: string }
+interface DiscoveryQuestionOption { value: string; label: string }
+interface DiscoveryQuestion {
+  id: string;
+  text: string;
+  /** Shown via the same spr-question-context block used for municipality-flag
+   * follow-ups — why SmartPR is asking, in the user's own project terms. */
+  whyWeAsk?: string;
+  /** Multi-value questions (2-3 options) reuse the existing spr-answer-row /
+   * spr-answer-row-three button grid. Omitted = plain Yes/No. */
+  options?: DiscoveryQuestionOption[];
+}
 
 export function filterQuestionsByContext(
   questions: DiscoveryQuestion[],
@@ -725,6 +799,7 @@ const LOCATION_TYPES_BY_BUSINESS_TYPE: Record<string, string[]> = {
   "Bookkeeping Firm": ["Professional Office", "Commercial Office", "Home-Based Business"],
   "Payroll Services": ["Professional Office", "Commercial Office", "Home-Based Business"],
   "Real Estate Investment Company": ["Professional Office", "Commercial Office"],
+  "Short-Term Rental Operator": ["Home-Based Business", "Tourism Facility", "Mixed Use Property"],
   "Developer": ["Professional Office", "Commercial Office"],
   "Real Estate Consulting": ["Professional Office", "Commercial Office"],
   "Leasing Office": ["Professional Office", "Commercial Office"],
@@ -1340,7 +1415,7 @@ export default function SmartPRIntake() {
   // NEXT_PUBLIC_BACKEND_URL is required.
   const [language, setLanguage] = useState<'en' | 'es'>('en'); // Bilingual toggle
 
-  const [questionList, setQuestionList] = useState<{id: string; text: string}[]>([]);
+  const [questionList, setQuestionList] = useState<DiscoveryQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   // Discovery questions already answered by the natural-language interpreter.
   // These are skipped in the guided flow so AI reduces intake work without
@@ -1572,11 +1647,17 @@ export default function SmartPRIntake() {
     ? guidedQuestions.findIndex((q) => q.id === questionList[activeQuestionIndex].id) + 1
     : guidedQuestions.length;
 
-  const handleQuestionAnswer = (yes: boolean) => {
+  const handleQuestionAnswer = (value: boolean | string) => {
     const q = questionList[activeQuestionIndex];
     if (!q) return;
+    // Every existing `updates.x = yes` branch below is id-gated and keeps
+    // working unchanged: select-type answers are strings, so `yes` is simply
+    // false for them and none of those ids match a select question anyway.
+    const yes = value === true;
 
     const updates: Partial<BusinessProfile> = {};
+    const extraAnswers: Record<string, unknown> = {};
+    if (q.id === "str_hoa_condo") extraAnswers.hoa_condo = value === "yes";
 
     if (q.id === "food_prepared_on_site") updates.food_prepared_or_sold = yes;
     if (q.id === "customers_consume_on_site" || q.id === "patients_visit" || q.id === "clients_visit" || q.id === "customers_visit") updates.customers_visit = yes;
@@ -1615,7 +1696,7 @@ export default function SmartPRIntake() {
       setProfile(prev => ({ ...prev, ...updates }));
     }
 
-    setDiscoveryAnswers(prev => ({ ...prev, [q.id]: yes }));
+    setDiscoveryAnswers(prev => ({ ...prev, [q.id]: value, ...extraAnswers }));
     // Advance past the question just answered. Recorded and derived answers
     // are skipped by `nextUnansweredQuestion` on the next render.
     setCurrentQuestionIndex(activeQuestionIndex + 1);
@@ -3358,16 +3439,55 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // A concise, user-facing explanation only — never the raw rule-engine
     // breakdown (factor weights, "Question = Answer" pairs, or unrelated
     // municipality context). That backend reasoning stays backend-only.
+    //
+    // guidance is project-specific (why THIS user is seeing THIS
+    // requirement), sourced from the active jurisdiction pack's hand-written
+    // content when registered for this document, else a generic-but-still-
+    // structured fallback (see requirementGuidance.ts). Rendered inside the
+    // SAME "Why do I need this?" disclosure — no new panel/modal/drawer.
+    const guidance = buildRequirementGuidance(
+      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req) },
+      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers }
+    );
     const why = (
-      <>
-        <div>{trReqReason(req)}</div>
+      <div className="rq-guidance">
+        <div className="rq-guidance-block">
+          <div className="rq-guidance-label">{L('Why you need this', language)}</div>
+          <div>{guidance.whyThisApplies}</div>
+        </div>
+        <div className="rq-guidance-block">
+          <div className="rq-guidance-label">{L('What this is', language)}</div>
+          <div>{guidance.whatThisIs}</div>
+        </div>
+        <div className="rq-guidance-block">
+          <div className="rq-guidance-label">{L("What you'll do", language)}</div>
+          <div>{guidance.whatYouNeedToDo}</div>
+        </div>
+        <div className="rq-guidance-block">
+          <div className="rq-guidance-label">{L('Then what?', language)}</div>
+          <div>{guidance.whatHappensNext}</div>
+        </div>
+        {guidance.triggeredBy.length > 0 && (
+          <div className="rq-guidance-triggers">
+            {L('SmartPR identified this because:', language)}{' '}
+            {guidance.triggeredBy.map((tag) => (
+              <span key={tag} className="tag guidance">{tag}</span>
+            ))}
+          </div>
+        )}
+        <div className="rq-guidance-source">
+          {guidance.sourceReferences.map((src, i) => (
+            <span key={i}>{i > 0 ? ' · ' : ''}{src.agency} · {src.citation}</span>
+          ))}
+          {guidance.lastVerified && <span> · {L('Verified', language)} {guidance.lastVerified}</span>}
+        </div>
         {issuedDocumentGuidance && (
           <div className="issued-document-guidance" style={{ marginTop: 8 }}>
             <Info className="i" style={{ width: 13, height: 13 }} />
             <span>{issuedDocumentGuidance}</span>
           </div>
         )}
-      </>
+      </div>
     );
 
     const extra = (
@@ -3932,10 +4052,26 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 <div className="spr-follow-up">
                   <div className="spr-kicker">{L('Question', language)} {activeGuidedQuestionNumber} {L('of', language)} {intakeQuestionTotal}</div>
                   <h2>{L(currentQuestion.text, language)}</h2>
-                  <div className="spr-answer-row">
-                    <button onClick={() => handleQuestionAnswer(true)}><CheckCircle className="i" /> {t('yes')}</button>
-                    <button onClick={() => handleQuestionAnswer(false)}><XCircle className="i" /> {t('no')}</button>
-                  </div>
+                  {currentQuestion.whyWeAsk && (
+                    <p className="spr-question-context">
+                      <strong>{L('Why we ask', language)}</strong>
+                      <span>{L(currentQuestion.whyWeAsk, language)}</span>
+                    </p>
+                  )}
+                  {currentQuestion.options ? (
+                    <div className={`spr-answer-row ${currentQuestion.options.length >= 3 ? 'spr-answer-row-three' : ''}`}>
+                      {currentQuestion.options.map((option) => (
+                        <button key={option.value} onClick={() => handleQuestionAnswer(option.value)}>
+                          {L(option.label, language)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="spr-answer-row">
+                      <button onClick={() => handleQuestionAnswer(true)}><CheckCircle className="i" /> {t('yes')}</button>
+                      <button onClick={() => handleQuestionAnswer(false)}><XCircle className="i" /> {t('no')}</button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -4085,7 +4221,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 agency={c.agency}
                 description={c.description}
                 badge={c.badge}
-                whyLabel={L('Why is this required?', language)}
+                whyLabel={L('Why do I need this?', language)}
                 why={c.why}
                 action={c.action}
                 secondary={c.secondary}
@@ -4117,7 +4253,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       agency={c.agency}
                       description={c.description}
                       badge={c.badge}
-                      whyLabel={L('Why is this required?', language)}
+                      whyLabel={L('Why do I need this?', language)}
                       why={c.why}
                       action={c.action}
                       secondary={c.secondary}

@@ -460,5 +460,10 @@
 "id": "Q_ENTITY_LLP",
 "question": "Is this entity registering as a Limited Liability Partnership (SRL)?",
 "type": "boolean"
+},
+{
+"id": "Q_HOA_CONDO",
+"question": "Is the property part of a condominium, HOA, or other residential association?",
+"type": "boolean"
 }
 ]

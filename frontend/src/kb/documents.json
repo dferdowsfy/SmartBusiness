@@ -58,5 +58,7 @@
 {"id": "DOC_AIR_EMISSION_PERMIT", "name": "Title V Air Emission Permit", "agency": "EPA / Junta de Calidad Ambiental (JCA)", "category": "Regulatory"},
 {"id": "DOC_CUSTOMS_BROKER_BOND", "name": "CBP Customs Broker Bond", "agency": "U.S. Customs and Border Protection (CBP)", "category": "Regulatory"},
 {"id": "DOC_TSA_KNOWN_SHIPPER", "name": "TSA Known Shipper / Indirect Air Carrier", "agency": "Transportation Security Administration (TSA)", "category": "Regulatory"},
-{"id": "DOC_AIRPORT_CONCESSION", "name": "Airport-Area Concession Agreement", "agency": "Aerostar Airport Holdings / Autoridad de los Puertos", "category": "Regulatory"}
+{"id": "DOC_AIRPORT_CONCESSION", "name": "Airport-Area Concession Agreement", "agency": "Aerostar Airport Holdings / Autoridad de los Puertos", "category": "Regulatory"},
+{"id": "DOC_HOA_AUTHORIZATION", "name": "Condo / HOA Short-Term Rental Authorization", "agency": "Property Owner / Homeowners Association", "category": "Property"},
+{"id": "DOC_ROOM_TAX_RETURN", "name": "Room Tax Monthly Return", "agency": "Compañía de Turismo", "category": "Regulatory"}
 ]
