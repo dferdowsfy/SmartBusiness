@@ -274,21 +274,25 @@ export function FilingWorkflowShell({
     <div className="spr-product-shell">
       <div className={`spr-filing-sticky${compact ? " compact" : ""}`}>
         <div className="spr-filing-top" inert={compact ? true : undefined} aria-hidden={compact}>
-          <TopNav active="businesses" />
+          <div className="spr-filing-top-inner">
+            <TopNav active="businesses" />
+          </div>
         </div>
         <div className="spr-filing-chrome">
-          <header className="spr-matter-header" inert={compact ? true : undefined} aria-hidden={compact}>
-            <div className="spr-matter-identity">
-              <span className="spr-matter-icon"><Building2 size={18} /></span>
-              <div>
-                <div className="spr-matter-name-row">
-                  <h1>{displayName}</h1>
-                  <span className="spr-matter-status">{matterStatus}</span>
+          <div className="spr-matter-header-collapse" inert={compact ? true : undefined} aria-hidden={compact}>
+            <header className="spr-matter-header">
+              <div className="spr-matter-identity">
+                <span className="spr-matter-icon"><Building2 size={18} /></span>
+                <div>
+                  <div className="spr-matter-name-row">
+                    <h1>{displayName}</h1>
+                    <span className="spr-matter-status">{matterStatus}</span>
+                  </div>
+                  <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
                 </div>
-                <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
               </div>
-            </div>
-          </header>
+            </header>
+          </div>
           <div className="spr-stepper-bar">
             <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
             {actions}

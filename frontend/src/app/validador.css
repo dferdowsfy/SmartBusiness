@@ -1695,16 +1695,29 @@ button { font-family: inherit; }
   position: relative;
   top: auto;
 }
+/* Collapsing regions of the sticky header use the CSS grid-rows technique
+   (1fr <-> 0fr) rather than animating max-height against an unknown content
+   height — animating toward a guessed max-height snaps abruptly once the
+   guess is exceeded, which is what caused the header to visibly jump/flicker
+   partway through a scroll instead of shrinking smoothly. Grid rows track
+   the real content height automatically, so the collapse always matches. */
 .spr-filing-top {
-  overflow: hidden;
-  max-height: 72px;
-  opacity: 1;
-  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease;
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .spr-filing-sticky.compact .spr-filing-top {
-  max-height: 0;
-  opacity: 0;
+  grid-template-rows: 0fr;
   pointer-events: none;
+}
+.spr-filing-top-inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity 0.24s ease;
+}
+.spr-filing-sticky.compact .spr-filing-top-inner {
+  opacity: 0;
 }
 
 .spr-filing-chrome {
@@ -1712,9 +1725,17 @@ button { font-family: inherit; }
   background: color-mix(in oklab, #f4f1ea 96%, transparent);
   box-shadow: none;
 }
+.spr-matter-header-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.spr-filing-sticky.compact .spr-matter-header-collapse {
+  grid-template-rows: 0fr;
+  pointer-events: none;
+}
 .spr-matter-header {
   max-width: 1440px;
-  min-height: 86px;
   margin: 0 auto;
   padding: 18px 32px 14px;
   display: flex;
@@ -1722,15 +1743,12 @@ button { font-family: inherit; }
   justify-content: space-between;
   gap: 24px;
   overflow: hidden;
-  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, padding 0.32s ease, min-height 0.32s ease;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity 0.24s ease;
 }
 .spr-filing-sticky.compact .spr-matter-header {
-  max-height: 0;
-  min-height: 0;
   opacity: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  pointer-events: none;
   border: 0;
 }
 .spr-stepper-bar {
