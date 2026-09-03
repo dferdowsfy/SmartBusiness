@@ -167,6 +167,13 @@ export const ISSUED_DOCUMENT_GUIDANCE: Record<string, string> = {
   ein_letter: "SmartPR prepares the IRS Form SS-4 application for you. The EIN itself is agency-issued: after the IRS processes the application, upload the CP 575 notice or other accepted IRS EIN confirmation to complete this requirement.",
 };
 
+export const ISSUED_DOCUMENT_GUIDANCE_ES: Record<string, string> = {
+  certificate_of_incorporation: "Abre y completa aquí el formulario oficial del Departamento de Estado. Después de que la agencia acepte la radicación, sube el Certificado de Incorporación oficial para completar este requisito.",
+  merchant_registration: "Completa el registro de comerciante en SURI. Después de que Hacienda emita el certificado, sube el Certificado de Registro de Comerciante oficial para completar este requisito.",
+  permiso_unico: "Completa la solicitud a través del Portal Único de Negocios de OGPe o el municipio correspondiente. Después de la aprobación, sube el Permiso Único emitido para completar este requisito.",
+  ein_letter: "SmartPR prepara la solicitud del Formulario SS-4 del IRS por ti. El EIN en sí lo emite la agencia: después de que el IRS procese la solicitud, sube el aviso CP 575 u otra confirmación de EIN aceptada por el IRS para completar este requisito.",
+};
+
 export function getSampleApplication(requirementCode: string): SampleApplicationDefinition | null {
   return SAMPLE_APPLICATIONS[requirementCode] ?? null;
 }

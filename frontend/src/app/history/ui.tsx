@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { LogOut, Settings, ShieldCheck, CalendarDays, RefreshCw } from "lucide-react";
 import { createSupabaseBrowser, isAuthConfigured } from "../../lib/supabase/client";
 import { SmartPRLogo } from "../components/brand/SmartPRLogo";
@@ -17,7 +17,7 @@ function signOutNow() {
   window.location.assign("/auth/signout");
 }
 
-export function TopNav({ active }: { active: "dashboard" | "businesses" | "calendar" | "history" | "graph" | "admin" | "settings" }) {
+export function TopNav({ active, extraActions }: { active: "dashboard" | "businesses" | "calendar" | "history" | "graph" | "admin" | "settings"; extraActions?: ReactNode }) {
   const [user, setUser] = useState<MeUser | null | undefined>(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -50,6 +50,7 @@ export function TopNav({ active }: { active: "dashboard" | "businesses" | "calen
         </nav>
 
         <div className="appbar-actions">
+          {extraActions}
           {user === undefined ? null : user ? (
             <>
               <button className="avatar" type="button" aria-label="Account menu" aria-haspopup="menu" aria-expanded={menuOpen} onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }} title="Account">{initials}</button>
