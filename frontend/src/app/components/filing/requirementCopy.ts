@@ -1,85 +1,85 @@
-// Contextual copy for requirement cards — pure, name-pattern based, and
-// purely additive: it only changes what a button *says* and, for a small
-// list of well-known requirements that require an external government step
-// before an upload is possible, adds a helpful outbound link. It never
-// changes requirement determination, eligibility, or any tracked state.
+// Contextual copy for requirement cards — pure, name-pattern based. It only
+// changes what a button *says*: the primary "SmartPR does this for you"
+// label and the secondary "I already have this" upload prompt/label. It
+// never changes requirement determination, eligibility, or any tracked
+// state, and it never points the user at an external government portal —
+// that decision belongs to whether SmartPR actually has a guided form or
+// worksheet for the requirement (checked by the caller), not to this file.
 
 export type IconTone = "green" | "blue" | "purple" | "gray";
 
-export interface ActionCopy {
+export interface SecondaryCopy {
+  /** e.g. "Already have your EIN?" */
+  prompt: string;
+  /** e.g. "Upload EIN confirmation" */
   label: string;
   helper?: string;
-  /** Present only for the "external government action" pattern. */
-  externalHref?: string;
-  externalTone?: "green" | "blue";
 }
 
 interface NamePattern {
   test: RegExp;
   icon: IconTone;
-  upload?: ActionCopy;
-  external?: ActionCopy;
-  /** Rough time estimate shown under a SmartPR-guided form CTA, if known. */
-  formEstimate?: string;
+  /** "Complete ___" label for the SmartPR-guided form/worksheet, start state. */
+  primaryStart: string;
+  secondary: SecondaryCopy;
 }
+
+const DEFAULT_SECONDARY: SecondaryCopy = { prompt: "Already have this?", label: "Upload existing document" };
 
 const PATTERNS: NamePattern[] = [
   {
-    test: /certificate of incorporation|articles of incorporation|charter/i,
+    test: /certificate of incorporation|articles of incorporation|articles of organization|charter/i,
     icon: "green",
-    upload: { label: "Upload certificate", helper: "Accepted: PDF, JPG, PNG" },
+    primaryStart: "Complete incorporation form",
+    secondary: { prompt: "Already have this?", label: "Upload existing certificate", helper: "Accepted: PDF, JPG, PNG" },
   },
   {
     test: /\bein\b|employer identification/i,
     icon: "blue",
-    external: {
-      label: "Complete EIN application",
-      helper: "After the IRS issues your EIN, we'll ask you to upload the confirmation.",
-      externalHref:
-        "https://www.irs.gov/businesses/small-businesses-self-employed/apply-for-an-employer-identification-number-ein-online",
-      externalTone: "blue",
-    },
-    upload: {
-      label: "Upload EIN confirmation",
-      helper: "Once the IRS issues your EIN, upload the confirmation letter here.",
-    },
+    primaryStart: "Complete EIN form",
+    secondary: { prompt: "Already have your EIN?", label: "Upload EIN confirmation", helper: "Accepted: PDF, JPG, PNG" },
   },
   {
     test: /merchant registration|registro de comerciante/i,
     icon: "purple",
-    external: {
-      label: "Register in SURI",
-      helper: "After registration is approved, we'll ask you to upload the certificate.",
-      externalHref: "https://suri.hacienda.pr.gov/",
-      externalTone: "green",
-    },
-    upload: {
-      label: "Upload merchant certificate",
-      helper: "Once approved, upload your Registro de Comerciante certificate.",
-    },
+    primaryStart: "Complete registration form",
+    secondary: { prompt: "Already registered?", label: "Upload certificate", helper: "Accepted: PDF, JPG, PNG" },
   },
   {
     test: /permiso ?[uú]nico|single business permit/i,
     icon: "purple",
-    upload: { label: "Upload permit", helper: "Accepted: PDF, JPG, PNG" },
-    formEstimate: "Takes ~10 min",
+    primaryStart: "Complete permit application",
+    secondary: { prompt: "Already have a permit?", label: "Upload permit", helper: "Accepted: PDF, JPG, PNG" },
+  },
+  {
+    test: /zoning|use certification|uso\b|ocup/i,
+    icon: "purple",
+    primaryStart: "Complete application",
+    secondary: { prompt: "Already have this?", label: "Upload existing document", helper: "Accepted: PDF, JPG, PNG" },
   },
   {
     test: /insurance|seguro|cfse|workers comp/i,
     icon: "gray",
-    upload: { label: "Upload proof of insurance", helper: "Accepted: PDF, JPG, PNG" },
+    primaryStart: "Complete application",
+    secondary: { prompt: "Already have this?", label: "Upload proof of insurance", helper: "Accepted: PDF, JPG, PNG" },
   },
   {
     test: /(incorpor|corporat|registr.* state|estado|articles)/i,
     icon: "green",
+    primaryStart: "Complete application",
+    secondary: DEFAULT_SECONDARY,
   },
   {
     test: /(tax|hacienda|contribu|iva|sales)/i,
     icon: "blue",
+    primaryStart: "Complete application",
+    secondary: DEFAULT_SECONDARY,
   },
   {
     test: /(permit|use|uso|zoning|ocup)/i,
     icon: "purple",
+    primaryStart: "Complete application",
+    secondary: DEFAULT_SECONDARY,
   },
 ];
 
@@ -91,26 +91,24 @@ export function iconToneFor(name: string): IconTone {
   return matchFor(name)?.icon ?? "gray";
 }
 
-/** Copy for the plain "upload a document" action. `hasExisting` swaps in
- * "Re-upload" phrasing once a file is already on file for this requirement. */
-export function uploadCopy(name: string, hasExisting: boolean): ActionCopy {
-  const preset = matchFor(name)?.upload;
-  if (preset) {
-    return hasExisting ? { ...preset, label: preset.label.replace(/^Upload/, "Re-upload") } : preset;
-  }
-  return hasExisting
-    ? { label: "Re-upload document", helper: "Accepted: PDF, JPG, PNG" }
-    : { label: "Upload document", helper: "Accepted: PDF, JPG, PNG" };
+/** Label for the SmartPR-guided form/worksheet action, when starting fresh. */
+export function primaryStartLabelFor(name: string): string {
+  return matchFor(name)?.primaryStart ?? "Complete application";
 }
 
-/** Copy for a well-known "go do this on an external government site first"
- * action. Returns null for anything not in the small known list — those
- * requirements fall back to the plain upload action, since we don't track
- * an external application state for them. */
-export function externalCopy(name: string): ActionCopy | null {
-  return matchFor(name)?.external ?? null;
+/** The "I already have this" upload prompt + label shown under the primary
+ * SmartPR action. `hasExisting` swaps in "Re-upload" phrasing once a file is
+ * already on file for this requirement. */
+export function secondaryUploadCopy(name: string, hasExisting: boolean): SecondaryCopy {
+  const preset = matchFor(name)?.secondary ?? DEFAULT_SECONDARY;
+  if (!hasExisting) return preset;
+  return { ...preset, label: preset.label.replace(/^Upload/, "Re-upload") };
 }
 
-export function formEstimateFor(name: string): string | undefined {
-  return matchFor(name)?.formEstimate;
+/** Copy for the plain "upload a document" action when SmartPR has no guided
+ * form/worksheet for this requirement — upload is the only, primary action. */
+export function uploadOnlyCopy(name: string, hasExisting: boolean): { label: string; helper?: string } {
+  const preset = matchFor(name)?.secondary ?? DEFAULT_SECONDARY;
+  const label = hasExisting ? preset.label.replace(/^Upload/, "Re-upload") : preset.label;
+  return { label, helper: preset.helper };
 }

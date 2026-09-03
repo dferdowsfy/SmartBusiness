@@ -707,13 +707,6 @@ button { font-family: inherit; }
   color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,.18);
 }
 .rq-cta-form:hover { background: linear-gradient(180deg, #2347A8 0%, #1E3A8A 100%); }
-.rq-cta-external {
-  background: transparent; border-color: var(--accent); color: var(--accent);
-}
-.rq-cta-external.rq-cta-blue { border-color: #1E3A8A; color: #1E3A8A; }
-.rq-cta-external:hover { background: var(--accent-soft); }
-.rq-cta-external.rq-cta-blue:hover { background: #EEF2FF; }
-.rq-cta-ext-icon { margin-left: -2px; }
 
 .rq-cta-helper { color: var(--muted); font-size: 11.5px; line-height: 1.4; text-align: right; max-width: 220px; }
 
@@ -725,6 +718,18 @@ button { font-family: inherit; }
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--muted); font-size: 13px; font-weight: 550;
 }
+
+/* "Already have this?" secondary upload option — a deliberately quiet text
+   control underneath the primary SmartPR action, never a second big button. */
+.rq-secondary { margin-top: 8px; text-align: right; max-width: 220px; }
+.rq-secondary-prompt { display: block; color: var(--muted); font-size: 11.5px; }
+.rq-secondary-link {
+  border: 0; background: transparent; padding: 0; margin-top: 2px;
+  color: var(--brand); font-size: 12.5px; font-weight: 600;
+  text-decoration: underline; text-underline-offset: 2px;
+  cursor: pointer; font-family: inherit;
+}
+.rq-secondary-link:hover { color: var(--accent); }
 
 .rq-card-extra { grid-column: 1 / -1; margin-top: 12px; }
 
@@ -794,6 +799,7 @@ button { font-family: inherit; }
   .rq-card-center { order: 1; flex-basis: 100%; }
   .rq-card-right { order: 2; flex-basis: 100%; width: auto; align-items: stretch; margin-top: 4px; }
   .rq-cta-helper { text-align: left; max-width: none; }
+  .rq-secondary { text-align: left; max-width: none; }
 }
 .issued-document-guidance {
   display: flex; align-items: flex-start; gap: 7px;
@@ -1689,16 +1695,29 @@ button { font-family: inherit; }
   position: relative;
   top: auto;
 }
+/* Collapsing regions of the sticky header use the CSS grid-rows technique
+   (1fr <-> 0fr) rather than animating max-height against an unknown content
+   height — animating toward a guessed max-height snaps abruptly once the
+   guess is exceeded, which is what caused the header to visibly jump/flicker
+   partway through a scroll instead of shrinking smoothly. Grid rows track
+   the real content height automatically, so the collapse always matches. */
 .spr-filing-top {
-  overflow: hidden;
-  max-height: 72px;
-  opacity: 1;
-  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease;
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .spr-filing-sticky.compact .spr-filing-top {
-  max-height: 0;
-  opacity: 0;
+  grid-template-rows: 0fr;
   pointer-events: none;
+}
+.spr-filing-top-inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity 0.24s ease;
+}
+.spr-filing-sticky.compact .spr-filing-top-inner {
+  opacity: 0;
 }
 
 .spr-filing-chrome {
@@ -1706,9 +1725,17 @@ button { font-family: inherit; }
   background: color-mix(in oklab, #f4f1ea 96%, transparent);
   box-shadow: none;
 }
+.spr-matter-header-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.spr-filing-sticky.compact .spr-matter-header-collapse {
+  grid-template-rows: 0fr;
+  pointer-events: none;
+}
 .spr-matter-header {
   max-width: 1440px;
-  min-height: 86px;
   margin: 0 auto;
   padding: 18px 32px 14px;
   display: flex;
@@ -1716,15 +1743,12 @@ button { font-family: inherit; }
   justify-content: space-between;
   gap: 24px;
   overflow: hidden;
-  transition: max-height 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.24s ease, padding 0.32s ease, min-height 0.32s ease;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity 0.24s ease;
 }
 .spr-filing-sticky.compact .spr-matter-header {
-  max-height: 0;
-  min-height: 0;
   opacity: 0;
-  padding-top: 0;
-  padding-bottom: 0;
-  pointer-events: none;
   border: 0;
 }
 .spr-stepper-bar {
