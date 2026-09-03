@@ -51,9 +51,18 @@ interface FilingWorkflowShellProps {
   onLanguageChange: (language: "en" | "es") => void;
   onStageChange: (stage: FilingStage) => void;
   intelligence: SmartPRLiveData;
-  /** Overrides the default SmartPR Live sidebar when provided (e.g. the
-   * Requirements page's own readiness sidebar). */
-  sidebar?: ReactNode;
+  /** Overrides the default SmartPR Live sidebar when provided. Pass `null`
+   * (not `undefined`) to render no sidebar at all and let the main content
+   * take the full width — used by the Requirements page, which surfaces its
+   * own compact readiness control instead of a persistent sidebar. */
+  sidebar?: ReactNode | null;
+  /** Content rendered on the right of the workflow-progress row, in place of
+   * the business-profile/language controls (which live in the row above).
+   * The Requirements page uses this for its compact readiness control. */
+  stepperRight?: ReactNode;
+  /** When false, the header does not collapse into a compact sticky bar on
+   * scroll — it scrolls away normally. Defaults to true. */
+  stickyHeader?: boolean;
   children: ReactNode;
 }
 
@@ -220,11 +229,14 @@ export function FilingWorkflowShell({
   onStageChange,
   intelligence,
   sidebar,
+  stepperRight,
+  stickyHeader = true,
   children,
 }: FilingWorkflowShellProps) {
   const [compact, setCompact] = useState(false);
   const compactRef = useRef(false);
   useEffect(() => {
+    if (!stickyHeader) return;
     let frame: number | null = null;
     const updateCompactState = () => {
       frame = null;
@@ -249,7 +261,7 @@ export function FilingWorkflowShell({
       window.removeEventListener("resize", onScroll);
       if (frame !== null) window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [stickyHeader]);
 
   const displayName = businessName && businessName.trim() && businessName !== "Untitled business"
     ? businessName
@@ -270,16 +282,20 @@ export function FilingWorkflowShell({
     </div>
   );
 
+  const showSidebar = sidebar !== null;
+  const stickyClass = stickyHeader ? `spr-filing-sticky${compact ? " compact" : ""}` : "spr-filing-static";
+  const collapseInert = stickyHeader && compact;
+
   return (
     <div className="spr-product-shell">
-      <div className={`spr-filing-sticky${compact ? " compact" : ""}`}>
-        <div className="spr-filing-top" inert={compact ? true : undefined} aria-hidden={compact}>
+      <div className={stickyClass}>
+        <div className="spr-filing-top" inert={collapseInert ? true : undefined} aria-hidden={collapseInert}>
           <div className="spr-filing-top-inner">
             <TopNav active="businesses" />
           </div>
         </div>
         <div className="spr-filing-chrome">
-          <div className="spr-matter-header-collapse" inert={compact ? true : undefined} aria-hidden={compact}>
+          <div className="spr-matter-header-collapse" inert={collapseInert ? true : undefined} aria-hidden={collapseInert}>
             <header className="spr-matter-header">
               <div className="spr-matter-identity">
                 <span className="spr-matter-icon"><Building2 size={18} /></span>
@@ -291,18 +307,19 @@ export function FilingWorkflowShell({
                   <p>{matterTitle}{municipality ? ` · ${municipality}` : ""}</p>
                 </div>
               </div>
+              {actions}
             </header>
           </div>
           <div className="spr-stepper-bar">
             <WorkflowStepper stage={stage} availableStages={availableStages} language={language} onChange={onStageChange} />
-            {actions}
+            {stepperRight}
           </div>
         </div>
       </div>
 
-      <div className="spr-workflow-grid">
+      <div className={`spr-workflow-grid${showSidebar ? "" : " single"}`}>
         <section className="spr-main-workarea">{children}</section>
-        {sidebar ?? <SmartPRLivePanel data={intelligence} language={language} />}
+        {showSidebar ? (sidebar ?? <SmartPRLivePanel data={intelligence} language={language} />) : null}
       </div>
     </div>
   );

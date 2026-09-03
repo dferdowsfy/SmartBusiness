@@ -51,7 +51,7 @@ import {
   type SmartPRLiveData,
 } from './components/filing/FilingWorkflowShell';
 import { RequirementCard, type RequirementAction, type RequirementBadge, type RequirementSecondaryAction } from './components/filing/RequirementCard';
-import { RequirementsSidebar } from './components/filing/RequirementsSidebar';
+import { ReadinessControl } from './components/filing/ReadinessControl';
 import { iconToneFor, primaryStartLabelFor, secondaryUploadCopy, uploadOnlyCopy } from './components/filing/requirementCopy';
 import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
 import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
@@ -61,8 +61,8 @@ import { jsPDF } from 'jspdf';
 import {
   CheckCircle, AlertTriangle, Info, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
-  Receipt, Landmark, Lightbulb, Waves, ShieldCheck, ScrollText, XCircle, Eye,
-  Star, ChevronDown,
+  ReceiptText, Store, Landmark, Waves, ShieldCheck, ScrollText, XCircle, Eye,
+  Star, ChevronDown, Sparkles, MessageCircle,
 } from 'lucide-react';
 
 // SmartPR
@@ -3101,7 +3101,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     const n = name.toLowerCase();
     const cls = 'w-5 h-5';
     if (/(incorpor|corporat|registr.* state|estado|articles|charter)/.test(n)) return <Building2 className={cls} />;
-    if (/(ein|irs|tax|hacienda|contribu|merchant|iva|sales)/.test(n)) return <Receipt className={cls} />;
+    if (/merchant|comerciante/.test(n)) return <Store className={cls} />;
+    if (/(ein|irs|tax|hacienda|contribu|iva|sales)/.test(n)) return <ReceiptText className={cls} />;
     if (/(permiso|permit|use|uso|zoning|ocup)/.test(n)) return <Landmark className={cls} />;
     if (/(coast|environment|ambient|water|agua|dredge)/.test(n)) return <Waves className={cls} />;
     if (/(insur|seguro|cfse|workers|comp)/.test(n)) return <ShieldCheck className={cls} />;
@@ -3119,7 +3120,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
 
   // Requirements list filter (All / To Do / To Fill Out / Completed).
   const [reqFilter, setReqFilter] = useState<'all' | 'needs_action' | 'in_progress' | 'completed'>('all');
-  const [reqShowAll, setReqShowAll] = useState(false);
+  const [otherReqExpanded, setOtherReqExpanded] = useState(false);
 
   // Live rules-engine output while the user is still in intake, so the
   // intelligence panel and progress stats update as they answer.
@@ -3433,24 +3434,24 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [requirements, uploadedDocs, processingStates, reviewingCode, preparedGovApplications, govFormDrafts, sampleFormDrafts, preparedSampleApplications, language, profile.municipality]
   );
-  const criticalPathCards = reqCards.filter(c => c.req.mandatory && c.bucket !== 'completed' && c.bucket !== 'none' && c.state === 'pending');
-  const criticalPathCodes = new Set(criticalPathCards.map(c => c.req.code));
-  const restCards = reqCards.filter(c => !criticalPathCodes.has(c.req.code));
-  const orderedCards = [...criticalPathCards, ...restCards];
-
   const tabNeedsActionCount = reqCards.filter(c => c.bucket === 'needs_action').length;
   const tabInProgressCount = reqCards.filter(c => c.bucket === 'in_progress').length;
   const tabCompletedCount = reqCards.filter(c => c.bucket === 'completed').length;
 
-  const tabFilteredCards = orderedCards.filter(c =>
+  const tabFilteredCards = reqCards.filter(c =>
     reqFilter === 'all' ? true
     : reqFilter === 'needs_action' ? c.bucket === 'needs_action'
     : reqFilter === 'in_progress' ? c.bucket === 'in_progress'
     : c.bucket === 'completed'
   );
-  const REQ_VISIBLE_DEFAULT = 6;
-  const visibleReqCards = reqShowAll ? tabFilteredCards : tabFilteredCards.slice(0, REQ_VISIBLE_DEFAULT);
-  const hiddenReqCount = tabFilteredCards.length - visibleReqCards.length;
+  // Critical path: mandatory, not yet started, and not blocked on the user
+  // answering a question first — the requirements standing between the user
+  // and being ready to submit. Everything else in the current tab collapses
+  // under "Other requirements" so the critical path dominates the page.
+  const isCriticalPath = (c: (typeof reqCards)[number]) =>
+    c.req.mandatory && c.bucket !== 'completed' && c.bucket !== 'none' && c.state === 'pending';
+  const criticalPathCards = tabFilteredCards.filter(isCriticalPath);
+  const otherCards = tabFilteredCards.filter(c => !isCriticalPath(c));
 
   // Contradictions only the user can settle. Clashes SmartPR resolved itself
   // (a derivation losing to a user answer) are deliberately not shown.
@@ -3723,14 +3724,16 @@ const loadExample = (example: Partial<BusinessProfile>) => {
         onLanguageChange={setLanguage}
         onStageChange={goTo}
         intelligence={stageIntelligence}
-        sidebar={view === 'requirements' ? (
-          <RequirementsSidebar
+        sidebar={view === 'requirements' ? null : undefined}
+        stickyHeader={view !== 'requirements'}
+        stepperRight={view === 'requirements' ? (
+          <ReadinessControl
             language={language}
-            readinessPct={ringScore}
-            totalCount={reqCards.length}
-            completedCount={tabCompletedCount}
-            needsActionCount={tabNeedsActionCount}
-            inProgressCount={tabInProgressCount}
+            pct={ringScore}
+            total={reqCards.length}
+            completed={tabCompletedCount}
+            needsAction={tabNeedsActionCount}
+            inProgress={tabInProgressCount}
           />
         ) : undefined}
       >
@@ -3999,28 +4002,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             ← {L('Back to intake', language)}
           </button>
 
-          {/* Prominent Attention banner (Problem 5) — surfaces AI findings at the top */}
-          {(() => {
-            const reviewItems = requirements.filter(r => r.mandatory && r.status === 'warning');
-            if (reviewItems.length === 0) return null;
-            return (
-              <div style={{ marginBottom: 16, padding: 14, background: 'var(--warn-soft)', border: '1px solid var(--warn)', borderRadius: 'var(--radius)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <AlertTriangle className="i-lg" style={{ color: 'var(--warn)', marginTop: 2 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: 'var(--warn)' }}>⚠ Attention Required</div>
-                  <div style={{ fontSize: 13, marginTop: 4, opacity: 0.9 }}>
-                    {reviewItems.slice(0, 3).map((r, i) => (
-                      <div key={i}>• {trReqName(r)} — review findings in the card below</div>
-                    ))}
-                  </div>
-                  <button onClick={() => { const f = reviewItems[0]; const el = document.getElementById(`req-row-${f.code}`); el?.scrollIntoView({behavior:'smooth', block:'center'}); setReviewingCode(f.code); }} style={{ marginTop: 8, fontSize: 13, padding: '4px 12px', borderRadius: 8, background: 'var(--warn)', color: 'white', border: 'none', cursor: 'pointer' }}>
-                    {L('Review now', language)}
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-
           {/* Page head — Step 2 of 3 */}
           <div className="rq-page-head">
             <h1>{L('Requirements', language)}</h1>
@@ -4065,7 +4046,14 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       <div key={i}>• {trReqName(r)} — review findings in the card below</div>
                     ))}
                   </div>
-                  <button onClick={() => { const f = reviewItems[0]; const el = document.getElementById(`req-row-${f.code}`); el?.scrollIntoView({behavior:'smooth', block:'center'}); setReviewingCode(f.code); }} style={{ marginTop: 8, fontSize: 13, padding: '4px 12px', borderRadius: 8, background: 'var(--warn)', color: 'white', border: 'none', cursor: 'pointer' }}>
+                  <button onClick={() => {
+                    const f = reviewItems[0];
+                    setOtherReqExpanded(true);
+                    setReviewingCode(f.code);
+                    requestAnimationFrame(() => {
+                      document.getElementById(`req-row-${f.code}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
+                  }} style={{ marginTop: 8, fontSize: 13, padding: '4px 12px', borderRadius: 8, background: 'var(--warn)', color: 'white', border: 'none', cursor: 'pointer' }}>
                     {L('Review now', language)}
                   </button>
                 </div>
@@ -4073,15 +4061,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             );
           })()}
 
-          {/* Critical path — restrained, no repeated explanatory copy per item */}
-          {reqFilter === 'all' && criticalPathCards.length > 0 && (
-            <div className="rq-critical-head">
-              <Star size={13} /> {L('CRITICAL PATH — HANDLE THESE NEXT', language)}
-            </div>
+          {/* Critical path — the page's main focus. Full real estate, no
+              per-item explanatory copy, always shown for the active tab. */}
+          {criticalPathCards.length > 0 && (
+            <>
+              <div className="rq-critical-head">
+                <Star size={13} /> {L('CRITICAL PATH — HANDLE THESE NEXT', language)}
+                <span className="rq-critical-count">{criticalPathCards.length}</span>
+              </div>
+              <p className="rq-critical-sub">{L('These requirements are blocking your ability to move forward.', language)}</p>
+            </>
           )}
 
           <div className="rq-list">
-            {visibleReqCards.map((c, i) => (
+            {criticalPathCards.map((c, i) => (
               <RequirementCard
                 key={c.req.code}
                 id={`req-row-${c.req.code}`}
@@ -4101,10 +4094,51 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             ))}
           </div>
 
-          {hiddenReqCount > 0 && (
-            <button type="button" className={`rq-show-more ${reqShowAll ? 'expanded' : ''}`} onClick={() => setReqShowAll(true)}>
-              {L('Show more requirements', language)} ({hiddenReqCount}) <ChevronDown size={15} />
-            </button>
+          {otherCards.length > 0 && (
+            <>
+              <button
+                type="button"
+                className={`rq-other-toggle ${otherReqExpanded ? 'expanded' : ''}`}
+                onClick={() => setOtherReqExpanded((value) => !value)}
+                aria-expanded={otherReqExpanded}
+              >
+                {L('OTHER REQUIREMENTS', language)} ({otherCards.length}) <ChevronDown size={15} />
+              </button>
+              {otherReqExpanded && (
+                <div className="rq-list">
+                  {otherCards.map((c, i) => (
+                    <RequirementCard
+                      key={c.req.code}
+                      id={`req-row-${c.req.code}`}
+                      index={criticalPathCards.length + i + 1}
+                      icon={c.icon}
+                      iconTone={c.iconTone}
+                      name={c.name}
+                      agency={c.agency}
+                      description={c.description}
+                      badge={c.badge}
+                      whyLabel={L('Why is this required?', language)}
+                      why={c.why}
+                      action={c.action}
+                      secondary={c.secondary}
+                      extra={c.extra}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Recommendation panel — advisory historical insights (never mandatory) */}
+          {advisory && advisory.enabled && advisory.similarCount > 0 &&
+            (advisory.potentiallyOverlooked.length > 0 || advisory.commonValidationFailures.length > 0) && (
+            <div className="rq-recommendations">
+              <Sparkles size={16} className="rq-recommendations-icon" />
+              <div>
+                <strong>{L('Recommendations', language)}</strong>
+                <p>{L('Based on', language)} {advisory.similarCount} {L('similar businesses processed before. Suggestions only — these never change what the rules require.', language)}</p>
+              </div>
+            </div>
           )}
 
           {/* Parallel assessment output: obligation rules remain authoritative
@@ -4131,39 +4165,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                   <div className="reco-text"><b>{L('Municipal Notices', language)} — {profile.municipality}</b><small>{L(n, language)}</small></div>
                 </div>
               ))}
-            </div>
-          )}
-
-          {/* Recommendation panel — advisory historical insights (never mandatory) */}
-          {advisory && advisory.enabled && advisory.similarCount > 0 &&
-            (advisory.potentiallyOverlooked.length > 0 || advisory.commonValidationFailures.length > 0) && (
-            <div className="req-section" style={{ marginTop: 16 }}>
-              <div className="req-head">
-                <div className="left">
-                  <h2 style={{ fontSize: 20 }}>{L('Recommendations', language)}</h2>
-                  <p>{L('Based on', language)} {advisory.similarCount} {L('similar businesses processed before. Suggestions only — these never change what the rules require.', language)}</p>
-                </div>
-              </div>
-              <div style={{ padding: '16px 20px' }}>
-                {advisory.potentiallyOverlooked.map(d => (
-                  <div key={d.document} className="reco">
-                    <div className="reco-ic health"><Lightbulb className="i" /></div>
-                    <div className="reco-text">
-                      <b>{d.document}</b>
-                      <small>{d.pct}% {L('of similar businesses required this.', language)} · {d.agency}</small>
-                    </div>
-                  </div>
-                ))}
-                {advisory.commonValidationFailures.length > 0 && (
-                  <div className="reco">
-                    <div className="reco-ic fire"><AlertTriangle className="i" /></div>
-                    <div className="reco-text">
-                      <b>{L('Documents that commonly fail validation', language)}</b>
-                      <small>{advisory.commonValidationFailures.map(f => f.document_type).join(' · ')}</small>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
@@ -4207,6 +4208,10 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               </button>
             </div>
           </div>
+
+          <button type="button" className="rq-floating-help" title={L('Chat with SmartPR', language)} aria-label={L('Chat with SmartPR', language)}>
+            <MessageCircle size={22} />
+          </button>
         </main>
       )}
 

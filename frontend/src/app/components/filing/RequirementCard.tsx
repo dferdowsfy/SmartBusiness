@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { CheckCircle2, ChevronRight, Clock, Upload } from "lucide-react";
+import { CheckCircle2, ChevronDown, ClipboardList, Clock, CloudUpload, ArrowRight, Upload } from "lucide-react";
 import type { IconTone } from "./requirementCopy";
 
 export type RequirementActionKind = "upload" | "form" | "waiting" | "completed" | "none";
@@ -14,7 +14,9 @@ export interface RequirementAction {
 }
 
 export interface RequirementSecondaryAction {
-  /** e.g. "Already have your EIN?" */
+  /** Accessible label only (e.g. "Already have your EIN?") — the visible
+   * button text is just `label`, matching the reference design's quiet
+   * "OR [upload button]" pattern rather than a restated question. */
   prompt: string;
   /** e.g. "Upload EIN confirmation" */
   label: string;
@@ -37,10 +39,10 @@ export interface RequirementCardProps {
   whyLabel: string;
   why: ReactNode;
   action: RequirementAction;
-  /** "Already have this? Upload ___" — shown under the primary action
-   * whenever SmartPR can prepare the requirement for the user but the user
-   * may also already hold the document. Omitted once the requirement is
-   * completed, or when upload is already the primary (only) action. */
+  /** "OR [Upload ___]" — shown under the primary action whenever SmartPR can
+   * prepare the requirement for the user but the user may also already hold
+   * the document. Omitted once the requirement is completed, or when upload
+   * is already the primary (only) action. */
   secondary?: RequirementSecondaryAction;
   /** Extraction panels, AI findings, multi-stage processing — rendered full
    * width below the card's three zones, unchanged in substance from before. */
@@ -66,13 +68,13 @@ function ActionButton({ action }: { action: RequirementAction }) {
   if (action.kind === "none") return null;
 
   const isForm = action.kind === "form";
-  const className = `rq-cta rq-cta-${action.kind}`;
 
   return (
-    <button type="button" className={className} onClick={action.onClick}>
+    <button type="button" className={`rq-cta rq-cta-${action.kind}`} onClick={action.onClick}>
       {action.kind === "upload" && <Upload size={15} />}
+      {isForm && <ClipboardList size={15} />}
       <span>{action.label}</span>
-      {isForm && <ChevronRight size={15} />}
+      {isForm && <ArrowRight size={15} />}
     </button>
   );
 }
@@ -103,13 +105,13 @@ export function RequirementCard({
         <div className="rq-card-center">
           <div className="rq-card-title-row">
             <h3>{name}</h3>
+            {agency && <span className="tag agency">{agency}</span>}
             {badge && <span className={`rq-badge rq-badge-${badge.tone}`}>{badge.label}</span>}
           </div>
-          {agency && <span className="tag agency">{agency}</span>}
           <p className="rq-card-desc">{description}</p>
           <details className="rq-why">
             <summary>
-              {whyLabel} <ChevronRight size={13} className="rq-why-chevron" />
+              {whyLabel} <ChevronDown size={13} className="rq-why-chevron" />
             </summary>
             <div className="rq-why-body">{why}</div>
           </details>
@@ -121,12 +123,13 @@ export function RequirementCard({
             <span className="rq-cta-helper">{action.helper}</span>
           )}
           {secondary && action.kind !== "completed" && (
-            <div className="rq-secondary">
-              <span className="rq-secondary-prompt">{secondary.prompt}</span>
-              <button type="button" className="rq-secondary-link" onClick={secondary.onClick}>
-                {secondary.label}
+            <>
+              <span className="rq-or">OR</span>
+              <button type="button" className="rq-secondary-btn" onClick={secondary.onClick} aria-label={secondary.prompt}>
+                <CloudUpload size={15} />
+                <span>{secondary.label}</span>
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>
