@@ -9,7 +9,7 @@
 // - Returns requirements in the shape the existing UI already consumes.
 // ============================================================================
 
-import { ACTIVE_JURISDICTION } from "./jurisdictions";
+import { ACTIVE_JURISDICTION } from "./jurisdictions/index.ts";
 import { isHomeBasedLocation, isOnlineOnlyLocation } from "./locationTypes";
 import {
   runRulesEngine,

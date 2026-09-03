@@ -17,6 +17,7 @@ import {
 import { buildExtraction, type ExtractionResult } from './documentFields';
 import {
   ISSUED_DOCUMENT_GUIDANCE,
+  ISSUED_DOCUMENT_GUIDANCE_ES,
   generateSampleApplicationPdf,
   getSampleApplication,
   missingRequiredSampleFields,
@@ -1549,6 +1550,24 @@ export default function SmartPRIntake() {
         return `El registro con el gobierno municipal de ${profile.municipality} es requerido para operar dentro del municipio.`;
       if (req.code === 'municipal_tax_compliance')
         return `Se requiere prueba de cumplimiento de impuestos municipales; las tasas varían por municipio (${profile.municipality}).`;
+      // Generic engine-generated reason shapes (rulesEngine.ts) — these embed
+      // dynamic values (municipality name, business type, question text) so
+      // they can never be exact-matched in the L() dictionary; translate the
+      // surrounding template here instead.
+      const municipalityMatch = req.reason.match(/^Municipality selected \((.+)\)$/);
+      if (municipalityMatch) return `Municipio seleccionado (${municipalityMatch[1]})`;
+
+      const flagMatch = req.reason.match(/^Municipality Flag = (.+?)(?: \+ Business Type = (.+))?$/);
+      if (flagMatch) {
+        const [, flag, businessType] = flagMatch;
+        return `Bandera de Municipio = ${flag}${businessType ? ` + Tipo de Negocio = ${businessType}` : ''}`;
+      }
+
+      const businessTypeMatch = req.reason.match(/^Business Type = (.+)$/);
+      if (businessTypeMatch) return `Tipo de Negocio = ${businessTypeMatch[1]}`;
+
+      const questionMatch = req.reason.match(/^Question: (.+) \| Answer: Yes$/);
+      if (questionMatch) return `Pregunta: ${questionMatch[1]} | Respuesta: Sí`;
     }
     return L(req.reason, language);
   };
@@ -3435,7 +3454,9 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       : req.mandatory ? { label: L('Required', language), tone: 'amber' }
       : { label: L('Optional', language), tone: 'gray' };
 
-    const issuedDocumentGuidance = ISSUED_DOCUMENT_GUIDANCE[req.code];
+    const issuedDocumentGuidance = language === 'es'
+      ? (ISSUED_DOCUMENT_GUIDANCE_ES[req.code] ?? ISSUED_DOCUMENT_GUIDANCE[req.code])
+      : ISSUED_DOCUMENT_GUIDANCE[req.code];
     // A concise, user-facing explanation only — never the raw rule-engine
     // breakdown (factor weights, "Question = Answer" pairs, or unrelated
     // municipality context). That backend reasoning stays backend-only.
@@ -3446,8 +3467,8 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // structured fallback (see requirementGuidance.ts). Rendered inside the
     // SAME "Why do I need this?" disclosure — no new panel/modal/drawer.
     const guidance = buildRequirementGuidance(
-      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req) },
-      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers }
+      { document_id: req.document_id, code: req.code, name, agency: req.agency, reason: trReqReason(req), sourceRuleId: req.source_rule },
+      { language, municipality: profile.municipality, businessTypeName: profile.business_type, discoveryAnswers, entityType: entityTypeFromLegacyStructure(profile.business_structure), kb: KB }
     );
     const why = (
       <div className="rq-guidance">

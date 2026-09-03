@@ -11,7 +11,7 @@
 // authoritative; nothing here changes the deterministic engine.
 // ============================================================================
 
-import { ACTIVE_JURISDICTION, type FlagAdvisory } from "./jurisdictions";
+import { ACTIVE_JURISDICTION, type FlagAdvisory } from "./jurisdictions/index.ts";
 
 // Re-exported under the historical name so existing imports keep working.
 export type PotentialDef = FlagAdvisory;
