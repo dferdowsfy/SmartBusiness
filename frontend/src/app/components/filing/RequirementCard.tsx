@@ -114,12 +114,6 @@ export function RequirementCard({
           </div>
           {contextLabel && <div className="rq-context-label">{contextLabel}</div>}
           <p className="rq-card-desc">{description}</p>
-          <details className="rq-why">
-            <summary>
-              {whyLabel} <ChevronDown size={13} className="rq-why-chevron" />
-            </summary>
-            <div className="rq-why-body">{why}</div>
-          </details>
         </div>
 
         <div className="rq-card-right">
@@ -138,6 +132,13 @@ export function RequirementCard({
           )}
         </div>
       </div>
+
+      <details className="rq-why">
+        <summary>
+          {whyLabel} <ChevronDown size={13} className="rq-why-chevron" />
+        </summary>
+        <div className="rq-why-body">{why}</div>
+      </details>
 
       {extra && <div className="rq-card-extra">{extra}</div>}
     </div>

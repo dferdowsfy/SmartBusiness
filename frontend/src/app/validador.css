@@ -694,7 +694,7 @@ button { font-family: inherit; }
 }
 .rq-context-label::before { content: "✦"; font-size: 10px; }
 
-.rq-why { margin-top: 6px; }
+.rq-why { margin-top: 12px; }
 .rq-why summary {
   cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 4px;
   color: var(--brand); font-size: 12.5px; font-weight: 550;
@@ -704,7 +704,7 @@ button { font-family: inherit; }
 .rq-why[open] .rq-why-chevron { transform: rotate(180deg); }
 .rq-why-body {
   margin-top: 8px; padding: 12px 14px; border-radius: 10px;
-  background: var(--bg-tint); color: var(--ink-2); font-size: 13px; line-height: 1.55; max-width: 70ch;
+  background: var(--bg-tint); color: var(--ink-2); font-size: 13px; line-height: 1.55;
 }
 
 /* Structured content inside the existing .rq-why-body box — typography only,
