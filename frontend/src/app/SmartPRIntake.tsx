@@ -3293,6 +3293,13 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     else setCurrentStep(9);
   };
 
+  // Switching stages swaps the whole main panel in place; without this the
+  // browser keeps whatever scroll position the previous stage was at, so
+  // intake -> requirements can land the user mid-page instead of at the top.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [view]);
+
   const ringScore = readinessScore !== null ? readinessScore : checklistProgress;
 
   // Canonical application profile — the shared business information entered once
