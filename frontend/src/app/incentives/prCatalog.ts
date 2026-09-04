@@ -3,7 +3,7 @@
 // same whether or not a knowledge-graph store is configured. Each program
 // maps 1:1 to an intake `industry` value so the eligibility engine's
 // automatic industry-scope check is the only gate — no invented facts.
-import type { IncentiveBenefit, IncentiveProgram, IncentiveSource } from "./types";
+import type { IncentiveBenefit, IncentiveCriterion, IncentiveProgram, IncentiveSource } from "./types";
 
 const VERIFIED = "2026-09-04";
 
@@ -21,28 +21,49 @@ const ACT_60: IncentiveSource = {
 };
 
 const DDEC = { id: "AGENCY_DDEC", name: "Departamento de Desarrollo Económico y Comercio (DDEC)" };
+const ICP = { id: "AGENCY_ICP", name: "Instituto de Cultura Puertorriqueña — Oficina Estatal de Conservación Histórica" };
+const OCIF = { id: "AGENCY_OCIF", name: "Oficina del Comisionado de Instituciones Financieras (OCIF)" };
 
 const benefit = (id: string, name: string, description: string, amountDescription?: string): IncentiveBenefit => ({
   id, name, description, benefitType: "tax_incentive", amountDescription: amountDescription ?? null,
   citation: ACT_60.citation,
 });
 
+/** A criterion the eligibility engine can ask about when the fact is
+ * unknown, rather than a blocking requirement — unanswered still shows the
+ * program as a potential opportunity with a follow-up question. */
+const factCriterion = (input: {
+  id: string; factKey: string; question: string; description: string;
+}): IncentiveCriterion => ({
+  id: input.id, name: input.question, description: input.description, factKey: input.factKey,
+  operator: "truthy", required: true, material: true,
+  question: input.question, answerType: "boolean", answerOptions: [],
+  evidenceTypeIds: [], evidenceCanSatisfy: false, citation: ACT_60.citation,
+});
+
 function program(input: {
   id: string;
   name: string;
-  industry: string;
+  /** One industry (legacy shorthand) or several; omit both for a
+   * cross-industry program (no industry gate at all). */
+  industry?: string;
+  industries?: string[];
   description: string;
   benefits: IncentiveBenefit[];
   applicationProcess: string;
+  criteria?: IncentiveCriterion[];
+  agency?: { id: string; name: string };
   sources?: IncentiveSource[];
 }): IncentiveProgram {
+  const agency = input.agency ?? DDEC;
+  const industries = input.industries ?? (input.industry ? [input.industry] : []);
   return {
     id: input.id, name: input.name, programType: "tax_incentive",
-    administeringAgency: DDEC, applicationAgency: DDEC,
+    administeringAgency: agency, applicationAgency: DDEC,
     description: input.description, benefits: input.benefits,
     geography: { level: "island_wide", municipalityIds: [], municipalityNames: [], notes: null },
-    applicableIndustries: { ids: [], names: [input.industry] },
-    criteria: [], evidence: [],
+    applicableIndustries: { ids: [], names: industries },
+    criteria: input.criteria ?? [], evidence: [],
     applicationProcess: input.applicationProcess,
     applicationWindow: null,
     sources: input.sources ?? [ACT_60],
@@ -132,13 +153,22 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
     applicationProcess: "Apply for a green-energy tax exemption decree through DDEC before installing generation equipment.",
   }),
   program({
-    id: "PR_ACT60_FINANCE_IFE", name: "International Financial Entities (IFE) / Insurers Incentive", industry: "Finance & Insurance",
-    description: "Act 60 offers a reduced corporate tax rate for offshore banking, international asset management, and cross-border insurance risk, provided the business does not transact with local Puerto Rico residents.",
+    id: "PR_ACT60_IFE", name: "International Financial Entities (IFE) Incentive", industry: "Finance & Insurance",
+    description: "Act 60 offers a reduced corporate tax rate for offshore banking, international asset management, and clearinghouse activity, provided the business does not transact with local Puerto Rico residents.",
     benefits: [
       benefit("b1", "IFE corporate tax rate", "A 4% corporate tax rate for offshore banking units, international asset managers, and clearinghouses that do not transact business with local residents."),
-      benefit("b2", "International insurer/reinsurer rate", "A preferential corporate tax rate (as low as 1–2% in some configurations) for managing cross-border insurance risk."),
     ],
-    applicationProcess: "Apply for an IFE or international insurer license and decree through the Oficina del Comisionado de Instituciones Financieras (OCIF) and DDEC.",
+    applicationProcess: "Apply for an International Financial Entity license through OCIF, then the related tax exemption decree through DDEC.",
+    agency: OCIF,
+  }),
+  program({
+    id: "PR_ACT60_INTL_INSURANCE", name: "International Insurers and Reinsurers Incentive", industry: "Finance & Insurance",
+    description: "Act 60 offers a preferential corporate tax rate for entities managing cross-border insurance and reinsurance risk from Puerto Rico.",
+    benefits: [
+      benefit("b1", "International insurer/reinsurer rate", "A preferential corporate tax rate — as low as 1–2% in some configurations — for managing cross-border insurance or reinsurance risk."),
+    ],
+    applicationProcess: "Apply for an international insurer or reinsurer license through OCIF, then the related tax exemption decree through DDEC.",
+    agency: OCIF,
   }),
   program({
     id: "PR_ACT60_FOOD_MANUFACTURING", name: "Manufacturing Framework — Food & Beverage Export", industry: "Food & Beverage",
@@ -242,5 +272,72 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
       benefit("b1", "R&D investment tax credit", "A 50% tax credit for eligible investments in local R&D, clinical trials, or home-grown intellectual property development."),
     ],
     applicationProcess: "Apply for the R&D tax credit through DDEC, documenting the qualifying research or development spending.",
+  }),
+
+  // ---- Additional Act 60 programs beyond the one-per-industry set above:
+  // a second, more specific decree within an industry already listed, and
+  // cross-industry chapters that are not gated by `industry` at all. ----
+
+  program({
+    id: "PR_ACT60_AIR_MARITIME", name: "Air and Maritime Transportation Incentive", industry: "Transportation & Logistics",
+    description: "Act 60 separately incentivizes international air carrier and maritime cargo/passenger operations based in Puerto Rico — a distinct chapter from the general export-logistics decree covering companies operating airport concessions, port facilities, or vessel/aircraft fleets serving international routes.",
+    benefits: [
+      benefit("b1", "Air/maritime carrier corporate tax rate", "A 4% corporate tax rate on qualifying income from international air or maritime transportation operations based in Puerto Rico."),
+    ],
+    applicationProcess: "Apply for an air/maritime transportation tax exemption decree through DDEC; port and airport concession terms are separately negotiated with the Puerto Rico Ports Authority.",
+  }),
+  program({
+    id: "PR_ACT60_HISTORIC_PRESERVATION", name: "Historic Preservation Tax Credit", industry: "Construction",
+    description: "Rehabilitating a certified historic structure — common for businesses locating in a municipality's historic district — can qualify for a separate preservation tax credit on top of any housing/infrastructure incentive, administered jointly with Puerto Rico's historic preservation office.",
+    benefits: [
+      benefit("b1", "Rehabilitation tax credit", "A tax credit on qualified rehabilitation expenses for a certified historic structure, in addition to any applicable housing or infrastructure incentive."),
+    ],
+    applicationProcess: "Obtain certification of the structure and rehabilitation plan from the Oficina Estatal de Conservación Histórica (ICP) before work begins, then apply for the credit through DDEC.",
+    criteria: [factCriterion({
+      id: "historic_rehab_activity", factKey: "construction_or_rehabilitation_activity",
+      question: "Does the project involve rehabilitating a certified historic structure?",
+      description: "The credit applies to certified historic rehabilitation, not new construction generally.",
+    })],
+    agency: ICP,
+  }),
+  program({
+    id: "PR_ACT60_TRADING_COMPANY", name: "International Trading Company Incentive", industry: undefined,
+    description: "A business that imports, exports, or re-distributes goods internationally through Puerto Rico can qualify as a trading company under Act 60, regardless of its primary industry classification.",
+    benefits: [
+      benefit("b1", "Trading company corporate tax rate", "A 4% corporate tax rate on qualifying international trading income."),
+    ],
+    applicationProcess: "Confirm the business genuinely imports, exports, or redistributes goods internationally, then apply for a trading-company tax exemption decree through DDEC.",
+    criteria: [factCriterion({
+      id: "trading_export_activity", factKey: "export_activity",
+      question: "Does the business import, export, or redistribute goods to markets outside Puerto Rico?",
+      description: "Trading-company treatment requires genuine international import/export/redistribution activity.",
+    })],
+  }),
+  program({
+    id: "PR_ACT60_RENEWABLE_INVESTMENT", name: "Renewable Energy Equipment Investment Credit", industry: undefined,
+    description: "Any business — not only energy companies — that invests directly in renewable generation equipment (solar, wind, hydro, or battery storage) for its own operations can access a separate green-investment tax benefit, distinct from the Green Energy and Renewable Resources decree for businesses whose primary activity is power generation.",
+    benefits: [
+      benefit("b1", "IVU and excise exemption on equipment", "Exemption from Sales and Use Tax (IVU) and state excise taxes on qualifying renewable-generation or storage equipment purchased for the business's own operations."),
+    ],
+    applicationProcess: "Document the renewable-energy equipment investment and apply for the exemption through DDEC.",
+    criteria: [factCriterion({
+      id: "renewable_investment_fact", factKey: "renewable_energy_investment",
+      question: "Is the business investing in solar, wind, hydro, or battery storage equipment for its own facility?",
+      description: "This credit is for a business's own renewable-generation or storage investment, separate from operating a power-generation business.",
+    })],
+  }),
+  program({
+    id: "PR_ACT60_OPPORTUNITY_ZONE", name: "Opportunity Zone Incentive", industry: undefined,
+    description: "A project physically located within one of Puerto Rico's federally designated Opportunity Zones — which cover the large majority of the island — can combine federal capital-gains deferral with additional Act 60 provisions for Opportunity Zone projects, regardless of industry.",
+    benefits: [
+      benefit("b1", "Capital gains deferral and reduction", "Federal capital-gains tax deferral, and potential reduction, for qualifying investment held in the Opportunity Zone project."),
+      benefit("b2", "Priority decree processing", "Priority processing for the underlying Act 60 tax exemption decree when the project is sited in a designated zone."),
+    ],
+    applicationProcess: "Confirm the project address falls within a designated Opportunity Zone (Puerto Rico's zones are published by DDEC and the U.S. Treasury), then structure the investment through a Qualified Opportunity Fund.",
+    criteria: [factCriterion({
+      id: "opportunity_zone_fact", factKey: "opportunity_zone",
+      question: "Is the project located within a designated Opportunity Zone?",
+      description: "Puerto Rico designated Opportunity Zones covering most of the island under the 2017 federal Tax Cuts and Jobs Act.",
+    })],
   }),
 ];
