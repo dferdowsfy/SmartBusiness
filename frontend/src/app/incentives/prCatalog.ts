@@ -31,15 +31,30 @@ const benefit = (id: string, name: string, description: string, amountDescriptio
 
 /** A criterion the eligibility engine can ask about when the fact is
  * unknown, rather than a blocking requirement — unanswered still shows the
- * program as a potential opportunity with a follow-up question. */
+ * program as a potential opportunity with a follow-up question. `label` is
+ * the short affirmative phrase shown once the fact is confirmed (e.g. in a
+ * "why SmartPR matched this" checklist); `question` is only ever shown
+ * while the fact is still unconfirmed. */
 const factCriterion = (input: {
-  id: string; factKey: string; question: string; description: string;
+  id: string; factKey: string; label: string; question: string; description: string;
 }): IncentiveCriterion => ({
-  id: input.id, name: input.question, description: input.description, factKey: input.factKey,
+  id: input.id, name: input.label, description: input.description, factKey: input.factKey,
   operator: "truthy", required: true, material: true,
   question: input.question, answerType: "boolean", answerOptions: [],
   evidenceTypeIds: [], evidenceCanSatisfy: false, citation: ACT_60.citation,
 });
+
+// Every Act 60 decree application asks for evidence that the applicant is a
+// duly formed, tax-compliant Puerto Rico business — the same documents
+// SmartPR's own Requirements checklist already tracks by these exact ids.
+// Kept as {id, name} so the incentive workflow can cross-reference a user's
+// actual filing (by requirement document_id) instead of guessing.
+const BASELINE_EVIDENCE = [
+  { id: "DOC_ARTICLES_ORGANIZATION", name: "Certificate/Articles of Organization or Incorporation" },
+  { id: "DOC_EIN", name: "EIN confirmation" },
+  { id: "DOC_MERCHANT_REGISTRATION", name: "Merchant Registration Certificate" },
+  { id: "DOC_MUNICIPAL_TAX_COMPLIANCE", name: "Municipal Tax Compliance Certificate" },
+];
 
 function program(input: {
   id: string;
@@ -54,6 +69,9 @@ function program(input: {
   criteria?: IncentiveCriterion[];
   agency?: { id: string; name: string };
   sources?: IncentiveSource[];
+  /** Documents beyond the standard formation/tax-compliance baseline that
+   * this specific decree's application asks for. */
+  extraEvidence?: { id: string; name: string }[];
 }): IncentiveProgram {
   const agency = input.agency ?? DDEC;
   const industries = input.industries ?? (input.industry ? [input.industry] : []);
@@ -63,7 +81,7 @@ function program(input: {
     description: input.description, benefits: input.benefits,
     geography: { level: "island_wide", municipalityIds: [], municipalityNames: [], notes: null },
     applicableIndustries: { ids: [], names: industries },
-    criteria: input.criteria ?? [], evidence: [],
+    criteria: input.criteria ?? [], evidence: [...BASELINE_EVIDENCE, ...(input.extraEvidence ?? [])],
     applicationProcess: input.applicationProcess,
     applicationWindow: null,
     sources: input.sources ?? [ACT_60],
@@ -86,6 +104,7 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
       benefit("b4", "Tourism tax credits", "30% to 40% tax credits on total eligible project costs for building or substantially renovating hotels, resorts, guesthouses, and theme parks."),
     ],
     applicationProcess: "Apply for a tourism tax exemption decree through DDEC's Tourism Incentives Office before or during project development.",
+    extraEvidence: [{ id: "DOC_TOURISM_REGISTRATION", name: "Tourism Registration" }],
   }),
   program({
     id: "PR_ACT60_AGRICULTURE", name: "Agricultural Development Incentive", industry: "Agriculture & Farming",
@@ -97,6 +116,7 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
       benefit("b4", "IVU exemption on inputs", "A 100% exemption on Sales and Use Tax (IVU) for raw materials and farming equipment."),
     ],
     applicationProcess: "Apply for Bona Fide Farmer certification and the related tax exemption decree through DDEC / Departamento de Agricultura.",
+    extraEvidence: [{ id: "DOC_AGRICULTURE_REGISTRATION", name: "Agriculture Registration" }],
   }),
   program({
     id: "PR_ACT60_FILM", name: "Creative Industries and Film Production Incentive", industry: "Arts, Entertainment & Recreation",
@@ -285,6 +305,7 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
       benefit("b1", "Air/maritime carrier corporate tax rate", "A 4% corporate tax rate on qualifying income from international air or maritime transportation operations based in Puerto Rico."),
     ],
     applicationProcess: "Apply for an air/maritime transportation tax exemption decree through DDEC; port and airport concession terms are separately negotiated with the Puerto Rico Ports Authority.",
+    extraEvidence: [{ id: "DOC_PORT_FACILITY_PERMIT", name: "Port Facility Permit" }],
   }),
   program({
     id: "PR_ACT60_HISTORIC_PRESERVATION", name: "Historic Preservation Tax Credit", industry: "Construction",
@@ -295,10 +316,12 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
     applicationProcess: "Obtain certification of the structure and rehabilitation plan from the Oficina Estatal de Conservación Histórica (ICP) before work begins, then apply for the credit through DDEC.",
     criteria: [factCriterion({
       id: "historic_rehab_activity", factKey: "construction_or_rehabilitation_activity",
+      label: "Certified historic rehabilitation",
       question: "Does the project involve rehabilitating a certified historic structure?",
       description: "The credit applies to certified historic rehabilitation, not new construction generally.",
     })],
     agency: ICP,
+    extraEvidence: [{ id: "DOC_HISTORIC_DISTRICT_REVIEW", name: "Historic District Review" }, { id: "DOC_FACADE_PRESERVATION", name: "Facade Preservation Plan" }],
   }),
   program({
     id: "PR_ACT60_TRADING_COMPANY", name: "International Trading Company Incentive", industry: undefined,
@@ -309,9 +332,11 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
     applicationProcess: "Confirm the business genuinely imports, exports, or redistributes goods internationally, then apply for a trading-company tax exemption decree through DDEC.",
     criteria: [factCriterion({
       id: "trading_export_activity", factKey: "export_activity",
+      label: "International import/export/redistribution activity",
       question: "Does the business import, export, or redistribute goods to markets outside Puerto Rico?",
       description: "Trading-company treatment requires genuine international import/export/redistribution activity.",
     })],
+    extraEvidence: [{ id: "DOC_IMPORT_EXPORT_REG", name: "Import/Export Registration" }],
   }),
   program({
     id: "PR_ACT60_RENEWABLE_INVESTMENT", name: "Renewable Energy Equipment Investment Credit", industry: undefined,
@@ -322,6 +347,7 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
     applicationProcess: "Document the renewable-energy equipment investment and apply for the exemption through DDEC.",
     criteria: [factCriterion({
       id: "renewable_investment_fact", factKey: "renewable_energy_investment",
+      label: "Renewable energy equipment investment",
       question: "Is the business investing in solar, wind, hydro, or battery storage equipment for its own facility?",
       description: "This credit is for a business's own renewable-generation or storage investment, separate from operating a power-generation business.",
     })],
@@ -336,8 +362,10 @@ export const PR_ACT60_CATALOG: IncentiveProgram[] = [
     applicationProcess: "Confirm the project address falls within a designated Opportunity Zone (Puerto Rico's zones are published by DDEC and the U.S. Treasury), then structure the investment through a Qualified Opportunity Fund.",
     criteria: [factCriterion({
       id: "opportunity_zone_fact", factKey: "opportunity_zone",
+      label: "Opportunity Zone location",
       question: "Is the project located within a designated Opportunity Zone?",
       description: "Puerto Rico designated Opportunity Zones covering most of the island under the 2017 federal Tax Cuts and Jobs Act.",
     })],
+    extraEvidence: [{ id: "DOC_PROPERTY_DEED", name: "Property Deed or Site Control Evidence" }],
   }),
 ];

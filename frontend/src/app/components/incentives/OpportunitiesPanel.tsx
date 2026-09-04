@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Info, Lightbulb, RefreshCw } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, Info, Lightbulb, RefreshCw } from "lucide-react";
 import { normalizeProjectProfileForIncentives, type ExistingSmartPrProfile } from "../../incentives/profile";
 import type {
   IncentiveAssessment,
+  IncentiveEligibilityResult,
   IncentiveFollowUpQuestion,
   ProjectFactValue,
 } from "../../incentives/types";
@@ -26,15 +27,34 @@ const TYPE_LABELS: Record<string, string> = {
   funding_program: "Funding program",
 };
 
-function statusLabel(status: string, language: Language): string {
-  const labels: Record<string, [string, string]> = {
-    likely_eligible: ["Likely eligible", "Probablemente elegible"],
-    potentially_eligible: ["Potentially eligible · needs information", "Potencialmente elegible · falta información"],
-    unlikely_eligible: ["Unlikely eligible", "Probablemente no elegible"],
-    not_eligible: ["Not eligible", "No elegible"],
-  };
-  const label = labels[status] ?? [status, status];
-  return language === "es" ? label[1] : label[0];
+/** Four honest tiers, no percentages: a strong match has every published
+ * criterion confirmed; a likely match has the required facts confirmed but
+ * confidence isn't full; a possible match has some but not all facts known;
+ * more information needed means nothing has been confirmed yet either way. */
+function statusPresentation(item: IncentiveEligibilityResult, language: Language): { label: string; tone: string } {
+  const es = language === "es";
+  if (item.eligibility === "likely_eligible") {
+    return item.confidenceScore >= 100
+      ? { label: es ? "Coincidencia sólida" : "Strong match", tone: "strong" }
+      : { label: es ? "Probablemente elegible" : "Likely eligible", tone: "likely" };
+  }
+  if (item.eligibility === "potentially_eligible") {
+    return item.criteriaSatisfied.length > 0
+      ? { label: es ? "Coincidencia posible" : "Possible match", tone: "possible" }
+      : { label: es ? "Falta información" : "More information needed", tone: "info" };
+  }
+  return item.eligibility === "unlikely_eligible"
+    ? { label: es ? "Poco probable" : "Unlikely eligible", tone: "low" }
+    : { label: es ? "No elegible" : "Not eligible", tone: "no" };
+}
+
+/** The industry/geography scope checks carry a generic name ("Applicable
+ * industry"); showing the actual confirmed value reads like the concrete
+ * project fact it is, instead of a template label. */
+function matchedFactLabel(criterion: IncentiveEligibilityResult["criteriaSatisfied"][number]): string {
+  if (criterion.factKey === "industry" && typeof criterion.actualValue === "string") return criterion.actualValue;
+  if (criterion.factKey === "municipality" && typeof criterion.actualValue === "string") return `Puerto Rico — ${criterion.actualValue}`;
+  return criterion.name;
 }
 
 function FollowUpInput({
@@ -88,16 +108,22 @@ export function OpportunitiesPanel({
   language,
   verifiedEvidenceTypeIds = NO_VERIFIED_EVIDENCE,
   initialAssessment = null,
+  pursuedProgramIds = NO_VERIFIED_EVIDENCE,
   onAssessmentChange,
   onFactChange,
+  onPursue,
 }: {
   profile: ExistingSmartPrProfile;
   facts: Record<string, ProjectFactValue>;
   language: Language;
   verifiedEvidenceTypeIds?: string[];
   initialAssessment?: IncentiveAssessment | null;
+  /** Program ids the user has already chosen to pursue, so the CTA can
+   * reflect that instead of offering to pursue it again. */
+  pursuedProgramIds?: string[];
   onAssessmentChange?: (assessment: IncentiveAssessment) => void;
   onFactChange: (key: string, value: ProjectFactValue) => void;
+  onPursue: (result: IncentiveEligibilityResult) => void;
 }) {
   const normalizedProfile = useMemo(
     () => normalizeProjectProfileForIncentives(profile, facts),
@@ -141,6 +167,7 @@ export function OpportunitiesPanel({
   }, [normalizedProfile, verifiedEvidenceTypeIds, onAssessmentChange]);
 
   const opportunities = assessment?.opportunities ?? [];
+  const pursuedSet = useMemo(() => new Set(pursuedProgramIds), [pursuedProgramIds]);
   return (
     <section className="opp-panel" aria-labelledby="opportunities-heading">
       <style>{`
@@ -158,13 +185,25 @@ export function OpportunitiesPanel({
         .opp-card h3{font-size:17px;margin:2px 0 3px;color:var(--ink,#171714)}
         .opp-type{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted,#69665f)}
         .opp-agency{font-size:12px;color:var(--muted,#69665f)}
-        .opp-status{border-radius:999px;background:#e7f5f1;color:#0f766e;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}
-        .opp-status.potentially_eligible{background:#fff5df;color:#9a6700}
-        .opp-summary{margin:12px 0 0;color:var(--ink,#171714);font-size:13px;line-height:1.55}
-        .opp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-        .opp-note{padding:10px 12px;border-radius:9px;background:var(--surface-2,#faf8f2);font-size:12px;line-height:1.45;color:var(--muted,#69665f)}
-        .opp-note b{display:block;color:var(--ink,#171714);margin-bottom:3px}
-        .opp-card details{margin-top:12px;border-top:1px solid var(--border,#d9d4ca);padding-top:10px}
+        .opp-status{border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800;white-space:nowrap}
+        .opp-status.strong{background:#e7f5f1;color:#0f766e}
+        .opp-status.likely{background:#e7f5f1;color:#0f766e}
+        .opp-status.possible{background:#fff5df;color:#9a6700}
+        .opp-status.info{background:#fff5df;color:#9a6700}
+        .opp-status.low{background:var(--surface-2,#faf8f2);color:var(--muted,#69665f)}
+        .opp-status.no{background:var(--surface-2,#faf8f2);color:var(--muted,#69665f)}
+        .opp-why{margin:12px 0 0}
+        .opp-why b{display:block;color:var(--ink,#171714);font-size:12.5px;margin-bottom:6px}
+        .opp-why ul{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+        .opp-why li{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;line-height:1.5;color:var(--ink,#171714)}
+        .opp-why svg{flex:none;margin-top:2px;color:#0f766e}
+        .opp-benefit{margin-top:12px;padding:10px 12px;border-radius:9px;background:var(--surface-2,#faf8f2);font-size:12.5px;line-height:1.5;color:var(--ink,#171714)}
+        .opp-benefit b{display:block;color:var(--ink,#171714);font-size:12.5px;margin-bottom:4px}
+        .opp-actions{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+        .opp-cta{display:inline-flex;align-items:center;gap:7px;border:none;border-radius:10px;background:var(--accent,#0f766e);color:#fff;font-size:13px;font-weight:700;padding:10px 16px;cursor:pointer}
+        .opp-cta:hover{background:#0c5f59}
+        .opp-cta.pursuing{background:var(--surface-2,#faf8f2);color:#0f766e;border:1px solid color-mix(in srgb,var(--accent,#0f766e) 45%,transparent)}
+        .opp-card details{margin-top:4px;border-top:1px solid var(--border,#d9d4ca);padding-top:10px}
         .opp-card summary{cursor:pointer;color:var(--accent,#0f766e);font-size:12px;font-weight:700}
         .opp-excluded{margin-top:14px;border-top:1px solid var(--border,#d9d4ca);padding-top:12px}.opp-excluded summary{cursor:pointer;color:var(--muted,#69665f);font-size:12px;font-weight:700}
         .opp-detail{display:grid;gap:10px;margin-top:10px;font-size:12px;line-height:1.5;color:var(--muted,#69665f)}
@@ -178,15 +217,15 @@ export function OpportunitiesPanel({
         .opp-question input,.opp-question select{width:100%;border:1px solid var(--border,#d9d4ca);border-radius:8px;background:var(--surface,#fff);padding:8px 10px;font:inherit;color:var(--ink,#171714)}
         .opp-answer-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}.opp-answer-buttons button{border:1px solid var(--border,#d9d4ca);background:var(--surface,#fff);border-radius:8px;padding:8px;cursor:pointer}.opp-answer-buttons button.active{background:var(--accent,#0f766e);border-color:var(--accent,#0f766e);color:#fff}
         .opp-foot{margin-top:13px;display:flex;align-items:flex-start;gap:7px;color:var(--muted,#69665f);font-size:11px;line-height:1.45}
-        @media(max-width:720px){.opp-head{padding:17px 16px;display:block}.opp-count{display:inline-flex;margin-top:11px}.opp-body{padding:14px 16px 17px}.opp-grid{grid-template-columns:1fr}.opp-card-top{display:block}.opp-status{display:inline-flex;margin-top:8px}.opp-question{grid-template-columns:1fr;gap:7px}}
+        @media(max-width:720px){.opp-head{padding:17px 16px;display:block}.opp-count{display:inline-flex;margin-top:11px}.opp-body{padding:14px 16px 17px}.opp-card-top{display:block}.opp-status{display:inline-flex;margin-top:8px}.opp-question{grid-template-columns:1fr;gap:7px}}
       `}</style>
       <div className="opp-head">
         <div>
           <div className="opp-kicker"><Lightbulb size={14} aria-hidden="true" /> {language === "es" ? "Oportunidades" : "Opportunities"}</div>
           <h2 id="opportunities-heading">{language === "es" ? "Lo que podría calificar" : "What you may qualify for"}</h2>
           <p>{language === "es"
-            ? "SmartPR evalúa programas publicados y respaldados por fuentes usando los mismos datos confirmados de su proyecto. Los resultados son una evaluación, no una garantía."
-            : "SmartPR evaluates published, source-backed programs against the same confirmed project facts. Results are an eligibility screen, not a guarantee."}</p>
+            ? "SmartPR reutiliza los datos ya confirmados en su registro y requisitos — no se repiten preguntas. Los resultados son una evaluación, no una garantía ni una estimación de ahorro."
+            : "SmartPR reuses the facts already confirmed during Intake and Requirements — no duplicate questions. Results are an eligibility screen, not a guarantee or a savings estimate."}</p>
         </div>
         <span className="opp-count">{loading ? "…" : opportunities.length} {language === "es" ? "identificadas" : "identified"}</span>
       </div>
@@ -207,37 +246,64 @@ export function OpportunitiesPanel({
         )}
         {!loading && !error && opportunities.length > 0 && (
           <div className="opp-list">
-            {opportunities.map((item) => (
-              <article key={item.programId} className="opp-card">
-                <div className="opp-card-top">
-                  <div>
-                    <div className="opp-type">{TYPE_LABELS[item.programType] || item.programType}</div>
-                    <h3>{item.programName}</h3>
-                    <div className="opp-agency">{item.administeringAgency.name}</div>
+            {opportunities.map((item) => {
+              const status = statusPresentation(item, language);
+              const pursuing = pursuedSet.has(item.programId);
+              return (
+                <article key={item.programId} className="opp-card">
+                  <div className="opp-card-top">
+                    <div>
+                      <div className="opp-type">{TYPE_LABELS[item.programType] || item.programType}</div>
+                      <h3>{item.programName}</h3>
+                      <div className="opp-agency">{item.administeringAgency.name}</div>
+                    </div>
+                    <span className={`opp-status ${status.tone}`}>{status.label}</span>
                   </div>
-                  <span className={`opp-status ${item.eligibility}`}>{statusLabel(item.eligibility, language)} · {item.confidenceScore}%</span>
-                </div>
-                <p className="opp-summary">{item.shortDescription}</p>
-                <div className="opp-grid">
-                  <div className="opp-note"><b>{language === "es" ? "Por qué apareció" : "Why SmartPR surfaced it"}</b>{item.whySurfaced}</div>
-                  <div className="opp-note"><b>{language === "es" ? "Beneficio potencial" : "Potential benefit"}</b>{item.potentialBenefit.map((benefit) => benefit.amountDescription || benefit.description).join(" · ")}</div>
-                  {item.missingInformation.length > 0 && (
-                    <div className="opp-note"><b>{language === "es" ? "Información faltante" : "Missing information"}</b>{item.missingInformation.map((criterion) => criterion.description).join(" · ")}</div>
+
+                  {item.criteriaSatisfied.length > 0 && (
+                    <div className="opp-why">
+                      <b>{language === "es" ? "Por qué SmartPR lo identificó:" : "Why SmartPR matched this:"}</b>
+                      <ul>
+                        {item.criteriaSatisfied.map((criterion) => (
+                          <li key={criterion.criterionId}><Check size={13} aria-hidden="true" /> {matchedFactLabel(criterion)}</li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
-                  <div className="opp-note"><b>{language === "es" ? "Geografía" : "Geography"}</b>{item.relevantGeography.municipalityNames.join(", ") || item.relevantGeography.notes || item.relevantGeography.level}</div>
-                </div>
-                <details>
-                  <summary>{language === "es" ? "Ver criterios, evidencia, proceso y fuentes" : "View criteria, evidence, process, and sources"}</summary>
-                  <div className="opp-detail">
-                    <div><strong>{language === "es" ? "Criterios" : "Criteria"}</strong><ul>{item.eligibilityCriteria.map((criterion) => <li key={criterion.criterionId}>{criterion.description} — {criterion.status.replaceAll("_", " ")}</li>)}</ul></div>
-                    <div><strong>{language === "es" ? "Evidencia" : "Supporting evidence"}:</strong> {item.requiredSupportingEvidence.map((evidence) => evidence.name).join(", ") || (language === "es" ? "No especificada" : "Not specified")}</div>
-                    <div><strong>{language === "es" ? "Proceso" : "Application process"}:</strong> {item.applicationProcess || (language === "es" ? "Verifique con la agencia administradora." : "Confirm with the administering agency.")}</div>
-                    {item.applicationWindow && <div><strong>{language === "es" ? "Ventana" : "Application window"}:</strong> {item.applicationWindow.description}</div>}
-                    <div><strong>{language === "es" ? "Fuente" : "Source"}:</strong>{" "}{item.sources.map((source, index) => <span key={source.id}>{index > 0 ? " · " : ""}<a className="opp-source" href={source.url} target="_blank" rel="noreferrer">{source.name}<ExternalLink size={11} aria-hidden="true" /></a> ({source.citation}; {language === "es" ? "verificada" : "verified"} {source.lastVerifiedAt.slice(0, 10)})</span>)}</div>
+
+                  <div className="opp-benefit">
+                    <b>{language === "es" ? "Beneficio potencial:" : "Potential benefit:"}</b>
+                    {item.potentialBenefit.map((benefit) => benefit.amountDescription || benefit.description).join(" · ")}
                   </div>
-                </details>
-              </article>
-            ))}
+
+                  {item.missingInformation.length > 0 && (
+                    <div className="opp-benefit">
+                      <b>{language === "es" ? "Falta confirmar:" : "Still need to confirm:"}</b>
+                      {item.missingInformation.map((criterion) => criterion.name).join(" · ")}
+                    </div>
+                  )}
+
+                  <div className="opp-actions">
+                    <button type="button" className={`opp-cta${pursuing ? " pursuing" : ""}`} onClick={() => onPursue(item)}>
+                      {pursuing
+                        ? <><Check size={15} aria-hidden="true" /> {language === "es" ? "En seguimiento" : "Pursuing"}</>
+                        : <>{language === "es" ? "Perseguir este incentivo" : "Pursue this incentive"} <ArrowRight size={15} aria-hidden="true" /></>}
+                    </button>
+                  </div>
+
+                  <details>
+                    <summary>{language === "es" ? "Ver detalles de elegibilidad" : "See eligibility details"}</summary>
+                    <div className="opp-detail">
+                      <div><strong>{language === "es" ? "Criterios" : "Criteria"}</strong><ul>{item.eligibilityCriteria.map((criterion) => <li key={criterion.criterionId}>{criterion.description} — {criterion.status.replaceAll("_", " ")}</li>)}</ul></div>
+                      <div><strong>{language === "es" ? "Evidencia" : "Supporting evidence"}:</strong> {item.requiredSupportingEvidence.map((evidence) => evidence.name).join(", ") || (language === "es" ? "No especificada" : "Not specified")}</div>
+                      <div><strong>{language === "es" ? "Proceso" : "Application process"}:</strong> {item.applicationProcess || (language === "es" ? "Verifique con la agencia administradora." : "Confirm with the administering agency.")}</div>
+                      <div><strong>{language === "es" ? "Plazo" : "Timing/deadline"}:</strong> {item.applicationWindow?.description || (language === "es" ? "Continuo — sin fecha límite fija publicada." : "Rolling — no fixed application deadline published.")}</div>
+                      <div><strong>{language === "es" ? "Fuente" : "Official source"}:</strong>{" "}{item.sources.map((source, index) => <span key={source.id}>{index > 0 ? " · " : ""}<a className="opp-source" href={source.url} target="_blank" rel="noreferrer">{source.name}<ExternalLink size={11} aria-hidden="true" /></a> ({source.citation}; {language === "es" ? "verificada" : "verified"} {source.lastVerifiedAt.slice(0, 10)})</span>)}</div>
+                    </div>
+                  </details>
+                </article>
+              );
+            })}
           </div>
         )}
 
@@ -246,7 +312,7 @@ export function OpportunitiesPanel({
             <summary>{language === "es" ? "Programas evaluados que no parecen aplicar" : "Programs evaluated that do not appear to apply"} · {assessment!.excluded.length}</summary>
             <div className="opp-detail">
               {assessment!.excluded.map((item) => (
-                <div key={item.programId}><strong>{item.programName}</strong> — {statusLabel(item.eligibility, language)}. {item.whySurfaced}</div>
+                <div key={item.programId}><strong>{item.programName}</strong> — {statusPresentation(item, language).label}. {item.whySurfaced}</div>
               ))}
             </div>
           </details>
@@ -255,7 +321,7 @@ export function OpportunitiesPanel({
         {!loading && !error && (assessment?.followUpQuestions.length ?? 0) > 0 && (
           <div className="opp-questions">
             <h3>{language === "es" ? "Preguntas que pueden cambiar la evaluación" : "Questions that could change eligibility"}</h3>
-            <p>{language === "es" ? "Solo preguntamos cuando una respuesta puede cambiar materialmente un resultado." : "We only ask when an answer could materially change a result."}</p>
+            <p>{language === "es" ? "Solo preguntamos cuando una respuesta puede cambiar materialmente un resultado, y nunca algo que ya confirmaste." : "We only ask when an answer could materially change a result, and never something already confirmed."}</p>
             {assessment!.followUpQuestions.map((item) => (
               <div className="opp-question" key={item.factKey}>
                 <label htmlFor={`opp-${item.factKey}`}>{item.question}<small>{item.reason}</small></label>
