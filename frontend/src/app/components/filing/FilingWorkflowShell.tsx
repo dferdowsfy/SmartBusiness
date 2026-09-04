@@ -272,13 +272,6 @@ export function FilingWorkflowShell({
     profile: "Business profile",
   };
 
-  const languageToggle = (
-    <div className="spr-context-language" aria-label={language === "es" ? "Idioma" : "Language"}>
-      <button type="button" className={language === "en" ? "active" : ""} aria-pressed={language === "en"} onClick={() => onLanguageChange("en")}>EN</button>
-      <button type="button" className={language === "es" ? "active" : ""} aria-pressed={language === "es"} onClick={() => onLanguageChange("es")}>ES</button>
-    </div>
-  );
-
   const actions = (
     <div className="spr-matter-actions">
       {businessId && <Link href={`/businesses/${businessId}`} className="spr-business-profile-link">{labels.profile}</Link>}
@@ -301,7 +294,7 @@ export function FilingWorkflowShell({
       <div className={stickyClass}>
         <div className="spr-filing-top" inert={collapseInert ? true : undefined} aria-hidden={collapseInert}>
           <div className="spr-filing-top-inner">
-            <TopNav active="businesses" extraActions={languageToggle} />
+            <TopNav active="businesses" />
           </div>
         </div>
         <div className="spr-filing-chrome">

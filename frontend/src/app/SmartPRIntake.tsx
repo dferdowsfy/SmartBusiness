@@ -1414,7 +1414,22 @@ export default function SmartPRIntake() {
   // client-side, and LLM document analysis runs server-side in this same
   // Next.js app at /api/analyze-document. No separate backend service or
   // NEXT_PUBLIC_BACKEND_URL is required.
-  const [language, setLanguage] = useState<'en' | 'es'>('en'); // Bilingual toggle
+  const [language, setLanguageRaw] = useState<'en' | 'es'>('en'); // Bilingual toggle
+  const setLanguage = (l: 'en' | 'es') => {
+    setLanguageRaw(l);
+    try { localStorage.setItem('smartpr-lang', l); } catch {}
+    window.dispatchEvent(new CustomEvent('smartpr-lang-change', { detail: l }));
+  };
+
+  useEffect(() => {
+    try { const s = localStorage.getItem('smartpr-lang'); if (s === 'es' || s === 'en') setLanguageRaw(s); } catch {}
+    const handler = (e: Event) => {
+      const l = (e as CustomEvent<string>).detail;
+      if (l === 'en' || l === 'es') setLanguageRaw(l as 'en' | 'es');
+    };
+    window.addEventListener('smartpr-lang-change', handler);
+    return () => window.removeEventListener('smartpr-lang-change', handler);
+  }, []);
 
   const [questionList, setQuestionList] = useState<DiscoveryQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
