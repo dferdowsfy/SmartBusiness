@@ -153,7 +153,7 @@ export function buildRequirementGuidance(req: GuidanceRequirement, ctx: Guidance
   const render = (value: string) => value.replace(/\{municipality\}/g, String(triggerFacts.find(f => f.key === "municipality")?.value ?? ""));
   const regulatoryReason = render(concept.regulatoryReason[lang]), purpose = render(concept.purpose[lang]);
   const nextAction = render(concept.nextAction[lang]), consequenceOrNextStep = render(concept.consequenceOrNextStep[lang]);
-  const why = `${lang === "es" ? "Confirmaste" : "You confirmed"}: ${triggerFacts.map(f => f.label).join("; ")}. ${regulatoryReason}`;
+  const why = regulatoryReason;
   return {
     requirementId: concept.requirementId, status: "VALIDATED", reviewReasons: [], triggerFacts,
     regulatoryReason, purpose, nextAction, consequenceOrNextStep,

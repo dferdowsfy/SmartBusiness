@@ -11,6 +11,11 @@ import type {
 
 type Language = "en" | "es";
 
+// A `= []` default parameter allocates a new array every render, which
+// would change the fetch effect's dependency identity every time and
+// refire it forever. A module-level constant stays referentially stable.
+const NO_VERIFIED_EVIDENCE: string[] = [];
+
 const TYPE_LABELS: Record<string, string> = {
   incentive: "Incentive",
   tax_incentive: "Tax incentive",
@@ -81,7 +86,7 @@ export function OpportunitiesPanel({
   profile,
   facts,
   language,
-  verifiedEvidenceTypeIds = [],
+  verifiedEvidenceTypeIds = NO_VERIFIED_EVIDENCE,
   initialAssessment = null,
   onAssessmentChange,
   onFactChange,

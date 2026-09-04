@@ -34,8 +34,8 @@ test("same Bayamón bar: all eighteen source-backed explanations are distinct an
       assert.equal(g.status, "VALIDATED", `${g.requirementId}: ${g.reviewReasons}`);
       assert.ok(g.triggerFacts.length && g.sources.length && g.sourceVersion);
       assert.ok(g.triggerFacts.every(f => f.ruleIds.length && f.conditionPath.includes(g.requirementId)));
-      assert.ok(g.whyThisApplies.includes(g.regulatoryReason));
-      assert.ok(g.triggeredBy.every(t => g.whyThisApplies.includes(t)));
+      assert.equal(g.whyThisApplies, g.regulatoryReason);
+      assert.doesNotMatch(g.whyThisApplies, /You confirmed|Confirmaste/);
       assert.doesNotMatch(JSON.stringify(g), /Old generic text|BarBayamón|compliance profile current|issued or required by/);
     }
     for (const field of ["regulatoryReason", "purpose", "nextAction", "consequenceOrNextStep"] as const) assert.equal(new Set(output.map(g => g[field])).size, 18);
