@@ -18,10 +18,19 @@ function req(id: string): GuidanceRequirement {
   return { document_id: id, code: id.toLowerCase(), name: doc?.name ?? id, agency: doc?.agency ?? "", reason: "Old generic text must not leak", applicability: "required", triggerFacts: id === "DOC_ARTICLES_ORGANIZATION" ? ["entityType:limited_liability_company"] : [] };
 }
 
-test("same Bayamón bar: all eight source-backed explanations are distinct and actionable in EN/ES", () => {
+// Food-triggered concepts (Health Permit, Fire Cert, CFPM) stay provisional for this
+// profile because it never answers a food question — that is correct, not a bug.
+const FOOD_GATED = new Set(["DOC_HEALTH_PERMIT", "DOC_FIRE_CERT", "DOC_CFPM"]);
+
+test("same Bayamón bar: all eighteen source-backed explanations are distinct and actionable in EN/ES", () => {
   for (const language of ["en", "es"] as const) {
     const output = Object.keys(PR_REQUIREMENT_GUIDANCE).map(id => buildRequirementGuidance(req(id), { ...ctx, language }));
     for (const g of output) {
+      if (FOOD_GATED.has(g.requirementId)) {
+        assert.equal(g.status, "GUIDANCE_NEEDS_REVIEW", `${g.requirementId}: ${g.reviewReasons}`);
+        assert.ok(g.regulatoryReason && g.purpose && g.nextAction && g.consequenceOrNextStep);
+        continue;
+      }
       assert.equal(g.status, "VALIDATED", `${g.requirementId}: ${g.reviewReasons}`);
       assert.ok(g.triggerFacts.length && g.sources.length && g.sourceVersion);
       assert.ok(g.triggerFacts.every(f => f.ruleIds.length && f.conditionPath.includes(g.requirementId)));
@@ -29,7 +38,7 @@ test("same Bayamón bar: all eight source-backed explanations are distinct and a
       assert.ok(g.triggeredBy.every(t => g.whyThisApplies.includes(t)));
       assert.doesNotMatch(JSON.stringify(g), /Old generic text|BarBayamón|compliance profile current|issued or required by/);
     }
-    for (const field of ["regulatoryReason", "purpose", "nextAction", "consequenceOrNextStep"] as const) assert.equal(new Set(output.map(g => g[field])).size, 8);
+    for (const field of ["regulatoryReason", "purpose", "nextAction", "consequenceOrNextStep"] as const) assert.equal(new Set(output.map(g => g[field])).size, 18);
   }
 });
 
@@ -61,7 +70,8 @@ test("unknown, false and contradictory sales never become affirmative explanatio
     const g = buildRequirementGuidance(req("DOC_ALCOHOL_LICENSE"), { ...ctx, profile: { ...profile, alcohol_sold: undefined }, discoveryAnswers });
     assert.equal(g.status, "GUIDANCE_NEEDS_REVIEW");
     assert.deepEqual(g.triggerFacts, []);
-    assert.equal(g.whyThisApplies, "SmartPR has identified this requirement, but the regulatory rationale has not yet been fully validated.");
+    assert.match(g.whyThisApplies, /not confirmed yet/);
+    assert.ok(g.whyThisApplies.includes(g.regulatoryReason));
   }
 });
 

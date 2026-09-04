@@ -69,6 +69,9 @@ function factValue(key: GuidanceFactKey, ctx: GuidanceContext): string | boolean
   const aliases: Partial<Record<GuidanceFactKey, string[]>> = {
     Q_ALCOHOL_SOLD: ["alcohol_sold"], Q_EMPLOYEES_HIRED: ["employees_hired", "employees_work_on_site"],
     Q_EXISTING_LEASE: ["existing_lease"], Q_PHYSICAL_LOCATION: ["physical_location"],
+    Q_FOOD_PREPARED: ["food_prepared_or_sold", "food_prepared_on_site", "food_prepared"],
+    Q_FOOD_SOLD: ["food_prepared_or_sold", "food_sold"],
+    Q_CUSTOMERS_VISIT: ["customers_visit", "customers_on_site"],
   };
   const values = [a[key], p[key], ...(aliases[key] ?? []).flatMap(k => [a[k], p[k]])].filter(v => v !== undefined && v !== null);
   if (values.some(no)) return false;
@@ -84,6 +87,29 @@ function factValue(key: GuidanceFactKey, ctx: GuidanceContext): string | boolean
   if (values.some(yes)) return true;
   if (key === "Q_EMPLOYEES_HIRED" && Number(p.number_of_employees) > 0) return true;
   return undefined;
+}
+
+/** A reviewed concept exists and its content is trustworthy, but this filing's
+ *  applicability or trigger is not confirmed. What the document *is* and what it
+ *  does are still accurate, so they are shown under conditional framing rather
+ *  than replaced by the unexplained-requirement text, which teaches nothing. */
+function provisional(concept: GuidanceConcept, ctx: GuidanceContext, reasons: string[]): RequirementGuidance {
+  const lang = ctx.language, es = lang === "es";
+  const render = (value: string) => value.replace(/\{municipality\}/g, String(ctx.municipality ?? "")).trim();
+  const regulatoryReason = render(concept.regulatoryReason[lang]), purpose = render(concept.purpose[lang]);
+  const nextAction = render(concept.nextAction[lang]), consequenceOrNextStep = render(concept.consequenceOrNextStep[lang]);
+  const caveat = es
+    ? "Aún no se ha confirmado que este requisito aplique a tu caso específico; verifícalo antes de actuar."
+    : "Whether this requirement applies to your specific case is not confirmed yet; verify it before acting.";
+  const why = `${caveat} ${regulatoryReason}`;
+  return {
+    requirementId: concept.requirementId, status: "GUIDANCE_NEEDS_REVIEW", reviewReasons: reasons,
+    triggerFacts: [], regulatoryReason, purpose, nextAction, consequenceOrNextStep,
+    dependencies: concept.dependencies, sources: concept.sources, sourceVersion: concept.version,
+    summary: why, whyThisApplies: why, whatThisIs: purpose, whatYouNeedToDo: nextAction, whatHappensNext: consequenceOrNextStep,
+    triggeredBy: [], satisfiesOrUnlocks: [consequenceOrNextStep], sourceReferences: concept.sources,
+    lastVerified: concept.sources.map(s => s.lastVerified).sort()[0],
+  };
 }
 
 function review(req: GuidanceRequirement, ctx: GuidanceContext, reasons: string[]): RequirementGuidance {
@@ -106,17 +132,18 @@ export function buildRequirementGuidance(req: GuidanceRequirement, ctx: Guidance
   const problems = validateGuidanceConcept(raw, req.document_id);
   if (problems.length) return review(req, ctx, problems);
   const concept = raw as GuidanceConcept;
-  if (["conditional", "not_applicable", "recommended"].includes(req.applicability ?? "")) return review(req, ctx, ["APPLICABILITY_NOT_CONFIRMED"]);
   const concepts = kb.documents.map(d => d.requirement_guidance).filter((c): c is GuidanceConcept => validateGuidanceConcept(c).length === 0);
+  // A copied explanation is untrustworthy content, so it still fails all the way closed.
   if (duplicateGuidanceIds(concepts).has(concept.requirementId)) return review(req, ctx, ["DUPLICATE_EXPLANATION"]);
+  if (["conditional", "not_applicable", "recommended"].includes(req.applicability ?? "")) return provisional(concept, ctx, ["APPLICABILITY_NOT_CONFIRMED"]);
   const matches = ctx.engineInput ? runRulesEngine(kb, ctx.engineInput).debug.rulesMatched.filter(r => r.document_id === req.document_id) : [];
   const entityTrace = req.triggerFacts?.includes(`entityType:${ctx.entityType}`) && concept.conditions.some(g => g.some(t => t.key === "entityType" && t.equals === ctx.entityType));
-  if (!matches.length && !entityTrace) return review(req, ctx, ["MATCH_TRACE_MISSING"]);
+  if (!matches.length && !entityTrace) return provisional(concept, ctx, ["MATCH_TRACE_MISSING"]);
   const group = concept.conditions.find(g => g.every(t => {
     const value = factValue(t.key, ctx);
     return t.equals === undefined ? typeof value === "string" && value.length > 0 : value === t.equals;
   }));
-  if (!group) return review(req, ctx, ["TRIGGER_UNCONFIRMED_OR_CONTRADICTED"]);
+  if (!group) return provisional(concept, ctx, ["TRIGGER_UNCONFIRMED_OR_CONTRADICTED"]);
   const lang = ctx.language;
   const triggerFacts: TriggerFact[] = group.map(t => {
     const value = factValue(t.key, ctx)!;
