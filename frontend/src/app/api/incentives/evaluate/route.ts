@@ -1,5 +1,6 @@
 import { evaluateIncentives } from "../../../incentives/engine";
 import { compileIncentiveCatalog } from "../../../incentives/catalog";
+import { PR_ACT60_CATALOG } from "../../../incentives/prCatalog";
 import type { NormalizedProjectProfile } from "../../../incentives/types";
 import { isEnabled } from "../../../graph/db";
 import { activeCompileNodes, ensureRkReady } from "../../../rk/store";
@@ -18,21 +19,26 @@ export async function POST(request: Request) {
     return Response.json({ error: "profile is required" }, { status: 400 });
   }
 
-  if (!isEnabled()) {
-    return Response.json(evaluateIncentives(body.profile, [], {
-      catalogVersion: "no-database",
-      verifiedEvidenceTypeIds: body.verifiedEvidenceTypeIds,
-    }));
+  // The graph/DB store is optional and, even when configured, nothing has
+  // ever seeded incentive-program nodes into it. The statically authored
+  // Act 60 catalog (incentives/prCatalog.ts) always renders regardless, the
+  // same way requirement guidance (guidance/pr.ts) doesn't depend on a live
+  // graph. A configured store can still contribute additional programs.
+  let programs = PR_ACT60_CATALOG;
+  let catalogVersion = "pr-act60-static-2026-09-04.1";
+  let catalogWarnings = 0;
+
+  if (isEnabled()) {
+    await ensureRkReady();
+    const catalog = compileIncentiveCatalog(await activeCompileNodes());
+    programs = [...PR_ACT60_CATALOG, ...catalog.programs.filter((p) => !PR_ACT60_CATALOG.some((s) => s.id === p.id))];
+    catalogVersion = `${catalogVersion}|${catalog.catalogVersion}`;
+    catalogWarnings = catalog.rejected.length;
   }
 
-  await ensureRkReady();
-  const catalog = compileIncentiveCatalog(await activeCompileNodes());
-  const assessment = evaluateIncentives(body.profile, catalog.programs, {
-    catalogVersion: catalog.catalogVersion,
+  const assessment = evaluateIncentives(body.profile, programs, {
+    catalogVersion,
     verifiedEvidenceTypeIds: body.verifiedEvidenceTypeIds,
   });
-  return Response.json({
-    ...assessment,
-    catalogWarnings: catalog.rejected.length,
-  });
+  return Response.json({ ...assessment, catalogWarnings });
 }
