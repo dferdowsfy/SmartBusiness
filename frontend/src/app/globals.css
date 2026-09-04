@@ -10,6 +10,10 @@ body {
   min-height: 100%;
   background: #f4f1ea;
   color: #161616;
+  /* A trackpad swipe near the edge is easy to trigger by accident while
+     scrolling or dragging; this keeps it from being read as browser back
+     navigation and silently discarding in-progress filing data. */
+  overscroll-behavior-x: none;
 }
 
 body {

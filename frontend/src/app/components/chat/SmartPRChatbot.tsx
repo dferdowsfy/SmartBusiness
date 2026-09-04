@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Send, X } from "lucide-react";
 
 interface ChatProfile {
@@ -31,129 +31,188 @@ interface Props {
   language: "en" | "es";
 }
 
+/** Starters are drawn from this filing's own requirements, so the first tap
+ *  already asks something specific rather than opening an empty box. */
+function starters(requirements: ChatRequirement[], es: boolean): string[] {
+  const pending = requirements.filter((r) => r.status !== "passed");
+  const first = pending.find((r) => r.mandatory) ?? pending[0] ?? requirements[0];
+  const list = [
+    es ? "¿Qué debo hacer primero?" : "What should I do first?",
+    first && (es ? `¿Por qué necesito ${first.name}?` : `Why do I need ${first.name}?`),
+    es ? "¿Qué me falta todavía?" : "What am I still missing?",
+  ].filter((value): value is string => Boolean(value));
+  return list.slice(0, 3);
+}
+
 export function SmartPRChatbot({ profile, requirements, language }: Props) {
   const es = language === "es";
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const panelRef = useRef<HTMLDivElement>(null);
+  const fabRef = useRef<HTMLButtonElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    fabRef.current?.focus();
+  }, []);
 
   useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 80);
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    const onDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (panelRef.current?.contains(target) || fabRef.current?.contains(target)) return;
+      close();
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open, close]);
+
+  useEffect(() => {
+    if (open) window.setTimeout(() => inputRef.current?.focus(), 120);
   }, [open]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: messages.length > 1 ? "smooth" : "auto", block: "end" });
   }, [messages, loading]);
 
-  const send = async () => {
-    const text = input.trim();
-    if (!text || loading) return;
-    const userMsg: Message = { role: "user", content: text };
-    const next = [...messages, userMsg];
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 112)}px`;
+  }, [input]);
+
+  const send = useCallback(async (text: string) => {
+    const question = text.trim();
+    if (!question || loading) return;
+    const next: Message[] = [...messages, { role: "user", content: question }];
     setMessages(next);
     setInput("");
     setLoading(true);
-
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: next,
-          context: { profile, requirements, language },
-        }),
+        body: JSON.stringify({ messages: next, context: { profile, requirements, language } }),
       });
       const data = (await res.json()) as { reply?: string };
-      const reply = data.reply || (es ? "Sin respuesta." : "No response.");
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: data.reply || (es ? "Sin respuesta." : "No response.") }]);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: es ? "Lo siento, ocurrió un error. Inténtalo de nuevo." : "Sorry, something went wrong. Please try again." },
-      ]);
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: es ? "No pude responder ahora mismo. Inténtalo de nuevo." : "I couldn't answer just now. Please try again.",
+      }]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [messages, loading, profile, requirements, language, es]);
 
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
-  };
+  const chips = useMemo(() => starters(requirements, es), [requirements, es]);
+  const subtitle = profile.name?.trim()
+    || (es ? "Tu radicación en Puerto Rico" : "Your Puerto Rico filing");
 
-  const greeting = es
-    ? `Hola. Soy el asistente de SmartPR${profile.name ? ` para ${profile.name}` : ""}. ¿En qué puedo ayudarte?`
-    : `Hi. I'm your SmartPR assistant${profile.name ? ` for ${profile.name}` : ""}. How can I help you?`;
+  const toggle = useCallback(() => setOpen((prev) => !prev), []);
 
   return (
     <>
+      <button
+        ref={fabRef}
+        type="button"
+        className={`rq-floating-help${open ? " active" : ""}`}
+        title={es ? "Chatear con SmartPR" : "Chat with SmartPR"}
+        aria-label={es ? "Chatear con SmartPR" : "Chat with SmartPR"}
+        aria-expanded={open}
+        onClick={toggle}
+      >
+        <MessageCircle className="spr-fab-icon open" size={22} />
+        <X className="spr-fab-icon close" size={22} />
+      </button>
+
       {open && (
-        <div className="spr-chat-panel" role="dialog" aria-label={es ? "Asistente SmartPR" : "SmartPR Assistant"}>
-          <div className="spr-chat-header">
-            <span className="spr-chat-title">
-              <span className="spr-chat-dot" />
-              SmartPR
-            </span>
-            <button type="button" className="spr-chat-close" onClick={() => setOpen(false)} aria-label={es ? "Cerrar" : "Close"}>
-              <X size={16} />
+        <div
+          ref={panelRef}
+          className="spr-chat-panel open"
+          role="dialog"
+          aria-label={es ? "Asistente SmartPR" : "SmartPR Assistant"}
+        >
+          <header className="spr-chat-header">
+            <span className="spr-chat-mark" aria-hidden="true" />
+            <div className="spr-chat-heading">
+              <strong>{es ? "Asistente SmartPR" : "SmartPR Assistant"}</strong>
+              <span>{subtitle}</span>
+            </div>
+            <button type="button" className="spr-chat-close" onClick={close} aria-label={es ? "Cerrar" : "Close"}>
+              <X size={16} strokeWidth={2.2} />
             </button>
-          </div>
+          </header>
 
           <div className="spr-chat-body">
-            <div className="spr-chat-greeting">{greeting}</div>
+            <p className="spr-chat-intro">
+              {es
+                ? "Puedo responder sobre los requisitos de esta radicación: qué son, por qué aparecen y qué sigue."
+                : "I can answer questions about this filing's requirements — what they are, why they appeared, and what comes next."}
+            </p>
+
             {messages.map((m, i) => (
-              <div key={i} className={`spr-chat-bubble ${m.role}`}>
-                {m.content}
-              </div>
+              <div key={i} className={`spr-chat-bubble ${m.role}`}>{m.content}</div>
             ))}
+
             {loading && (
               <div className="spr-chat-bubble assistant">
-                <span className="spr-chat-typing"><span /><span /><span /></span>
+                <span className="spr-chat-typing" aria-label={es ? "Escribiendo" : "Typing"}>
+                  <span /><span /><span />
+                </span>
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
-          <div className="spr-chat-footer">
-            <input
+          {messages.length === 0 && !loading && chips.length > 0 && (
+            <div className="spr-chat-chips">
+              {chips.map((chip) => (
+                <button key={chip} type="button" className="spr-chat-chip" onClick={() => void send(chip)}>
+                  {chip}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="spr-chat-composer">
+            <textarea
               ref={inputRef}
+              rows={1}
               className="spr-chat-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKey}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); }
+              }}
               placeholder={es ? "Escribe una pregunta…" : "Ask a question…"}
-              disabled={loading}
               maxLength={500}
               aria-label={es ? "Tu pregunta" : "Your question"}
             />
             <button
               type="button"
               className="spr-chat-send"
-              onClick={() => void send()}
+              onClick={() => void send(input)}
               disabled={loading || !input.trim()}
               aria-label={es ? "Enviar" : "Send"}
             >
-              <Send size={15} />
+              <Send size={15} strokeWidth={2.2} />
             </button>
           </div>
         </div>
       )}
-
-      <button
-        type="button"
-        className={`rq-floating-help${open ? " active" : ""}`}
-        title={es ? "Chatear con SmartPR" : "Chat with SmartPR"}
-        aria-label={es ? "Chatear con SmartPR" : "Chat with SmartPR"}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <MessageCircle size={22} />
-      </button>
     </>
   );
 }

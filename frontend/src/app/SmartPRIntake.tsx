@@ -56,6 +56,7 @@ import { RequirementCard, type RequirementAction, type RequirementBadge, type Re
 import { ReadinessControl } from './components/filing/ReadinessControl';
 import { iconToneFor, primaryStartLabelFor, secondaryUploadCopy, uploadOnlyCopy } from './components/filing/requirementCopy';
 import { SmartPRChatbot } from './components/chat/SmartPRChatbot';
+import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
 import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
@@ -4179,6 +4180,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <h1>{L('Requirements', language)}</h1>
             <p>{L('Step 2 of 3 — SmartPR shows you what you need and what to do next.', language)}</p>
           </div>
+
+          <OpportunitiesPanel
+            profile={profile}
+            facts={incentiveFacts}
+            language={language}
+            initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
+            onAssessmentChange={recordIncentiveAssessment}
+            onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
+          />
 
           {/* Filter tabs */}
           <div className="rq-tabs" role="tablist">

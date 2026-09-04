@@ -823,15 +823,19 @@ button { font-family: inherit; }
 }
 .rq-floating-help:hover { background: #1c4a4a; }
 .rq-floating-help.active { background: #1c4a4a; }
+.spr-fab-icon { grid-area: 1 / 1; transition: opacity .15s ease, transform .15s ease; }
+.spr-fab-icon.close { opacity: 0; transform: scale(.6) rotate(-45deg); }
+.rq-floating-help.active .spr-fab-icon.open { opacity: 0; transform: scale(.6) rotate(45deg); }
+.rq-floating-help.active .spr-fab-icon.close { opacity: 1; transform: none; }
 
 /* ---- SmartPR Chat panel ---- */
 .spr-chat-panel {
   position: fixed; right: 24px; bottom: 88px; z-index: 69;
-  width: 340px; max-width: calc(100vw - 32px);
+  width: 360px; max-width: calc(100vw - 32px);
   border-radius: 16px;
   border: 1px solid rgba(22,22,22,.12);
   background: #fff;
-  box-shadow: 0 8px 40px rgba(0,0,0,.14);
+  box-shadow: 0 8px 40px rgba(0,0,0,.16);
   display: flex; flex-direction: column; overflow: hidden;
   animation: spr-chat-in .18s ease;
 }
@@ -839,39 +843,46 @@ button { font-family: inherit; }
   from { opacity: 0; transform: translateY(12px) scale(.97); }
   to   { opacity: 1; transform: none; }
 }
+@media (prefers-reduced-motion: reduce) {
+  .spr-chat-panel { animation: none; }
+  .spr-fab-icon { transition: none; }
+}
 .spr-chat-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; background: var(--accent); color: #fff;
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px; background: #f7f2e7; color: var(--ink); border-bottom: 1px solid rgba(22,22,22,.08);
 }
-.spr-chat-title { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 600; }
-.spr-chat-dot {
-  width: 8px; height: 8px; border-radius: 50%; background: #7dffca;
-  animation: spr-pulse 2s ease-in-out infinite;
+.spr-chat-mark {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none;
+  box-shadow: 0 0 0 3px rgba(46,90,90,.15);
 }
-@keyframes spr-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+.spr-chat-heading { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.spr-chat-heading strong { font-size: 13.5px; font-weight: 650; }
+.spr-chat-heading span { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spr-chat-close {
-  background: none; border: none; cursor: pointer; color: rgba(255,255,255,.8);
-  display: grid; place-items: center; padding: 4px; border-radius: 6px;
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  display: grid; place-items: center; padding: 4px; border-radius: 6px; flex: none;
 }
-.spr-chat-close:hover { color: #fff; background: rgba(255,255,255,.15); }
+.spr-chat-close:hover { color: var(--ink); background: rgba(22,22,22,.06); }
 .spr-chat-body {
   flex: 1; overflow-y: auto; padding: 14px 14px 6px;
   display: flex; flex-direction: column; gap: 10px;
-  max-height: 340px; min-height: 120px;
+  max-height: 360px; min-height: 140px;
 }
-.spr-chat-greeting {
-  font-size: 12.5px; color: var(--muted); text-align: center;
-  padding: 4px 8px; line-height: 1.5;
+.spr-chat-intro {
+  margin: 0; font-size: 12.5px; color: var(--muted); text-align: left;
+  padding: 4px 2px 8px; line-height: 1.55; border-bottom: 1px dashed var(--border);
 }
 .spr-chat-bubble {
-  max-width: 90%; font-size: 13px; line-height: 1.55; border-radius: 12px;
+  max-width: 88%; font-size: 13px; line-height: 1.55; border-radius: 12px;
   padding: 9px 12px; word-break: break-word;
+  animation: spr-bubble-in .16s ease;
 }
+@keyframes spr-bubble-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .spr-chat-bubble.user {
   align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 3px;
 }
 .spr-chat-bubble.assistant {
-  align-self: flex-start; background: #f4f1ea; color: var(--fg); border-bottom-left-radius: 3px;
+  align-self: flex-start; background: #f4f1ea; color: var(--ink); border-bottom-left-radius: 3px;
 }
 .spr-chat-typing { display: inline-flex; gap: 4px; align-items: center; }
 .spr-chat-typing span {
@@ -881,17 +892,25 @@ button { font-family: inherit; }
 .spr-chat-typing span:nth-child(2) { animation-delay: .15s; }
 .spr-chat-typing span:nth-child(3) { animation-delay: .3s; }
 @keyframes spr-bounce { 0%,80%,100%{transform:scale(1)} 40%{transform:scale(1.4)} }
-.spr-chat-footer {
-  display: flex; align-items: center; gap: 8px;
+.spr-chat-chips {
+  display: flex; flex-direction: column; gap: 6px; padding: 6px 14px 12px;
+}
+.spr-chat-chip {
+  text-align: left; border: 1px solid var(--border); background: var(--surface);
+  color: var(--ink); font-size: 12.5px; padding: 8px 11px; border-radius: 10px;
+  cursor: pointer; font-family: inherit; transition: border-color .12s ease, background .12s ease;
+}
+.spr-chat-chip:hover { border-color: var(--accent); background: #f4f1ea; }
+.spr-chat-composer {
+  display: flex; align-items: flex-end; gap: 8px;
   padding: 10px 12px; border-top: 1px solid rgba(22,22,22,.08);
 }
 .spr-chat-input {
-  flex: 1; border: 1px solid rgba(22,22,22,.15); border-radius: 8px;
-  padding: 8px 11px; font-size: 13px; color: var(--fg);
-  background: #fafaf8; outline: none; font-family: inherit;
+  flex: 1; resize: none; border: 1px solid rgba(22,22,22,.15); border-radius: 10px;
+  padding: 8px 11px; font-size: 13px; color: var(--ink); line-height: 1.4;
+  background: #fafaf8; outline: none; font-family: inherit; max-height: 112px;
 }
 .spr-chat-input:focus { border-color: var(--accent); }
-.spr-chat-input:disabled { opacity: .55; }
 .spr-chat-send {
   width: 34px; height: 34px; border-radius: 8px;
   background: var(--accent); color: #fff; border: none; cursor: pointer;
@@ -899,6 +918,14 @@ button { font-family: inherit; }
 }
 .spr-chat-send:disabled { opacity: .45; cursor: default; }
 .spr-chat-send:not(:disabled):hover { background: #1c4a4a; }
+
+@media (max-width: 560px) {
+  .spr-chat-panel {
+    right: 8px; left: 8px; bottom: 8px; width: auto; max-width: none;
+    max-height: 70vh;
+  }
+  .spr-chat-body { max-height: none; }
+}
 
 @media (max-width: 860px) {
   .rq-card-row { flex-wrap: wrap; }

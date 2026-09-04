@@ -33,11 +33,17 @@ test("each reviewed concept passes validation and produces guidance for matching
 });
 test("unreviewed documents are flagged, even if a previous builder asserted an explanation", () => {
   // The old fixture incorrectly declared these valid for a bar without relevant facts or source URLs.
-  for (const id of ["DOC_CFPM", "DOC_TOURISM_REGISTRATION", "DOC_ROOM_TAX_RETURN", "DOC_HOA_AUTHORIZATION", "DOC_CERT_INCORPORATION"]) {
+  for (const id of ["DOC_TOURISM_REGISTRATION", "DOC_ROOM_TAX_RETURN", "DOC_HOA_AUTHORIZATION", "DOC_CERT_INCORPORATION"]) {
     const g = buildRequirementGuidance(req(id), context);
     assert.equal(g.status, "GUIDANCE_NEEDS_REVIEW", id);
     assert.match(g.whyThisApplies, /not yet been fully validated/);
   }
+});
+test("DOC_CFPM is a reviewed concept: without a confirmed food fact it teaches the document instead of the generic fallback", () => {
+  const g = buildRequirementGuidance(req("DOC_CFPM"), context);
+  assert.equal(g.status, "GUIDANCE_NEEDS_REVIEW");
+  assert.match(g.whyThisApplies, /not confirmed yet/);
+  assert.ok(g.purpose.length > 0);
 });
 test("unrelated Critical Path requirements have distinct rationale and purpose in both languages", () => {
   for (const language of ["en", "es"] as const) {
