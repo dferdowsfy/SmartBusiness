@@ -8,6 +8,20 @@ import {
 } from "lucide-react";
 import { TopNav } from "../history/ui";
 
+function useLang(): "en" | "es" {
+  const [lang, setLang] = useState<"en" | "es">("en");
+  useEffect(() => {
+    try { const s = localStorage.getItem("smartpr-lang"); if (s === "es" || s === "en") setLang(s); } catch {}
+    const handler = (e: Event) => {
+      const l = (e as CustomEvent<string>).detail;
+      if (l === "en" || l === "es") setLang(l as "en" | "es");
+    };
+    window.addEventListener("smartpr-lang-change", handler);
+    return () => window.removeEventListener("smartpr-lang-change", handler);
+  }, []);
+  return lang;
+}
+
 interface Business {
   id: string;
   legal_name: string;
@@ -37,25 +51,29 @@ function categoryVisual(business: Business): { Icon: typeof Building2; iconBg: s
   return { Icon: Building2, iconBg: "bg-slate-100", iconColor: "text-slate-600" };
 }
 
-function filingStatus(business: Business): { pillText: string; pillCls: string; primary: string; secondary: string } {
+function filingStatus(business: Business, lang: "en" | "es"): { pillText: string; pillCls: string; primary: string; secondary: string } {
+  const es = lang === "es";
   if (business.active_matters > 0) {
+    const n = business.active_matters;
     return {
-      pillText: "IN PROGRESS", pillCls: "bg-sky-50 text-sky-700",
-      primary: "In progress", secondary: `${business.active_matters} filing${business.active_matters === 1 ? "" : "s"}`,
+      pillText: es ? "EN PROCESO" : "IN PROGRESS", pillCls: "bg-sky-50 text-sky-700",
+      primary: es ? "En progreso" : "In progress",
+      secondary: es ? `${n} radicación${n === 1 ? "" : "es"}` : `${n} filing${n === 1 ? "" : "s"}`,
     };
   }
   if (business.readiness_score != null && business.readiness_score >= 90) {
-    return { pillText: "READY", pillCls: "bg-emerald-50 text-emerald-700", primary: "Ready", secondary: "No active filing" };
+    return { pillText: es ? "LISTO" : "READY", pillCls: "bg-emerald-50 text-emerald-700", primary: es ? "Listo" : "Ready", secondary: es ? "Sin radicación activa" : "No active filing" };
   }
   if (business.readiness_score != null) {
-    return { pillText: "IN PROGRESS", pillCls: "bg-sky-50 text-sky-700", primary: `${business.readiness_score}% ready`, secondary: "No active filing" };
+    return { pillText: es ? "EN PROCESO" : "IN PROGRESS", pillCls: "bg-sky-50 text-sky-700", primary: `${business.readiness_score}% ${es ? "listo" : "ready"}`, secondary: es ? "Sin radicación activa" : "No active filing" };
   }
-  return { pillText: "NOT STARTED", pillCls: "bg-slate-100 text-slate-600", primary: "Not started", secondary: "No active filing" };
+  return { pillText: es ? "NO INICIADO" : "NOT STARTED", pillCls: "bg-slate-100 text-slate-600", primary: es ? "No iniciado" : "Not started", secondary: es ? "Sin radicación activa" : "No active filing" };
 }
 
-function MoreMenu({ business, onRenamed, onArchived }: { business: Business; onRenamed: () => void; onArchived: () => void }) {
+function MoreMenu({ business, lang, onRenamed, onArchived }: { business: Business; lang: "en" | "es"; onRenamed: () => void; onArchived: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const es = lang === "es";
   useEffect(() => {
     if (!open) return;
     const close = (event: MouseEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false); };
@@ -65,7 +83,7 @@ function MoreMenu({ business, onRenamed, onArchived }: { business: Business; onR
 
   const rename = async () => {
     setOpen(false);
-    const next = window.prompt("Rename business", business.legal_name);
+    const next = window.prompt(es ? "Renombrar negocio" : "Rename business", business.legal_name);
     if (!next || !next.trim() || next.trim() === business.legal_name) return;
     const response = await fetch(`/api/businesses/${business.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ legal_name: next.trim() }),
@@ -74,7 +92,10 @@ function MoreMenu({ business, onRenamed, onArchived }: { business: Business; onR
   };
   const archive = async () => {
     setOpen(false);
-    if (!window.confirm(`Archive ${business.legal_name}? You can restore it later from support.`)) return;
+    const msg = es
+      ? `¿Archivar ${business.legal_name}? Puedes restaurarlo más tarde con soporte.`
+      : `Archive ${business.legal_name}? You can restore it later from support.`;
+    if (!window.confirm(msg)) return;
     const response = await fetch(`/api/businesses/${business.id}`, { method: "DELETE" });
     if (response.ok) onArchived();
   };
@@ -89,26 +110,26 @@ function MoreMenu({ business, onRenamed, onArchived }: { business: Business; onR
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-12 z-10 w-52 overflow-hidden rounded-xl border border-[#161616]/12 bg-white py-1.5 shadow-lg shadow-slate-950/[0.06]">
-          <Link role="menuitem" href={`/businesses/${business.id}`} className="block px-4 py-2 text-sm text-[#161616] hover:bg-[#f4f1ea]">View business profile</Link>
-          <Link role="menuitem" href={`/businesses/${business.id}/matters/new`} className="block px-4 py-2 text-sm text-[#161616] hover:bg-[#f4f1ea]">Start new filing</Link>
-          <button role="menuitem" type="button" onClick={() => void rename()} className="block w-full px-4 py-2 text-left text-sm text-[#161616] hover:bg-[#f4f1ea]">Rename business</button>
-          <button role="menuitem" type="button" onClick={() => void archive()} className="block w-full px-4 py-2 text-left text-sm text-rose-700 hover:bg-rose-50">Archive business</button>
+          <Link role="menuitem" href={`/businesses/${business.id}`} className="block px-4 py-2 text-sm text-[#161616] hover:bg-[#f4f1ea]">{es ? "Ver perfil del negocio" : "View business profile"}</Link>
+          <Link role="menuitem" href={`/businesses/${business.id}/matters/new`} className="block px-4 py-2 text-sm text-[#161616] hover:bg-[#f4f1ea]">{es ? "Comenzar nueva radicación" : "Start new filing"}</Link>
+          <button role="menuitem" type="button" onClick={() => void rename()} className="block w-full px-4 py-2 text-left text-sm text-[#161616] hover:bg-[#f4f1ea]">{es ? "Renombrar negocio" : "Rename business"}</button>
+          <button role="menuitem" type="button" onClick={() => void archive()} className="block w-full px-4 py-2 text-left text-sm text-rose-700 hover:bg-rose-50">{es ? "Archivar negocio" : "Archive business"}</button>
         </div>
       )}
     </div>
   );
 }
 
-function BusinessCard({ business, onChanged }: { business: Business; onChanged: () => void }) {
+function BusinessCard({ business, lang, onChanged }: { business: Business; lang: "en" | "es"; onChanged: () => void }) {
   const { Icon, iconBg, iconColor } = categoryVisual(business);
-  const status = filingStatus(business);
+  const status = filingStatus(business, lang);
   const locationType = [business.municipality, business.business_type].filter(Boolean).join(" · ") || "Puerto Rico";
 
   return (
     <div className="group relative rounded-[14px] border border-[#161616]/12 bg-[#fefdfb] p-4 transition-colors hover:border-[#161616]/25 hover:bg-white sm:p-5">
       {/* Mobile: overflow control pinned to the card's upper-right corner. */}
       <div className="absolute right-4 top-4 sm:hidden">
-        <MoreMenu business={business} onRenamed={onChanged} onArchived={onChanged} />
+        <MoreMenu business={business} lang={lang} onRenamed={onChanged} onArchived={onChanged} />
       </div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         {/* Identity */}
@@ -137,10 +158,10 @@ function BusinessCard({ business, onChanged }: { business: Business; onChanged: 
             href={`/businesses/${business.id}`}
             className="inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-[10px] bg-[#245c5c] px-5 text-sm font-semibold text-[#f6f3ea] transition-colors hover:bg-[#1c4949] sm:w-[150px]"
           >
-            Continue <ArrowRight className="h-4 w-4" />
+            {lang === "es" ? "Continuar" : "Continue"} <ArrowRight className="h-4 w-4" />
           </Link>
           <div className="hidden sm:block">
-            <MoreMenu business={business} onRenamed={onChanged} onArchived={onChanged} />
+            <MoreMenu business={business} lang={lang} onRenamed={onChanged} onArchived={onChanged} />
           </div>
         </div>
       </div>
@@ -149,6 +170,8 @@ function BusinessCard({ business, onChanged }: { business: Business; onChanged: 
 }
 
 export default function BusinessesPage() {
+  const lang = useLang();
+  const es = lang === "es";
   const [businesses, setBusinesses] = useState<Business[] | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -174,14 +197,14 @@ export default function BusinessesPage() {
     <div className="min-h-screen bg-[#f4f1ea] text-[#161616]">
       <TopNav active="businesses" />
       <main className="mx-auto max-w-[1140px] px-5 py-10 sm:px-6">
-        <h1 className="text-[36px] font-bold tracking-tight sm:text-[42px]">My businesses</h1>
-        <p className="mt-2 max-w-xl text-[#5a5a5a]">Permanent profiles for the businesses and clients you file for in Puerto Rico.</p>
+        <h1 className="text-[36px] font-bold tracking-tight sm:text-[42px]">{es ? "Mis negocios" : "My businesses"}</h1>
+        <p className="mt-2 max-w-xl text-[#5a5a5a]">{es ? "Perfiles permanentes para los negocios y clientes para los que radicas en Puerto Rico." : "Permanent profiles for the businesses and clients you file for in Puerto Rico."}</p>
 
         <Link
           href="/?entry=new-business"
           className="mt-6 inline-flex h-12 w-[210px] items-center justify-center gap-2 rounded-[10px] bg-[#245c5c] text-sm font-semibold text-[#f6f3ea] transition-colors hover:bg-[#1c4949]"
         >
-          <Plus className="h-4 w-4" /> Start a new filing
+          <Plus className="h-4 w-4" /> {es ? "Comenzar una radicación" : "Start a new filing"}
         </Link>
 
         <div className="relative mt-6">
@@ -189,7 +212,7 @@ export default function BusinessesPage() {
           <input
             value={search}
             onChange={(event) => updateSearch(event.target.value)}
-            placeholder="Search by business name"
+            placeholder={es ? "Buscar por nombre de negocio" : "Search by business name"}
             className="h-[54px] w-full rounded-[12px] border border-[#161616]/15 bg-white pl-11 pr-4 text-sm text-[#161616] placeholder:text-[#8a8a8a] focus:border-[#245c5c] focus:outline-none"
           />
         </div>
@@ -197,17 +220,22 @@ export default function BusinessesPage() {
 
         <div className="mt-6">
           {loadError ? (
-            <p className="mt-6 text-sm text-rose-700">Couldn&apos;t load your businesses right now. <button type="button" onClick={load} className="font-semibold underline">Try again</button></p>
+            <p className="mt-6 text-sm text-rose-700">
+              {es ? "No se pudieron cargar tus negocios en este momento." : "Couldn't load your businesses right now."}{" "}
+              <button type="button" onClick={load} className="font-semibold underline">{es ? "Intentar de nuevo" : "Try again"}</button>
+            </p>
           ) : businesses === null ? (
             <div className="mt-6 space-y-3">
               {[0, 1, 2].map((index) => <div key={index} className="h-[112px] animate-pulse rounded-[14px] border border-[#161616]/10 bg-white/60" />)}
             </div>
           ) : shown.length === 0 ? (
-            <p className="mt-6 text-sm text-[#5a5a5a]">{businesses.length ? "No businesses match that search." : "No businesses yet. Start a filing to create the first profile."}</p>
+            <p className="mt-6 text-sm text-[#5a5a5a]">{businesses.length
+              ? (es ? "Ningún negocio coincide con esa búsqueda." : "No businesses match that search.")
+              : (es ? "Aún no hay negocios. Comienza una radicación para crear el primer perfil." : "No businesses yet. Start a filing to create the first profile.")}</p>
           ) : (
             <>
               <div className="space-y-3">
-                {paged.map((business) => <BusinessCard key={business.id} business={business} onChanged={load} />)}
+                {paged.map((business) => <BusinessCard key={business.id} business={business} lang={lang} onChanged={load} />)}
               </div>
 
               {totalPages > 1 && (

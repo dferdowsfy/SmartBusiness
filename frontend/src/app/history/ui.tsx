@@ -20,6 +20,7 @@ function signOutNow() {
 export function TopNav({ active, extraActions }: { active: "dashboard" | "businesses" | "calendar" | "history" | "graph" | "admin" | "settings"; extraActions?: ReactNode }) {
   const [user, setUser] = useState<MeUser | null | undefined>(undefined);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [lang, setLang] = useState<"en" | "es">("en");
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setUser(d.user || null)).catch(() => setUser(null));
@@ -31,7 +32,32 @@ export function TopNav({ active, extraActions }: { active: "dashboard" | "busine
     return () => document.removeEventListener("click", close);
   }, []);
 
+  useEffect(() => {
+    try { const s = localStorage.getItem("smartpr-lang"); if (s === "es" || s === "en") setLang(s); } catch {}
+    const handler = (e: Event) => {
+      const l = (e as CustomEvent<string>).detail;
+      if (l === "en" || l === "es") setLang(l as "en" | "es");
+    };
+    window.addEventListener("smartpr-lang-change", handler);
+    return () => window.removeEventListener("smartpr-lang-change", handler);
+  }, []);
+
+  const changeLang = (l: "en" | "es") => {
+    setLang(l);
+    try { localStorage.setItem("smartpr-lang", l); } catch {}
+    window.dispatchEvent(new CustomEvent("smartpr-lang-change", { detail: l }));
+  };
+
   const initials = (user?.name || user?.email || "?").slice(0, 1).toUpperCase();
+  const navStart = lang === "es" ? "Comenzar" : "Start";
+  const navMyBiz = lang === "es" ? "Mis Negocios" : "My Businesses";
+
+  const langToggle = (
+    <div className="spr-context-language" aria-label={lang === "es" ? "Idioma" : "Language"}>
+      <button type="button" className={lang === "en" ? "active" : ""} aria-pressed={lang === "en"} onClick={() => changeLang("en")}>EN</button>
+      <button type="button" className={lang === "es" ? "active" : ""} aria-pressed={lang === "es"} onClick={() => changeLang("es")}>ES</button>
+    </div>
+  );
 
   return (
     <header className="appbar">
@@ -43,13 +69,14 @@ export function TopNav({ active, extraActions }: { active: "dashboard" | "busine
         </div>
 
         <nav className="nav-tabs" aria-label="Sections">
-          <Link href="/?entry=new-business" className="nav-tab">Start</Link>
+          <Link href="/?entry=new-business" className="nav-tab">{navStart}</Link>
           <Link href="/businesses" className={`nav-tab ${active === "businesses" || active === "calendar" || active === "history" || active === "settings" ? "active" : ""}`}>
-            My Businesses
+            {navMyBiz}
           </Link>
         </nav>
 
         <div className="appbar-actions">
+          {langToggle}
           {extraActions}
           {user === undefined ? null : user ? (
             <>

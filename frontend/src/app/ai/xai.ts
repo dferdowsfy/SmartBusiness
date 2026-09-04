@@ -20,7 +20,7 @@ export class XaiApiError extends Error {
 }
 
 type XaiInputMessage = {
-  role: "system" | "user";
+  role: "system" | "user" | "assistant";
   content: string;
 };
 

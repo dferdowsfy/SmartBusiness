@@ -55,7 +55,7 @@ import {
 import { RequirementCard, type RequirementAction, type RequirementBadge, type RequirementSecondaryAction } from './components/filing/RequirementCard';
 import { ReadinessControl } from './components/filing/ReadinessControl';
 import { iconToneFor, primaryStartLabelFor, secondaryUploadCopy, uploadOnlyCopy } from './components/filing/requirementCopy';
-import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
+import { SmartPRChatbot } from './components/chat/SmartPRChatbot';
 import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
@@ -64,7 +64,7 @@ import {
   CheckCircle, AlertTriangle, Info, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
   ReceiptText, Store, Landmark, Waves, ShieldCheck, ScrollText, XCircle, Eye,
-  Star, ChevronDown, Sparkles, MessageCircle,
+  Star, ChevronDown, Sparkles,
 } from 'lucide-react';
 
 // SmartPR
@@ -1414,7 +1414,22 @@ export default function SmartPRIntake() {
   // client-side, and LLM document analysis runs server-side in this same
   // Next.js app at /api/analyze-document. No separate backend service or
   // NEXT_PUBLIC_BACKEND_URL is required.
-  const [language, setLanguage] = useState<'en' | 'es'>('en'); // Bilingual toggle
+  const [language, setLanguageRaw] = useState<'en' | 'es'>('en'); // Bilingual toggle
+  const setLanguage = (l: 'en' | 'es') => {
+    setLanguageRaw(l);
+    try { localStorage.setItem('smartpr-lang', l); } catch {}
+    window.dispatchEvent(new CustomEvent('smartpr-lang-change', { detail: l }));
+  };
+
+  useEffect(() => {
+    try { const s = localStorage.getItem('smartpr-lang'); if (s === 'es' || s === 'en') setLanguageRaw(s); } catch {}
+    const handler = (e: Event) => {
+      const l = (e as CustomEvent<string>).detail;
+      if (l === 'en' || l === 'es') setLanguageRaw(l as 'en' | 'es');
+    };
+    window.addEventListener('smartpr-lang-change', handler);
+    return () => window.removeEventListener('smartpr-lang-change', handler);
+  }, []);
 
   const [questionList, setQuestionList] = useState<DiscoveryQuestion[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
@@ -4298,21 +4313,6 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             </div>
           )}
 
-          {/* Parallel assessment output: obligation rules remain authoritative
-              for Requirements; the separate incentive engine evaluates only
-              published, source-backed opportunity nodes. */}
-          <div style={{ marginTop: 20 }}>
-            <OpportunitiesPanel
-              profile={profile}
-              facts={incentiveFacts}
-              language={language}
-              verifiedEvidenceTypeIds={verifiedIncentiveEvidenceTypeIds}
-              initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
-              onAssessmentChange={recordIncentiveAssessment}
-              onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
-            />
-          </div>
-
           {/* Municipal notices */}
           {municipalNotices.length > 0 && (
             <div style={{ marginTop: 16 }}>
@@ -4354,21 +4354,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               <small>{L('They move your readiness score the most and unblock everything downstream.', language)}</small>
             </div>
             <div className="help-cta" style={{ display: 'flex', gap: 8 }}>
-              {requirements.length > 0 && (
-                <button className="btn btn-secondary" onClick={runValidation} disabled={isLoading}>
-                  {L('Run Validation Engine', language)}
-                  {isLoading && <RefreshCw className="i" style={{ width: 13, height: 13, animation: 'vspin .7s linear infinite' }} />}
-                </button>
-              )}
               <button className="btn btn-primary" onClick={() => goTo('deliverables')}>
                 {L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
               </button>
             </div>
           </div>
 
-          <button type="button" className="rq-floating-help" title={L('Chat with SmartPR', language)} aria-label={L('Chat with SmartPR', language)}>
-            <MessageCircle size={22} />
-          </button>
+          <SmartPRChatbot
+            profile={profile}
+            requirements={requirements}
+            language={language}
+          />
         </main>
       )}
 
