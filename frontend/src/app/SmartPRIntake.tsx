@@ -56,7 +56,7 @@ import { RequirementCard, type RequirementAction, type RequirementBadge, type Re
 import { ReadinessControl } from './components/filing/ReadinessControl';
 import { iconToneFor, primaryStartLabelFor, secondaryUploadCopy, uploadOnlyCopy } from './components/filing/requirementCopy';
 import { SmartPRChatbot } from './components/chat/SmartPRChatbot';
-import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
+import { IncentivesSidebar } from './components/incentives/IncentivesSidebar';
 import type { IncentiveAssessment, IncentiveEligibilityResult, ProjectFactValue } from './incentives/types';
 import { IncentiveWorkflowPanel } from './components/incentives/IncentiveWorkflowPanel';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
@@ -66,7 +66,7 @@ import {
   CheckCircle, AlertTriangle, Info, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
   ReceiptText, Store, Landmark, Waves, ShieldCheck, ScrollText, XCircle, Eye,
-  Star, ChevronDown, Sparkles, Lightbulb,
+  Star, ChevronDown, Sparkles,
 } from 'lucide-react';
 
 // SmartPR
@@ -128,6 +128,10 @@ interface Requirement {
   stage?: RequirementStage;
   triggerFacts?: string[];
   acceptsOfficialUpload?: boolean;
+  /** Set only when this requirement was added because the user chose to
+   * pursue an incentive that needs it — never on requirements the rules
+   * engine would have surfaced anyway. Shown as a small contextual label. */
+  incentiveLabel?: string;
 }
 
 function potentialItemsForProfile(
@@ -1169,7 +1173,10 @@ export default function SmartPRIntake() {
   // kept (not just the id) so the workflow panel and Requirements dashboard
   // entry stay accurate to what was actually shown when they clicked.
   const [pursuedIncentives, setPursuedIncentives] = useState<IncentiveEligibilityResult[]>([]);
-  const [activeIncentiveWorkflowId, setActiveIncentiveWorkflowId] = useState<string | null>(null);
+  // The result currently open in the workflow drawer — set by "Review" (not
+  // yet pursued) or by pursuing; independent of pursuedIncentives so a
+  // not-yet-pursued result can still be reviewed in full.
+  const [activeIncentiveResult, setActiveIncentiveResult] = useState<IncentiveEligibilityResult | null>(null);
 
   const sampleFormsStorageKey = useMemo(() => {
     const business = (profile.name || 'business').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -3598,6 +3605,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       action,
       secondary,
       extra: hasExtra ? extra : undefined,
+      contextLabel: req.incentiveLabel ?? null,
     };
   };
 
@@ -3717,6 +3725,15 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       return [...current, assessment].slice(-10);
     });
   }, []);
+  // Opens the workflow drawer for a result the user hasn't necessarily
+  // chosen to pursue yet — "Review" from the sidebar or the full list.
+  const handleReviewIncentive = React.useCallback((result: IncentiveEligibilityResult) => {
+    setActiveIncentiveResult(result);
+  }, []);
+  // Actually committing to an incentive: marks it pursued, keeps the
+  // workflow drawer open on it, and — the whole point — adds any document
+  // that incentive's application needs and SmartPR doesn't already track
+  // as a requirement, clearly labeled with the incentive that added it.
   const handlePursueIncentive = React.useCallback((result: IncentiveEligibilityResult) => {
     setPursuedIncentives((current) => {
       const existing = current.findIndex((item) => item.programId === result.programId);
@@ -3725,9 +3742,32 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       next[existing] = result; // keep the latest matched facts/status
       return next;
     });
-    setActiveIncentiveWorkflowId(result.programId);
+    setActiveIncentiveResult(result);
+    setRequirements((current) => {
+      const known = new Set(current.map((r) => r.document_id).filter(Boolean));
+      const additions: Requirement[] = result.requiredSupportingEvidence
+        .filter((doc) => !known.has(doc.id))
+        .map((doc) => {
+          const kbDoc = KB.documents.find((d) => d.id === doc.id);
+          return {
+            code: `incentive_${result.programId}_${doc.id}`.toLowerCase(),
+            name: kbDoc?.name || doc.name,
+            mandatory: false,
+            status: 'pending' as const,
+            agency: kbDoc?.agency || result.administeringAgency.name,
+            reason: `Needed to apply for ${result.programName}.`,
+            document_id: doc.id,
+            category: kbDoc?.category || 'Incentive',
+            applicability: 'required' as const,
+            incentiveLabel: `${L('Added for', language)} ${result.programName}`,
+          };
+        });
+      return additions.length ? [...current, ...additions] : current;
+    });
+  }, [language]);
+  const handleRemovePursuedIncentive = React.useCallback((programId: string) => {
+    setPursuedIncentives((current) => current.filter((item) => item.programId !== programId));
   }, []);
-  const activeIncentiveWorkflow = pursuedIncentives.find((item) => item.programId === activeIncentiveWorkflowId) ?? null;
   const preparedSampleList = Object.values(preparedSampleApplications);
   const preparedGovList = Object.values(preparedGovApplications);
   const packageAssetCount = zipReadyDocs.length + preparedSampleList.length + preparedGovList.length;
@@ -4209,53 +4249,20 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             <p>{L('Step 2 of 3 — SmartPR shows you what you need and what to do next.', language)}</p>
           </div>
 
-          <OpportunitiesPanel
-            profile={profile}
-            facts={incentiveFacts}
-            language={language}
-            initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
-            pursuedProgramIds={pursuedIncentives.map((item) => item.programId)}
-            onAssessmentChange={recordIncentiveAssessment}
-            onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
-            onPursue={handlePursueIncentive}
-          />
-
-          {pursuedIncentives.length > 0 && (
-            <div className="rq-incentives-pursuing">
-              <div className="rq-incentives-pursuing-head">
-                <Lightbulb size={13} /> {L('INCENTIVES YOU\'RE PURSUING', language)}
-                <span className="rq-critical-count">{pursuedIncentives.length}</span>
-              </div>
-              <div className="rq-list">
-                {pursuedIncentives.map((item) => (
-                  <div key={item.programId} className="rq-incentive-row">
-                    <div>
-                      <div className="rq-incentive-row-name">{item.programName}</div>
-                      <div className="rq-incentive-row-agency">{item.administeringAgency.name}</div>
-                    </div>
-                    <div className="rq-incentive-row-actions">
-                      <button className="btn btn-secondary" onClick={() => setActiveIncentiveWorkflowId(item.programId)}>
-                        {L('View workflow', language)}
-                      </button>
-                      <button className="btn-link" onClick={() => setPursuedIncentives((current) => current.filter((p) => p.programId !== item.programId))}>
-                        {L('Remove', language)}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeIncentiveWorkflow && (
+          {activeIncentiveResult && (
             <IncentiveWorkflowPanel
-              result={activeIncentiveWorkflow}
+              result={activeIncentiveResult}
               language={language}
               knownRequirements={requirements}
-              onClose={() => setActiveIncentiveWorkflowId(null)}
+              pursued={pursuedIncentives.some((item) => item.programId === activeIncentiveResult.programId)}
+              onPursue={handlePursueIncentive}
+              onRemove={(programId) => { handleRemovePursuedIncentive(programId); setActiveIncentiveResult(null); }}
+              onClose={() => setActiveIncentiveResult(null)}
             />
           )}
 
+          <div className="spr-requirements-layout">
+          <div className="spr-requirements-main">
           {/* Filter tabs */}
           <div className="rq-tabs" role="tablist">
             <button role="tab" aria-selected={reqFilter === 'all'} className={`rq-tab ${reqFilter === 'all' ? 'active' : ''}`} onClick={() => setReqFilter('all')}>
@@ -4338,6 +4345,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 action={c.action}
                 secondary={c.secondary}
                 extra={c.extra}
+                contextLabel={c.contextLabel}
               />
             ))}
           </div>
@@ -4370,6 +4378,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                       action={c.action}
                       secondary={c.secondary}
                       extra={c.extra}
+                      contextLabel={c.contextLabel}
                     />
                   ))}
                 </div>
@@ -4434,6 +4443,22 @@ const loadExample = (example: Partial<BusinessProfile>) => {
                 {L('Continue to deliverables', language)} <ArrowRight className="i" style={{ width: 14, height: 14 }} />
               </button>
             </div>
+          </div>
+          </div>
+
+          <div className="spr-requirements-sidebar">
+            <IncentivesSidebar
+              profile={profile}
+              facts={incentiveFacts}
+              language={language}
+              initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
+              pursuedIncentives={pursuedIncentives}
+              onAssessmentChange={recordIncentiveAssessment}
+              onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
+              onReview={handleReviewIncentive}
+              onRemovePursued={handleRemovePursuedIncentive}
+            />
+          </div>
           </div>
 
           <SmartPRChatbot

@@ -18,11 +18,18 @@ export function IncentiveWorkflowPanel({
   result,
   language,
   knownRequirements,
+  pursued,
+  onPursue,
+  onRemove,
   onClose,
 }: {
   result: IncentiveEligibilityResult;
   language: Language;
   knownRequirements: KnownRequirement[];
+  /** Whether the user has already chosen to pursue this incentive. */
+  pursued: boolean;
+  onPursue: (result: IncentiveEligibilityResult) => void;
+  onRemove: (programId: string) => void;
   onClose: () => void;
 }) {
   const es = language === "es";
@@ -71,8 +78,15 @@ export function IncentiveWorkflowPanel({
         .iw-doclist svg{flex:none}
         .iw-source{display:inline-flex;align-items:center;gap:4px;color:var(--accent,#0f766e);text-decoration:underline;text-underline-offset:2px;font-size:13px}
         .iw-next{padding:14px;border-radius:12px;background:#e7f5f1;color:#0c5f59;font-size:13.5px;font-weight:650;line-height:1.5}
-        .iw-foot{position:sticky;bottom:0;background:var(--surface,#fff);padding:14px 20px;border-top:1px solid var(--border,#d9d4ca);display:flex;justify-content:flex-end}
-        .iw-done{background:var(--accent,#0f766e);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer}
+        .iw-foot{position:sticky;bottom:0;background:var(--surface,#fff);padding:14px 20px;border-top:1px solid var(--border,#d9d4ca);display:flex;align-items:center;justify-content:space-between;gap:10px}
+        .iw-done{background:none;border:none;color:var(--muted,#69665f);font-size:13px;font-weight:650;cursor:pointer;padding:10px 4px}
+        .iw-done:hover{color:var(--ink,#171714)}
+        .iw-pursue{display:inline-flex;align-items:center;gap:7px;background:var(--accent,#0f766e);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer}
+        .iw-pursue:hover{background:#0c5f59}
+        .iw-pursued-state{display:inline-flex;align-items:center;gap:10px}
+        .iw-pursued-badge{display:inline-flex;align-items:center;gap:6px;color:#0f766e;font-size:13px;font-weight:700}
+        .iw-remove{background:none;border:none;color:var(--muted,#69665f);font-size:12px;text-decoration:underline;cursor:pointer;padding:0}
+        .iw-remove:hover{color:var(--ink,#171714)}
       `}</style>
       <div ref={panelRef} className="iw-panel" role="dialog" aria-modal="true" aria-label={result.programName} tabIndex={-1}>
         <div className="iw-head">
@@ -135,7 +149,17 @@ export function IncentiveWorkflowPanel({
           <div className="iw-next">{es ? "Siguiente paso: " : "Next action: "}{nextAction}</div>
         </div>
         <div className="iw-foot">
-          <button type="button" className="iw-done" onClick={onClose}>{es ? "Listo" : "Done"}</button>
+          <button type="button" className="iw-done" onClick={onClose}>{es ? "Cerrar" : "Close"}</button>
+          {pursued ? (
+            <div className="iw-pursued-state">
+              <span className="iw-pursued-badge"><Check size={15} /> {es ? "Persiguiendo" : "Pursuing"}</span>
+              <button type="button" className="iw-remove" onClick={() => onRemove(result.programId)}>{es ? "Eliminar" : "Remove"}</button>
+            </div>
+          ) : (
+            <button type="button" className="iw-pursue" onClick={() => onPursue(result)}>
+              {es ? "Perseguir este incentivo" : "Pursue this incentive"}
+            </button>
+          )}
         </div>
       </div>
     </div>

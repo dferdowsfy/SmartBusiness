@@ -48,6 +48,9 @@ export interface RequirementCardProps {
    * width below the card's three zones, unchanged in substance from before. */
   extra?: ReactNode;
   id?: string;
+  /** e.g. "Added for International Trading Incentive" — set only when an
+   * incentive pursuit is what put this requirement on the list. */
+  contextLabel?: string | null;
 }
 
 function ActionButton({ action }: { action: RequirementAction }) {
@@ -93,6 +96,7 @@ export function RequirementCard({
   secondary,
   extra,
   id,
+  contextLabel,
 }: RequirementCardProps) {
   return (
     <div id={id} className="rq-card">
@@ -108,6 +112,7 @@ export function RequirementCard({
             {agency && <span className="tag agency">{agency}</span>}
             {badge && <span className={`rq-badge rq-badge-${badge.tone}`}>{badge.label}</span>}
           </div>
+          {contextLabel && <div className="rq-context-label">{contextLabel}</div>}
           <p className="rq-card-desc">{description}</p>
           <details className="rq-why">
             <summary>

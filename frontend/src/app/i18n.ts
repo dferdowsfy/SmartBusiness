@@ -21,6 +21,12 @@ export const ES: Record<string, string> = {
   "INCENTIVES YOU'RE PURSUING": "INCENTIVOS QUE ESTÁS PERSIGUIENDO",
   "View workflow": "Ver flujo de trabajo",
   "Remove": "Eliminar",
+  "Added for": "Añadido para",
+  "Pursuing": "Persiguiendo",
+  "Review": "Revisar",
+  "View all opportunities": "Ver todas las oportunidades",
+  "Opportunities": "Oportunidades",
+  "identified": "identificadas",
   // ---- Requirement guidance panel ----
   "Why you need this": "Por qué lo necesitas",
   "What this is": "Qué es esto",
