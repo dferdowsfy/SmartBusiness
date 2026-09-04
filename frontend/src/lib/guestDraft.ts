@@ -7,6 +7,7 @@ export interface GuestDraft {
   requirements?: unknown[];
   incentiveFacts?: Record<string, string | number | boolean | string[] | null | undefined>;
   incentiveAssessmentHistory?: unknown[];
+  pursuedIncentives?: unknown[];
   currentStep: number;
   language: string;
   savedAt: number;

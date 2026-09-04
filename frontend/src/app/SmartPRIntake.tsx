@@ -57,7 +57,8 @@ import { ReadinessControl } from './components/filing/ReadinessControl';
 import { iconToneFor, primaryStartLabelFor, secondaryUploadCopy, uploadOnlyCopy } from './components/filing/requirementCopy';
 import { SmartPRChatbot } from './components/chat/SmartPRChatbot';
 import { OpportunitiesPanel } from './components/incentives/OpportunitiesPanel';
-import type { IncentiveAssessment, ProjectFactValue } from './incentives/types';
+import type { IncentiveAssessment, IncentiveEligibilityResult, ProjectFactValue } from './incentives/types';
+import { IncentiveWorkflowPanel } from './components/incentives/IncentiveWorkflowPanel';
 import { classifyPotentialItem, type Applicability, type RequirementKind, type RequirementStage } from './requirementApplicability';
 import { saveGuestDraft, loadGuestDraft, clearGuestDraft } from '../lib/guestDraft';
 import { jsPDF } from 'jspdf';
@@ -65,7 +66,7 @@ import {
   CheckCircle, AlertTriangle, Info, FileText,
   ArrowRight, RefreshCw, Download, Building2, Archive, ExternalLink,
   ReceiptText, Store, Landmark, Waves, ShieldCheck, ScrollText, XCircle, Eye,
-  Star, ChevronDown, Sparkles,
+  Star, ChevronDown, Sparkles, Lightbulb,
 } from 'lucide-react';
 
 // SmartPR
@@ -1164,6 +1165,11 @@ export default function SmartPRIntake() {
   // incentive criterion says they could materially change eligibility.
   const [incentiveFacts, setIncentiveFacts] = useState<Record<string, ProjectFactValue>>({});
   const [incentiveAssessmentHistory, setIncentiveAssessmentHistory] = useState<IncentiveAssessment[]>([]);
+  // Incentives the user has chosen to act on — the whole matched result is
+  // kept (not just the id) so the workflow panel and Requirements dashboard
+  // entry stay accurate to what was actually shown when they clicked.
+  const [pursuedIncentives, setPursuedIncentives] = useState<IncentiveEligibilityResult[]>([]);
+  const [activeIncentiveWorkflowId, setActiveIncentiveWorkflowId] = useState<string | null>(null);
 
   const sampleFormsStorageKey = useMemo(() => {
     const business = (profile.name || 'business').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -1349,6 +1355,7 @@ export default function SmartPRIntake() {
           if (st.potentialDecisions) setPotentialDecisions(st.potentialDecisions);
           if (st.incentiveFacts) setIncentiveFacts(st.incentiveFacts);
           if (Array.isArray(st.incentiveAssessmentHistory)) setIncentiveAssessmentHistory(st.incentiveAssessmentHistory);
+          if (Array.isArray(st.pursuedIncentives)) setPursuedIncentives(st.pursuedIncentives);
           if (st.sampleFormDrafts) setSampleFormDrafts(st.sampleFormDrafts);
           if (st.preparedSampleApplications) setPreparedSampleApplications(st.preparedSampleApplications);
           // Government-form engine state (canonical profile + drafts + prepared
@@ -1480,6 +1487,7 @@ export default function SmartPRIntake() {
     if (Array.isArray(draft.requirements)) setRequirements(draft.requirements as Requirement[]);
     if (draft.incentiveFacts) setIncentiveFacts(draft.incentiveFacts as Record<string, ProjectFactValue>);
     if (Array.isArray(draft.incentiveAssessmentHistory)) setIncentiveAssessmentHistory(draft.incentiveAssessmentHistory as IncentiveAssessment[]);
+    if (Array.isArray(draft.pursuedIncentives)) setPursuedIncentives(draft.pursuedIncentives as IncentiveEligibilityResult[]);
     if (draft.currentStep) setCurrentStep(draft.currentStep as Step);
     if (draft.language === 'es' || draft.language === 'en') setLanguage(draft.language);
   }, [me]);
@@ -1498,12 +1506,13 @@ export default function SmartPRIntake() {
         requirements,
         incentiveFacts,
         incentiveAssessmentHistory,
+        pursuedIncentives,
         currentStep,
         language,
       });
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [me, profile, discoveryAnswers, potentialDecisions, requirements, incentiveFacts, incentiveAssessmentHistory, currentStep, language]);
+  }, [me, profile, discoveryAnswers, potentialDecisions, requirements, incentiveFacts, incentiveAssessmentHistory, pursuedIncentives, currentStep, language]);
 
   // Hidden debug mode for the rules engine (enable with ?debug=1 in the URL).
   const [debugMode, setDebugMode] = useState(false);
@@ -1940,6 +1949,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
               requirements, potentialDecisions,
               incentiveFacts,
               incentiveAssessmentHistory,
+              pursuedIncentives,
               sampleFormDrafts, preparedSampleApplications,
               govFormDrafts, preparedGovApplications,
               canonicalApplication: canonicalOverride,
@@ -2003,7 +2013,7 @@ const loadExample = (example: Partial<BusinessProfile>) => {
     // filing state below is the source of truth for when an autosave is due.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    me, businessId, profile, discoveryAnswers, requirements, potentialDecisions, incentiveFacts, incentiveAssessmentHistory,
+    me, businessId, profile, discoveryAnswers, requirements, potentialDecisions, incentiveFacts, incentiveAssessmentHistory, pursuedIncentives,
     sampleFormDrafts, preparedSampleApplications, govFormDrafts,
     preparedGovApplications, canonicalOverride, currentStep, readinessScore,
   ]);
@@ -3707,6 +3717,17 @@ const loadExample = (example: Partial<BusinessProfile>) => {
       return [...current, assessment].slice(-10);
     });
   }, []);
+  const handlePursueIncentive = React.useCallback((result: IncentiveEligibilityResult) => {
+    setPursuedIncentives((current) => {
+      const existing = current.findIndex((item) => item.programId === result.programId);
+      if (existing === -1) return [...current, result];
+      const next = [...current];
+      next[existing] = result; // keep the latest matched facts/status
+      return next;
+    });
+    setActiveIncentiveWorkflowId(result.programId);
+  }, []);
+  const activeIncentiveWorkflow = pursuedIncentives.find((item) => item.programId === activeIncentiveWorkflowId) ?? null;
   const preparedSampleList = Object.values(preparedSampleApplications);
   const preparedGovList = Object.values(preparedGovApplications);
   const packageAssetCount = zipReadyDocs.length + preparedSampleList.length + preparedGovList.length;
@@ -4193,9 +4214,47 @@ const loadExample = (example: Partial<BusinessProfile>) => {
             facts={incentiveFacts}
             language={language}
             initialAssessment={incentiveAssessmentHistory.at(-1) ?? null}
+            pursuedProgramIds={pursuedIncentives.map((item) => item.programId)}
             onAssessmentChange={recordIncentiveAssessment}
             onFactChange={(key, value) => setIncentiveFacts((current) => ({ ...current, [key]: value }))}
+            onPursue={handlePursueIncentive}
           />
+
+          {pursuedIncentives.length > 0 && (
+            <div className="rq-incentives-pursuing">
+              <div className="rq-incentives-pursuing-head">
+                <Lightbulb size={13} /> {L('INCENTIVES YOU\'RE PURSUING', language)}
+                <span className="rq-critical-count">{pursuedIncentives.length}</span>
+              </div>
+              <div className="rq-list">
+                {pursuedIncentives.map((item) => (
+                  <div key={item.programId} className="rq-incentive-row">
+                    <div>
+                      <div className="rq-incentive-row-name">{item.programName}</div>
+                      <div className="rq-incentive-row-agency">{item.administeringAgency.name}</div>
+                    </div>
+                    <div className="rq-incentive-row-actions">
+                      <button className="btn btn-secondary" onClick={() => setActiveIncentiveWorkflowId(item.programId)}>
+                        {L('View workflow', language)}
+                      </button>
+                      <button className="btn-link" onClick={() => setPursuedIncentives((current) => current.filter((p) => p.programId !== item.programId))}>
+                        {L('Remove', language)}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeIncentiveWorkflow && (
+            <IncentiveWorkflowPanel
+              result={activeIncentiveWorkflow}
+              language={language}
+              knownRequirements={requirements}
+              onClose={() => setActiveIncentiveWorkflowId(null)}
+            />
+          )}
 
           {/* Filter tabs */}
           <div className="rq-tabs" role="tablist">

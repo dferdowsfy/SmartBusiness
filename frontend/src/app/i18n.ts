@@ -18,6 +18,9 @@ export const ES: Record<string, string> = {
   "CRITICAL PATH — HANDLE THESE NEXT": "RUTA CRÍTICA — ATIENDE ESTOS AHORA",
   "These requirements are blocking your ability to move forward.": "Estos requisitos están bloqueando tu capacidad de avanzar.",
   "still missing": "aún faltan",
+  "INCENTIVES YOU'RE PURSUING": "INCENTIVOS QUE ESTÁS PERSIGUIENDO",
+  "View workflow": "Ver flujo de trabajo",
+  "Remove": "Eliminar",
   // ---- Requirement guidance panel ----
   "Why you need this": "Por qué lo necesitas",
   "What this is": "Qué es esto",
