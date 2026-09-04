@@ -606,10 +606,10 @@ button { font-family: inherit; }
    ============================================================ */
 .spr-requirements-layout {
   display: grid; grid-template-columns: minmax(0, 72fr) minmax(280px, 28fr);
-  gap: 28px; align-items: start;
+  gap: 28px; align-items: stretch;
 }
 .spr-requirements-main { min-width: 0; }
-.spr-requirements-sidebar { min-width: 0; }
+.spr-requirements-sidebar { min-width: 0; align-self: stretch; }
 @media (max-width: 960px) {
   .spr-requirements-layout { grid-template-columns: 1fr; }
 }
