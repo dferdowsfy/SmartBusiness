@@ -96,8 +96,8 @@ export function IncentivesSidebar({
   return (
     <aside className="inc-sidebar" aria-label={es ? "Oportunidades" : "Opportunities"}>
       <style>{`
-        .inc-sidebar{position:sticky;top:16px;display:flex;flex-direction:column;gap:14px}
-        .inc-card{background:var(--surface,#fff);border:1px solid var(--border,#d9d4ca);border-radius:var(--radius,16px);padding:16px;overflow:hidden}
+        .inc-sidebar{position:sticky;top:92px;max-height:calc(75vh - 92px);display:flex;flex-direction:column;gap:14px;overflow-y:auto;padding-bottom:4px}
+        .inc-card{background:var(--surface,#fff);border:1px solid var(--border,#d9d4ca);border-radius:var(--radius,16px);padding:16px;overflow:hidden;flex:none}
         .inc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
         .inc-head-title{display:flex;align-items:center;gap:6px;font-family:var(--font-display,Georgia,serif);font-size:16px;color:var(--ink,#171714)}
         .inc-count{white-space:nowrap;border:1px solid color-mix(in srgb,var(--accent,#0f766e) 55%,transparent);border-radius:999px;padding:3px 9px;color:var(--accent,#0f766e);font-size:11px;font-weight:700}
@@ -125,8 +125,22 @@ export function IncentivesSidebar({
         .inc-improve{display:flex;align-items:center;gap:7px;width:100%;margin-top:10px;border:1px dashed var(--border,#d9d4ca);background:var(--surface-2,#faf8f2);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--muted,#69665f);cursor:pointer;text-align:left}
         .inc-improve:hover{color:var(--ink,#171714);border-color:var(--accent,#0f766e)}
         .inc-improve svg{flex:none;color:var(--accent,#0f766e)}
-        @media(max-width:960px){.inc-sidebar{position:static}}
+        .inc-mobile-trigger{display:none}
+        @media(max-width:960px){
+          .inc-sidebar{position:static;max-height:none;overflow:visible;display:block}
+          .inc-sidebar>.inc-card{display:none}
+          .inc-mobile-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;position:sticky;top:8px;z-index:40;background:var(--accent,#0f766e);color:#fff;border:none;border-radius:12px;padding:12px 16px;font-size:13.5px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+          .inc-mobile-trigger:hover{background:#0c5f59}
+        }
       `}</style>
+
+      <button type="button" className="inc-mobile-trigger" onClick={() => setShowAll(true)}>
+        <span className="inc-mobile-trigger-label">
+          <Lightbulb size={15} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
+          {loading ? (es ? "Evaluando oportunidades…" : "Evaluating opportunities…") : `${opportunities.length} ${es ? "oportunidades" : "opportunities"}`}
+        </span>
+        <ArrowRight size={14} aria-hidden="true" />
+      </button>
 
       <div className="inc-card">
         <div className="inc-head">
