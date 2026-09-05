@@ -50,3 +50,7 @@ generated-filings-verified/
 
 # The deliverables API route is source code, not generated output
 !frontend/src/app/api/deliverables/
+
+# Social publisher: cached OAuth tokens and downloaded client-secret files
+tools/social_publisher/tokens/
+tools/social_publisher/*client_secret*.json
