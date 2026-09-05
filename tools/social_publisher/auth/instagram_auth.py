@@ -123,3 +123,12 @@ def get_session(config: InstagramConfig) -> tuple[str, str]:
     token = _load_cached_token() or _run_authorization_flow(config)
     ig_user_id = config.ig_user_id_override or token["ig_user_id"]
     return token["access_token"], ig_user_id
+
+
+def is_connected() -> bool:
+    """Non-interactive check: is there already a valid (or refreshable)
+    cached token, without triggering the browser login flow?"""
+    try:
+        return _load_cached_token() is not None
+    except Exception:
+        return False

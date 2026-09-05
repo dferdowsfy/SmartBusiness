@@ -3,3 +3,12 @@ python-dotenv==1.0.1
 google-api-python-client==2.149.0
 google-auth-oauthlib==1.2.1
 google-auth-httplib2==0.2.0
+
+# Web UI (webapp.py) - not needed for the plain publish.py CLI
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Optional, only if you want Instagram to work without hosting the video
+# yourself: pip install pyngrok, then set NGROK_AUTHTOKEN in .env.
+# pyngrok==7.2.3

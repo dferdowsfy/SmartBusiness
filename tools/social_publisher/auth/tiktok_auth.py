@@ -116,3 +116,12 @@ def _run_authorization_flow(config: TikTokConfig) -> dict:
 def get_access_token(config: TikTokConfig) -> str:
     token = _load_cached_token(config) or _run_authorization_flow(config)
     return token["access_token"]
+
+
+def is_connected(config: TikTokConfig) -> bool:
+    """Non-interactive check: is there already a valid (or refreshable)
+    cached token, without triggering the browser login flow?"""
+    try:
+        return _load_cached_token(config) is not None
+    except Exception:
+        return False

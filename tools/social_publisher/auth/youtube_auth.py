@@ -30,3 +30,18 @@ def get_credentials(config: YouTubeConfig) -> Credentials:
 
     TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
     return creds
+
+
+def is_connected() -> bool:
+    """Non-interactive check: is there already a valid (or refreshable)
+    cached token, without triggering the browser login flow?"""
+    if not TOKEN_FILE.exists():
+        return False
+    try:
+        creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+        return creds.valid
+    except Exception:
+        return False

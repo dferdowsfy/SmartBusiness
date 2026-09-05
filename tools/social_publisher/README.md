@@ -1,8 +1,11 @@
 # Social Publisher
 
-A standalone command-line tool that cross-posts one video to **TikTok**,
-**YouTube**, and **Instagram** at the same time, using each platform's
-official publishing API.
+A standalone tool that cross-posts one video to **TikTok**, **YouTube**,
+and **Instagram** at the same time, using each platform's official
+publishing API. Two ways to use it: a command line (`publish.py`) or a
+local browser page (`webapp.py`) where you just drag a video in and click
+Post - both share the same setup and the same `auth/`/`platforms/` code
+underneath.
 
 This lives in `tools/social_publisher/` as a self-contained utility - it is
 independent of the SmartPR licensing application (different purpose,
@@ -111,7 +114,37 @@ auto-discovered and cached alongside the token in `tokens/instagram.json`.
 > gives you as both the redirect URI in the developer console and in
 > `META_REDIRECT_URI`.
 
-## Usage
+## Usage: web UI (upload in browser)
+
+```bash
+cd tools/social_publisher
+uvicorn webapp:app --port 8000
+```
+
+Open http://localhost:8000 - it shows a Connect button per platform
+(click once, log in in the browser tab that opens, done), then a drag-and-drop
+box for the video, a shared caption box, per-platform overrides under
+"Per-platform options", and a **Post to all** button. Results (link or
+error, per platform) show up right below it.
+
+This binds to localhost only and has no login of its own - anyone who can
+reach that port can post using your already-connected accounts. That's the
+right tradeoff for running it on your own machine; don't expose it beyond
+localhost without adding real authentication first.
+
+**Instagram from the web UI needs one extra thing.** Its API only accepts
+a public URL for the video, never a raw upload - TikTok and YouTube don't
+have this requirement, so they work with no extra setup. To make Instagram
+work too, set one of these in `.env` (see the comments in `.env.example`):
+- `PUBLIC_BASE_URL`, if you deploy `webapp.py` somewhere with a real
+  public domain, or
+- `NGROK_AUTHTOKEN` (plus `pip install pyngrok`) to auto-tunnel a public
+  HTTPS URL to your local server for the duration of each Instagram post.
+
+Without either, YouTube and TikTok still post normally - only Instagram's
+result will report that it needs a public URL.
+
+## Usage: command line
 
 ```bash
 # Post to all three at once, with one shared caption:
@@ -128,6 +161,8 @@ python publish.py my_video.mp4 \
 
 Run `python publish.py --help` for the full flag list (per-platform
 caption/title overrides, YouTube tags and privacy, TikTok privacy level).
+Unlike the web UI, the CLI takes Instagram's video URL directly as a flag,
+so it needs no tunnel/deployment - you provide a URL you already host.
 
 The tool exits non-zero if any selected platform failed, and prints which
 one and why:

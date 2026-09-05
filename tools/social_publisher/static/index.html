@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Social Publisher</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; padding: 2rem 1rem 4rem;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f6f7f9; color: #1a1a1a;
+    display: flex; justify-content: center;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16181d; color: #e8e8e8; }
+    .card { background: #21242b !important; border-color: #33363f !important; }
+    input, textarea, select { background: #191b20 !important; color: #e8e8e8 !important; border-color: #3a3d47 !important; }
+    .platform-badge, .dropzone { border-color: #33363f !important; }
+    .result-row { border-color: #33363f !important; }
+  }
+  .wrap { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.4rem; margin: 0 0 .25rem; }
+  .sub { color: #6b7280; margin: 0 0 1.5rem; font-size: .9rem; }
+  .card {
+    background: #fff; border: 1px solid #e3e5e8; border-radius: 12px;
+    padding: 1.25rem; margin-bottom: 1rem;
+  }
+  .platforms { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .platform-badge {
+    display: flex; align-items: center; gap: .5rem;
+    border: 1px solid #e3e5e8; border-radius: 10px; padding: .6rem .8rem;
+    flex: 1; min-width: 150px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #ccc; flex-shrink: 0; }
+  .dot.connected { background: #22c55e; }
+  .dot.not_connected { background: #f59e0b; }
+  .dot.not_configured { background: #9ca3af; }
+  .platform-badge .name { font-weight: 600; font-size: .9rem; flex: 1; }
+  .platform-badge .state { font-size: .78rem; color: #6b7280; }
+  button {
+    font: inherit; cursor: pointer; border: none; border-radius: 8px;
+    padding: .5rem .9rem; background: #111827; color: #fff; font-size: .85rem;
+  }
+  button.secondary { background: transparent; color: #2563eb; border: 1px solid #c7d2fe; padding: .35rem .7rem; }
+  button:disabled { opacity: .5; cursor: default; }
+  .dropzone {
+    border: 2px dashed #cbd5e1; border-radius: 12px; padding: 2rem 1rem;
+    text-align: center; color: #6b7280; cursor: pointer; font-size: .9rem;
+  }
+  .dropzone.drag { border-color: #2563eb; background: rgba(37,99,235,.06); }
+  .dropzone.has-file { border-style: solid; color: inherit; }
+  textarea, input[type=text] {
+    width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #d1d5db;
+    padding: .55rem .7rem; font: inherit; margin-top: .3rem;
+  }
+  select {
+    width: 100%; margin-top: .3rem; padding: .5rem .7rem; border-radius: 8px;
+    border: 1px solid #d1d5db; font: inherit; box-sizing: border-box;
+  }
+  label.field { display: block; font-size: .82rem; font-weight: 600; margin-top: .9rem; }
+  .checks { display: flex; gap: 1rem; margin: .8rem 0; font-size: .9rem; }
+  .checks label { display: flex; gap: .35rem; align-items: center; }
+  details { margin-top: .9rem; }
+  details summary { cursor: pointer; font-size: .85rem; color: #2563eb; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  #postBtn { width: 100%; margin-top: 1.1rem; padding: .7rem; font-size: .95rem; }
+  #results { margin-top: 1rem; font-size: .88rem; }
+  .result-row { display: flex; gap: .5rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid #eee; }
+  .result-row:last-child { border-bottom: none; }
+  .badge-ok { color: #16a34a; font-weight: 700; }
+  .badge-fail { color: #dc2626; font-weight: 700; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Social Publisher</h1>
+  <p class="sub">Upload a video once. It posts to every connected platform at the same time.</p>
+
+  <div class="card">
+    <div class="platforms" id="platformStatus"></div>
+  </div>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">Drag a video here, or click to choose a file</div>
+    <input type="file" id="fileInput" accept="video/*" hidden />
+
+    <label class="field">Caption (used for any platform without a specific one below)</label>
+    <textarea id="caption" rows="2" placeholder="What's this video about?"></textarea>
+
+    <div class="checks" id="platformChecks"></div>
+
+    <details>
+      <summary>Per-platform options</summary>
+      <div class="grid2">
+        <div>
+          <label class="field">YouTube title</label>
+          <input type="text" id="ytTitle" />
+          <label class="field">YouTube privacy</label>
+          <select id="ytPrivacy">
+            <option value="public">Public</option>
+            <option value="unlisted">Unlisted</option>
+            <option value="private">Private</option>
+          </select>
+          <label class="field">YouTube tags (comma separated)</label>
+          <input type="text" id="ytTags" />
+        </div>
+        <div>
+          <label class="field">TikTok caption</label>
+          <input type="text" id="ttCaption" />
+          <label class="field">TikTok privacy</label>
+          <select id="ttPrivacy">
+            <option value="SELF_ONLY">Private - default until your app is audited</option>
+            <option value="PUBLIC_TO_EVERYONE">Public</option>
+            <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+            <option value="FOLLOWER_OF_CREATOR">Followers</option>
+          </select>
+          <label class="field">Instagram caption</label>
+          <input type="text" id="igCaption" />
+        </div>
+      </div>
+    </details>
+
+    <button id="postBtn" disabled>Select a video first</button>
+    <div id="results"></div>
+  </div>
+</div>
+
+<script>
+const PLATFORMS = ["youtube", "tiktok", "instagram"];
+const LABELS = { youtube: "YouTube", tiktok: "TikTok", instagram: "Instagram" };
+let selectedFile = null;
+let statusCache = {};
+
+async function refreshStatus() {
+  const res = await fetch("/api/status");
+  statusCache = await res.json();
+  renderStatus();
+}
+
+function renderStatus() {
+  const box = document.getElementById("platformStatus");
+  const checks = document.getElementById("platformChecks");
+  box.innerHTML = "";
+  checks.innerHTML = "";
+  PLATFORMS.forEach((platform) => {
+    const state = statusCache[platform] || "not_configured";
+    const label =
+      state === "connected" ? "Connected" : state === "not_connected" ? "Not connected" : "Not configured";
+
+    const badge = document.createElement("div");
+    badge.className = "platform-badge";
+    badge.innerHTML = `
+      <span class="dot ${state}"></span>
+      <span class="name">${LABELS[platform]}</span>
+      <span class="state">${label}</span>
+    `;
+    if (state !== "connected") {
+      const btn = document.createElement("button");
+      btn.className = "secondary";
+      btn.textContent = state === "not_configured" ? "Set up" : "Connect";
+      btn.disabled = state === "not_configured";
+      btn.title = state === "not_configured" ? "Add API keys to .env first (see README.md)" : "";
+      btn.onclick = () => connect(platform, btn);
+      badge.appendChild(btn);
+    }
+    box.appendChild(badge);
+
+    const checkLabel = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = platform;
+    checkbox.checked = state === "connected";
+    checkbox.disabled = state !== "connected";
+    checkbox.id = `check-${platform}`;
+    checkLabel.appendChild(checkbox);
+    checkLabel.appendChild(document.createTextNode(LABELS[platform]));
+    checks.appendChild(checkLabel);
+  });
+  updatePostButton();
+}
+
+async function connect(platform, btn) {
+  document.querySelectorAll(".platform-badge button").forEach((b) => (b.disabled = true));
+  btn.textContent = "Check your browser...";
+  try {
+    const res = await fetch(`/api/connect/${platform}`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) alert(`Couldn't connect ${LABELS[platform]}: ${data.error}`);
+  } catch (err) {
+    alert(`Couldn't connect ${LABELS[platform]}: ${err}`);
+  }
+  await refreshStatus();
+}
+
+function updatePostButton() {
+  const btn = document.getElementById("postBtn");
+  const anyChecked = PLATFORMS.some((platform) => document.getElementById(`check-${platform}`)?.checked);
+  if (!selectedFile) {
+    btn.disabled = true;
+    btn.textContent = "Select a video first";
+  } else if (!anyChecked) {
+    btn.disabled = true;
+    btn.textContent = "Connect at least one platform";
+  } else {
+    btn.disabled = false;
+    btn.textContent = "Post to all";
+  }
+}
+
+const dropzone = document.getElementById("dropzone");
+const fileInput = document.getElementById("fileInput");
+dropzone.onclick = () => fileInput.click();
+["dragenter", "dragover"].forEach((evt) =>
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.add("drag");
+  })
+);
+["dragleave", "drop"].forEach((evt) =>
+  dropzone.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("drag");
+  })
+);
+dropzone.addEventListener("drop", (e) => setFile(e.dataTransfer.files[0]));
+fileInput.addEventListener("change", (e) => setFile(e.target.files[0]));
+
+function setFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  dropzone.textContent = `${file.name} (${(file.size / 1e6).toFixed(1)} MB)`;
+  dropzone.classList.add("has-file");
+  updatePostButton();
+}
+
+document.getElementById("platformChecks").addEventListener("change", updatePostButton);
+
+document.getElementById("postBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("postBtn");
+  const resultsBox = document.getElementById("results");
+  const selected = PLATFORMS.filter((platform) => document.getElementById(`check-${platform}`)?.checked);
+
+  btn.disabled = true;
+  btn.textContent = "Posting...";
+  resultsBox.innerHTML = "";
+
+  const form = new FormData();
+  form.append("video", selectedFile);
+  form.append("platforms", selected.join(","));
+  form.append("caption", document.getElementById("caption").value);
+  form.append("youtube_title", document.getElementById("ytTitle").value);
+  form.append("youtube_privacy", document.getElementById("ytPrivacy").value);
+  form.append("youtube_tags", document.getElementById("ytTags").value);
+  form.append("tiktok_caption", document.getElementById("ttCaption").value);
+  form.append("tiktok_privacy", document.getElementById("ttPrivacy").value);
+  form.append("instagram_caption", document.getElementById("igCaption").value);
+
+  try {
+    const res = await fetch("/api/publish", { method: "POST", body: form });
+    const data = await res.json();
+    renderResults(data.results || []);
+  } catch (err) {
+    resultsBox.innerHTML = `<div class="result-row"><span class="badge-fail">FAIL</span> ${err}</div>`;
+  }
+  btn.disabled = false;
+  btn.textContent = "Post to all";
+});
+
+function renderResults(results) {
+  const box = document.getElementById("results");
+  box.innerHTML = results
+    .map((result) => {
+      if (result.success) {
+        const location = result.url
+          ? `<a href="${result.url}" target="_blank">${result.url}</a>`
+          : result.post_id || "posted";
+        return `<div class="result-row"><span class="badge-ok">OK</span> ${LABELS[result.platform]} - ${location}</div>`;
+      }
+      return `<div class="result-row"><span class="badge-fail">FAIL</span> ${LABELS[result.platform]} - ${result.error}</div>`;
+    })
+    .join("");
+}
+
+refreshStatus();
+</script>
+</body>
+</html>
